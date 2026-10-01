@@ -45,6 +45,27 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Claves primarias
+        modelBuilder.Entity<Usuario>().HasKey(u => u.UsuarioId);
+        modelBuilder.Entity<Profesional>().HasKey(p => p.ProfesionalId);
+        modelBuilder.Entity<Cabina>().HasKey(c => c.CabinaId);
+        modelBuilder.Entity<Turno>().HasKey(t => t.TurnoId);
+        modelBuilder.Entity<Servicio>().HasKey(s => s.ServicioId);
+        modelBuilder.Entity<HistorialTratamiento>().HasKey(h => h.HistorialId);
+        modelBuilder.Entity<DiagnosticoPiel>().HasKey(d => d.DiagnosticoId);
+        modelBuilder.Entity<TipoPiel>().HasKey(t => t.TipoPielId);
+        modelBuilder.Entity<Producto>().HasKey(p => p.ProductoId);
+        modelBuilder.Entity<Carrito>().HasKey(c => c.CarritoId);
+        modelBuilder.Entity<ItemCarrito>().HasKey(i => i.ItemCarritoId);
+        modelBuilder.Entity<OrdenCompra>().HasKey(o => o.OrdenId);
+        modelBuilder.Entity<DetalleOrden>().HasKey(d => d.DetalleId);
+        modelBuilder.Entity<Pago>().HasKey(p => p.PagoId);
+        modelBuilder.Entity<QrToken>().HasKey(q => q.QrTokenId);
+        modelBuilder.Entity<Cupon>().HasKey(c => c.CuponId);
+        modelBuilder.Entity<Fidelizacion>().HasKey(f => f.FidelizacionId);
+        modelBuilder.Entity<Notificacion>().HasKey(n => n.NotificacionId);
+        modelBuilder.Entity<ConversacionIA>().HasKey(c => c.ConversacionId);
+
         // Claves primarias compuestas
         modelBuilder.Entity<TurnoServicio>()
             .HasKey(ts => new { ts.TurnoId, ts.ServicioId });
