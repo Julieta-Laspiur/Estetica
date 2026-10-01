@@ -17,6 +17,7 @@ public interface IUnitOfWork : IDisposable
     IDiagnosticoPielRepository DiagnosticosPiel { get; }
     INotificacionRepository Notificaciones { get; }
     IConversacionIARepository ConversacionesIA { get; }
+    IHistorialTratamientoRepository HistorialesTratamiento { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
