@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Estetica.Api/Estetica.Api.csproj" />
+    <Project Path="src/Estetica.Application/Estetica.Application.csproj" />
+    <Project Path="src/Estetica.Domain/Estetica.Domain.csproj" />
+    <Project Path="src/Estetica.Infrastructure/Estetica.Infrastructure.csproj" />
+  </Folder>
+</Solution>

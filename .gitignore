@@ -1,0 +1,86 @@
+# =========================
+# .NET / Visual Studio
+# =========================
+
+bin/
+obj/
+.vs/
+.vscode/
+
+# Archivos de usuario de Visual Studio
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Archivos temporales
+*.tmp
+*.temp
+*.log
+
+# =========================
+# JetBrains / Rider
+# =========================
+
+.idea/
+
+# =========================
+# NuGet
+# =========================
+
+*.nupkg
+*.snupkg
+
+# =========================
+# Test results / coverage
+# =========================
+
+TestResults/
+coverage/
+*.trx
+
+# =========================
+# Archivos de desarrollo local
+# =========================
+
+.env
+.env.*
+!.env.example
+
+# =========================
+# Bases de datos locales
+# =========================
+
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Certificados de desarrollo
+# =========================
+
+*.pfx
+
+# =========================
+# Node / React (para cuando
+# agreguemos el frontend)
+# =========================
+
+node_modules/
+dist/
+build/
+.next/
+.vite/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Sistema operativo
+# =========================
+
+.DS_Store
+Thumbs.db
+desktop.ini
