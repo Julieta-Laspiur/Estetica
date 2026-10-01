@@ -1,3 +1,5 @@
+using Estetica.Application;
+using Estetica.Infrastructure;
 using Estetica.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,6 +8,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddInfrastructureRepositories();
+builder.Services.AddApplicationServices();
 
 // Add services to the container.
 builder.Services.AddOpenApi();
