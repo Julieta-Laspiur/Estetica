@@ -1,6 +1,68 @@
-@Estetica.Api_HostAddress = http://localhost:5043
+@HostAddress = http://localhost:5043
 
-GET {{Estetica.Api_HostAddress}}/weatherforecast/
+### 1. Auth: Registrar Cliente
+POST {{HostAddress}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "nombre": "Lucía",
+  "apellido": "Gómez",
+  "email": "lucia.gomez@example.com",
+  "telefono": "+5491123456789",
+  "password": "Password123!",
+  "rol": 0
+}
+
+### 2. Auth: Login
+POST {{HostAddress}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "lucia.gomez@example.com",
+  "password": "Password123!"
+}
+
+### 3. Usuarios: Obtener Perfil
+GET {{HostAddress}}/api/v1/usuarios/perfil/1
 Accept: application/json
 
-###
+### 4. Productos: Listar Servicios Activos
+GET {{HostAddress}}/api/v1/productos/servicios
+Accept: application/json
+
+### 5. Productos: Listar Productos por Biotipo Cutáneo (Grasa=0, Seca=1, Mixta=2)
+GET {{HostAddress}}/api/v1/productos?tipoPiel=2
+Accept: application/json
+
+### 6. Turnos: Consultar Disponibilidad
+GET {{HostAddress}}/api/v1/turnos/disponibilidad?profesionalId=1&cabinaId=1&fechaHoraInicio=2026-10-10T14:00:00Z&duracionMin=60
+Accept: application/json
+
+### 7. Carrito: Agregar Producto al Carrito
+POST {{HostAddress}}/api/v1/carrito/items
+Content-Type: application/json
+
+{
+  "usuarioId": 1,
+  "productoId": 1,
+  "cantidad": 2
+}
+
+### 8. Diagnóstico e IA: Consultar Asistente Inteligente
+POST {{HostAddress}}/api/v1/diagnostico-ia/consultar-asistente
+Content-Type: application/json
+
+{
+  "usuarioId": 1,
+  "pregunta": "¿Qué rutina me recomendás para piel mixta con tendencia a brillos en la zona T?"
+}
+
+### 9. Fidelización: Canjear Estampitas por Cupón
+POST {{HostAddress}}/api/v1/fidelizacion/canjear
+Content-Type: application/json
+
+{
+  "usuarioId": 1,
+  "estampitasACanjear": 10,
+  "montoDescuento": 5000.00
+}
