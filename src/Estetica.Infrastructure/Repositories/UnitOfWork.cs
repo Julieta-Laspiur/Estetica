@@ -24,6 +24,7 @@ public class UnitOfWork : IUnitOfWork
     private IDiagnosticoPielRepository? _diagnosticosPiel;
     private INotificacionRepository? _notificaciones;
     private IConversacionIARepository? _conversacionesIA;
+    private IHistorialTratamientoRepository? _historialesTratamiento;
 
     public UnitOfWork(ApplicationDbContext context)
     {
@@ -45,6 +46,7 @@ public class UnitOfWork : IUnitOfWork
     public IDiagnosticoPielRepository DiagnosticosPiel => _diagnosticosPiel ??= new DiagnosticoPielRepository(_context);
     public INotificacionRepository Notificaciones => _notificaciones ??= new NotificacionRepository(_context);
     public IConversacionIARepository ConversacionesIA => _conversacionesIA ??= new ConversacionIARepository(_context);
+    public IHistorialTratamientoRepository HistorialesTratamiento => _historialesTratamiento ??= new HistorialTratamientoRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
