@@ -7,5 +7,6 @@ namespace Estetica.Application.UseCases.DiagnosticoIA.Commands.RegistrarDiagnost
 public record RegistrarDiagnosticoPielCommand(
     int UsuarioId,
     TipoPielEnum TipoPiel,
-    string Resultado
+    string Resultado,
+    string? Alergias = null
 ) : IRequest<DiagnosticoPielDto>;

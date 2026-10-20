@@ -6,6 +6,7 @@ public class DiagnosticoPiel
     public int UsuarioId { get; set; }
     public int TipoPielId { get; set; }
     public string Resultado { get; set; } = string.Empty;
+    public string? Alergias { get; set; }
     public DateTime Fecha { get; set; } = DateTime.UtcNow;
 
     // Relaciones de navegación

@@ -36,6 +36,7 @@ public class RegistrarDiagnosticoPielCommandHandler : IRequestHandler<RegistrarD
             UsuarioId = request.UsuarioId,
             TipoPielId = tipoPielEntity.TipoPielId,
             Resultado = request.Resultado.Trim(),
+            Alergias = request.Alergias?.Trim(),
             Fecha = DateTime.UtcNow
         };
 
@@ -49,6 +50,7 @@ public class RegistrarDiagnosticoPielCommandHandler : IRequestHandler<RegistrarD
             TipoPielId = tipoPielEntity.TipoPielId,
             TipoPielNombre = tipoPielEntity.Nombre,
             Resultado = diagnostico.Resultado,
+            Alergias = diagnostico.Alergias,
             Fecha = diagnostico.Fecha
         };
     }

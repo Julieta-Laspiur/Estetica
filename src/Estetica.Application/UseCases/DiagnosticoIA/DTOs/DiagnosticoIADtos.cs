@@ -10,6 +10,7 @@ public class DiagnosticoPielDto
     public int TipoPielId { get; set; }
     public TipoPielEnum TipoPielNombre { get; set; }
     public string Resultado { get; set; } = string.Empty;
+    public string? Alergias { get; set; }
     public DateTime Fecha { get; set; }
 }
 
@@ -20,12 +21,21 @@ public class ConversacionIADto
     public string Pregunta { get; set; } = string.Empty;
     public string Respuesta { get; set; } = string.Empty;
     public DateTime Fecha { get; set; }
+    public bool EsAclaracionMedicaOExterna { get; set; }
+    public List<ProductoDto> ProductosRelacionados { get; set; } = new();
+    public List<ServicioDetalleDto> ServiciosRelacionados { get; set; } = new();
 }
 
 public class RecomendacionPersonalizadaDto
 {
     public int UsuarioId { get; set; }
+    public string ClienteNombre { get; set; } = string.Empty;
     public TipoPielEnum TipoPiel { get; set; }
+    public string? AlergiasRegistradas { get; set; }
     public string ObservacionDiagnostico { get; set; } = string.Empty;
+    public List<string> HistorialComprasResumen { get; set; } = new();
+    public List<string> TratamientosPreviosResumen { get; set; } = new();
     public List<ProductoDto> ProductosRecomendados { get; set; } = new();
+    public string RutinaSugerida { get; set; } = string.Empty;
+    public DateTime FechaGeneracion { get; set; } = DateTime.UtcNow;
 }
