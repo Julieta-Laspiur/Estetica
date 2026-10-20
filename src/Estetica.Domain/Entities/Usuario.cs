@@ -13,6 +13,12 @@ public class Usuario
     public RolUsuario Rol { get; set; } = RolUsuario.Cliente;
     public DateTime FechaRegistro { get; set; } = DateTime.UtcNow;
 
+    // Control de acceso y seguridad (HU-02)
+    public bool Activo { get; set; } = true;
+    public int IntentosFallidos { get; set; } = 0;
+    public bool Bloqueado { get; set; } = false;
+    public DateTime? FechaBloqueo { get; set; }
+
     // Relaciones de navegación
     public Profesional? Profesional { get; set; }
     public Fidelizacion? Fidelizacion { get; set; }

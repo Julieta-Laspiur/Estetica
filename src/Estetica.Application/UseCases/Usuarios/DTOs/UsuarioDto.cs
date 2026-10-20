@@ -11,4 +11,8 @@ public class UsuarioDto
     public string? Telefono { get; set; }
     public RolUsuario Rol { get; set; }
     public DateTime FechaRegistro { get; set; }
+    public bool Activo { get; set; } = true;
+    public bool Bloqueado { get; set; } = false;
+    public int IntentosFallidos { get; set; } = 0;
+    public DateTime? FechaBloqueo { get; set; }
 }

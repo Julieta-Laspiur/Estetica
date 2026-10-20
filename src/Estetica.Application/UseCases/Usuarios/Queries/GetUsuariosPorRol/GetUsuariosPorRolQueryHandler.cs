@@ -25,7 +25,11 @@ public class GetUsuariosPorRolQueryHandler : IRequestHandler<GetUsuariosPorRolQu
             Email = u.Email,
             Telefono = u.Telefono,
             Rol = u.Rol,
-            FechaRegistro = u.FechaRegistro
+            FechaRegistro = u.FechaRegistro,
+            Activo = u.Activo,
+            Bloqueado = u.Bloqueado,
+            IntentosFallidos = u.IntentosFallidos,
+            FechaBloqueo = u.FechaBloqueo
         }).ToList();
     }
 }

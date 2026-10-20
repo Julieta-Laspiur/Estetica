@@ -34,4 +34,13 @@ public class UsuarioRepository : Repository<Usuario>, IUsuarioRepository
             .Include(u => u.Fidelizacion)
             .FirstOrDefaultAsync(u => u.UsuarioId == usuarioId, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Usuario>> GetBloqueadosAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(u => u.Bloqueado)
+            .OrderByDescending(u => u.FechaBloqueo)
+            .ToListAsync(cancellationToken);
+    }
 }

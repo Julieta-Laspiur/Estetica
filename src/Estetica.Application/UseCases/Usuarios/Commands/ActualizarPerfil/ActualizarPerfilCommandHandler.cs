@@ -37,7 +37,11 @@ public class ActualizarPerfilCommandHandler : IRequestHandler<ActualizarPerfilCo
             Email = usuario.Email,
             Telefono = usuario.Telefono,
             Rol = usuario.Rol,
-            FechaRegistro = usuario.FechaRegistro
+            FechaRegistro = usuario.FechaRegistro,
+            Activo = usuario.Activo,
+            Bloqueado = usuario.Bloqueado,
+            IntentosFallidos = usuario.IntentosFallidos,
+            FechaBloqueo = usuario.FechaBloqueo
         };
     }
 }

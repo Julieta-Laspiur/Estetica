@@ -63,4 +63,39 @@ public class UsuariosController : ControllerBase
         var profesional = await _mediator.Send(command);
         return Ok(profesional);
     }
+
+    /// <summary>
+    /// HU-02: Listar usuarios que se encuentran bloqueados por reiterados intentos fallidos (Solo Administrador).
+    /// </summary>
+    [Authorize(Roles = "Administrador")]
+    [HttpGet("bloqueados")]
+    public async Task<ActionResult<IReadOnlyList<UsuarioDto>>> GetUsuariosBloqueados()
+    {
+        var usuarios = await _mediator.Send(new Application.UseCases.Usuarios.Queries.GetUsuariosBloqueados.GetUsuariosBloqueadosQuery());
+        return Ok(usuarios);
+    }
+
+    /// <summary>
+    /// HU-02: Desbloquear manualmente la cuenta de un usuario bloqueado por seguridad (Solo Administrador).
+    /// </summary>
+    [Authorize(Roles = "Administrador")]
+    [HttpPut("{id:int}/desbloquear")]
+    public async Task<ActionResult<UsuarioDto>> DesbloquearUsuario(int id)
+    {
+        var usuario = await _mediator.Send(new Application.UseCases.Usuarios.Commands.DesbloquearCuenta.DesbloquearCuentaUsuarioCommand(id));
+        return Ok(usuario);
+    }
+
+    /// <summary>
+    /// HU-02: Habilitar o deshabilitar una cuenta de usuario (Solo Administrador).
+    /// </summary>
+    [Authorize(Roles = "Administrador")]
+    [HttpPut("{id:int}/estado")]
+    public async Task<ActionResult<UsuarioDto>> CambiarEstadoUsuario(int id, [FromBody] CambiarEstadoUsuarioRequest request)
+    {
+        var usuario = await _mediator.Send(new Application.UseCases.Usuarios.Commands.CambiarEstadoActivo.CambiarEstadoActivoUsuarioCommand(id, request.Activo, request.Motivo));
+        return Ok(usuario);
+    }
 }
+
+public record CambiarEstadoUsuarioRequest(bool Activo, string? Motivo = null);

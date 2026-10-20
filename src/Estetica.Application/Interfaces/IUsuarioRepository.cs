@@ -9,4 +9,5 @@ public interface IUsuarioRepository : IRepository<Usuario>
     Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Usuario>> GetByRolAsync(RolUsuario rol, CancellationToken cancellationToken = default);
     Task<Usuario?> GetWithProfileAsync(int usuarioId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Usuario>> GetBloqueadosAsync(CancellationToken cancellationToken = default);
 }
