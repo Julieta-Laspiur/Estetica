@@ -12,6 +12,8 @@ public class Turno
     public DateTime FechaHoraFin { get; set; }
     public EstadoTurno Estado { get; set; } = EstadoTurno.Pendiente;
     public decimal Total { get; set; }
+    public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+    public string? Motivo { get; set; }
 
     // Relaciones de navegación
     public Usuario Usuario { get; set; } = null!;

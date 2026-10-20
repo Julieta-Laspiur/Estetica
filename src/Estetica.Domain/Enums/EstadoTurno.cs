@@ -7,5 +7,6 @@ public enum EstadoTurno
     EnProceso,
     Completado,
     Cancelado,
-    Ausente
+    Ausente,
+    Bloqueado
 }

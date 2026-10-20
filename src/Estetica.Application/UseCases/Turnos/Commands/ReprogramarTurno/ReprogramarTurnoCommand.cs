@@ -7,5 +7,7 @@ public record ReprogramarTurnoCommand(
     int TurnoId,
     DateTime NuevaFechaHoraInicio,
     int? NuevaCabinaId = null,
-    int? NuevoProfesionalId = null
+    int? NuevoProfesionalId = null,
+    string? Motivo = null,
+    int? SolicitanteUsuarioId = null
 ) : IRequest<TurnoDto>;

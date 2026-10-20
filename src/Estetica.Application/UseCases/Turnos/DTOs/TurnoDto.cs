@@ -15,5 +15,8 @@ public class TurnoDto
     public DateTime FechaHoraFin { get; set; }
     public EstadoTurno Estado { get; set; }
     public decimal Total { get; set; }
+    public DateTime FechaCreacion { get; set; }
+    public string? Motivo { get; set; }
+    public bool EstaExpirado => Estado == EstadoTurno.Pendiente && (DateTime.UtcNow - FechaCreacion).TotalMinutes > 10;
     public List<ServicioResumenDto> Servicios { get; set; } = new();
 }
