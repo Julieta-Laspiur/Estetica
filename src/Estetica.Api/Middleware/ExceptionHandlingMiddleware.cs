@@ -33,6 +33,20 @@ public class ExceptionHandlingMiddleware
     {
         context.Response.ContentType = "application/json";
 
+        if (exception is ValidationException valEx)
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+            var valResponse = new
+            {
+                status = (int)HttpStatusCode.BadRequest,
+                error = "ValidationError",
+                message = "La solicitud contiene errores de validación en uno o más campos.",
+                errors = valEx.Errors,
+                timestamp = DateTime.UtcNow
+            };
+            return context.Response.WriteAsync(JsonSerializer.Serialize(valResponse));
+        }
+
         var statusCode = exception switch
         {
             NotFoundException => HttpStatusCode.NotFound,
