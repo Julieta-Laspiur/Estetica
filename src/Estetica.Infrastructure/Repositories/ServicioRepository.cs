@@ -27,4 +27,10 @@ public class ServicioRepository : Repository<Servicio>, IServicioRepository
             .Where(s => idList.Contains(s.ServicioId))
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<bool> TieneTurnosAsociadosAsync(int servicioId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<TurnoServicio>()
+            .AnyAsync(ts => ts.ServicioId == servicioId, cancellationToken);
+    }
 }

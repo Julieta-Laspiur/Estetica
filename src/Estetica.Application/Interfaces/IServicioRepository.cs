@@ -6,4 +6,5 @@ public interface IServicioRepository : IRepository<Servicio>
 {
     Task<IReadOnlyList<Servicio>> GetActivosAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Servicio>> GetByIdsAsync(IEnumerable<int> servicioIds, CancellationToken cancellationToken = default);
+    Task<bool> TieneTurnosAsociadosAsync(int servicioId, CancellationToken cancellationToken = default);
 }
