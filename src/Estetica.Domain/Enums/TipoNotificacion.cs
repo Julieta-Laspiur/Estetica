@@ -6,5 +6,7 @@ public enum TipoNotificacion
     ConfirmacionTurno,
     ActualizacionOrden,
     Promocion,
-    Sistema
+    Sistema,
+    AlertaStock,
+    AlertaPago
 }

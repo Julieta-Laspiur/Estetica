@@ -1,6 +1,7 @@
 using Estetica.Application.UseCases.Pagos.Commands.ConfirmarPagoWebhook;
 using Estetica.Application.UseCases.Pagos.Commands.GenerarQrToken;
 using Estetica.Application.UseCases.Pagos.Commands.ProcesarPago;
+using Estetica.Application.UseCases.Pagos.Commands.RegistrarPagoPresencial;
 using Estetica.Application.UseCases.Pagos.DTOs;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -28,6 +29,18 @@ public class PagosController : ControllerBase
     {
         var preferencia = await _mediator.Send(command);
         return Ok(preferencia);
+    }
+
+    /// <summary>
+    /// Registrar cobro presencial en mostrador (Efectivo, Transferencia, Tarjeta física).
+    /// Permite al staff acreditar la estampita de fidelización directamente al cliente o generar el QR dinámico en pantalla para que lo escanee.
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional")]
+    [HttpPost("presencial")]
+    public async Task<ActionResult<PagoPresencialResultadoDto>> RegistrarPagoPresencial([FromBody] RegistrarPagoPresencialCommand command)
+    {
+        var resultado = await _mediator.Send(command);
+        return Ok(resultado);
     }
 
     /// <summary>

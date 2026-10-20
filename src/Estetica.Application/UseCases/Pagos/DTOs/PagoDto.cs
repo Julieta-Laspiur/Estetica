@@ -1,3 +1,4 @@
+using Estetica.Application.UseCases.FidelizacionHistorial.DTOs;
 using Estetica.Domain.Enums;
 
 namespace Estetica.Application.UseCases.Pagos.DTOs;
@@ -31,4 +32,24 @@ public class QrTokenDto
     public DateTime FechaCreacion { get; set; }
     public DateTime FechaExpiracion { get; set; }
     public bool Usado { get; set; }
+}
+
+public class PagoPresencialResultadoDto
+{
+    public int PagoId { get; set; }
+    public int? TurnoId { get; set; }
+    public int? OrdenId { get; set; }
+    public int UsuarioId { get; set; }
+    public string ClienteNombre { get; set; } = string.Empty;
+    public decimal Monto { get; set; }
+    public ProveedorPago MetodoPago { get; set; }
+    public EstadoPago Estado { get; set; }
+    public DateTime FechaPago { get; set; }
+    public string ReferenciaExterna { get; set; } = string.Empty;
+    public string? ComprobanteNotas { get; set; }
+    public bool EstampitaAcreditadaDirectamente { get; set; }
+    public int? EstampitasActuales { get; set; }
+    public bool CicloDiezEstampitasCompletado { get; set; }
+    public string? CuponGenerado { get; set; }
+    public QrFidelizacionDto? QrParaMostrarEnPantalla { get; set; }
 }

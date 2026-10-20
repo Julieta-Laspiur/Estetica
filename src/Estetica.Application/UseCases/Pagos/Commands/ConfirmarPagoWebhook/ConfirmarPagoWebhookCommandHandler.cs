@@ -24,6 +24,12 @@ public class ConfirmarPagoWebhookCommandHandler : IRequestHandler<ConfirmarPagoW
             throw new NotFoundException($"No se encontró ningún pago con la referencia externa '{request.ReferenciaExterna}'.");
         }
 
+        // Idempotencia: Si ya estaba aprobado, no procesar nuevamente para evitar duplicaciones
+        if (pago.Estado == EstadoPago.Aprobado && request.EstadoPago == EstadoPago.Aprobado)
+        {
+            return true;
+        }
+
         pago.Estado = request.EstadoPago;
 
         if (request.EstadoPago == EstadoPago.Aprobado)
@@ -35,13 +41,34 @@ public class ConfirmarPagoWebhookCommandHandler : IRequestHandler<ConfirmarPagoW
 
             if (pago.OrdenId.HasValue)
             {
-                var orden = await _unitOfWork.OrdenesCompra.GetByIdAsync(pago.OrdenId.Value, cancellationToken);
+                var orden = await _unitOfWork.OrdenesCompra.GetWithDetallesAsync(pago.OrdenId.Value, cancellationToken);
                 if (orden != null)
                 {
                     orden.Estado = EstadoOrden.Pagada;
                     _unitOfWork.OrdenesCompra.Update(orden);
                     usuarioId = orden.UsuarioId;
                     tipoAsociado = $"tu Orden de Compra #{orden.OrdenId}";
+
+                    // RF-07: Alertar si algún producto alcanza o cae por debajo del stock mínimo
+                    foreach (var detalle in orden.Detalles)
+                    {
+                        var prod = await _unitOfWork.Productos.GetByIdAsync(detalle.ProductoId, cancellationToken);
+                        if (prod != null && prod.StockActual <= prod.StockMinimo)
+                        {
+                            var admins = await _unitOfWork.Usuarios.GetByRolAsync(RolUsuario.Administrador, cancellationToken);
+                            foreach (var admin in admins)
+                            {
+                                await _unitOfWork.Notificaciones.AddAsync(new Notificacion
+                                {
+                                    UsuarioId = admin.UsuarioId,
+                                    Mensaje = $"ALERTA DE INVENTARIO: El producto '{prod.Nombre}' ha alcanzado el umbral mínimo (Stock actual: {prod.StockActual}, Mínimo: {prod.StockMinimo}).",
+                                    Tipo = TipoNotificacion.AlertaStock,
+                                    Leida = false,
+                                    Fecha = DateTime.UtcNow
+                                }, cancellationToken);
+                            }
+                        }
+                    }
                 }
             }
             else if (pago.TurnoId.HasValue)
@@ -56,10 +83,10 @@ public class ConfirmarPagoWebhookCommandHandler : IRequestHandler<ConfirmarPagoW
                 }
             }
 
-            // Generar QrToken si no existe ya
+            // Generar QrToken temporal con 5 minutos de validez estricta según RNF de Seguridad
             if (pago.QrToken == null)
             {
-                var tokenData = $"{pago.PagoId}:{pago.ReferenciaExterna}:{DateTime.UtcNow.Ticks}";
+                var tokenData = $"FID:{pago.PagoId}:{pago.ReferenciaExterna}:{Guid.NewGuid():N}";
                 var tokenBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenData));
 
                 var qrToken = new QrToken
@@ -67,13 +94,14 @@ public class ConfirmarPagoWebhookCommandHandler : IRequestHandler<ConfirmarPagoW
                     PagoId = pago.PagoId,
                     TokenBase64 = tokenBase64,
                     FechaCreacion = DateTime.UtcNow,
-                    FechaExpiracion = DateTime.UtcNow.AddDays(7),
+                    FechaExpiracion = DateTime.UtcNow.AddMinutes(5), // 5 minutos de vigencia
                     Usado = false
                 };
 
                 pago.QrToken = qrToken;
             }
 
+            // Notificación al cliente
             if (usuarioId > 0)
             {
                 await _unitOfWork.Notificaciones.AddAsync(new Notificacion
@@ -81,6 +109,20 @@ public class ConfirmarPagoWebhookCommandHandler : IRequestHandler<ConfirmarPagoW
                     UsuarioId = usuarioId,
                     Mensaje = $"¡Pago acreditado con éxito! Se ha confirmado {tipoAsociado}.",
                     Tipo = TipoNotificacion.ActualizacionOrden,
+                    Leida = false,
+                    Fecha = DateTime.UtcNow
+                }, cancellationToken);
+            }
+
+            // HU-16: Notificación inmediata para el panel del Administrador ante pagos aprobados
+            var administradores = await _unitOfWork.Usuarios.GetByRolAsync(RolUsuario.Administrador, cancellationToken);
+            foreach (var admin in administradores)
+            {
+                await _unitOfWork.Notificaciones.AddAsync(new Notificacion
+                {
+                    UsuarioId = admin.UsuarioId,
+                    Mensaje = $"ALERTA DE PAGO APROBADO: Se acreditó el pago de ${pago.Monto:F2} para {tipoAsociado}. Ref: {pago.ReferenciaExterna}.",
+                    Tipo = TipoNotificacion.AlertaPago,
                     Leida = false,
                     Fecha = DateTime.UtcNow
                 }, cancellationToken);
