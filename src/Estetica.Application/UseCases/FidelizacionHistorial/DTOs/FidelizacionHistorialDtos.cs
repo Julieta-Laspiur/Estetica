@@ -30,3 +30,38 @@ public class CuponCanjeadoDto
     public int EstampitasRestantes { get; set; }
     public string Mensaje { get; set; } = string.Empty;
 }
+
+public class QrFidelizacionDto
+{
+    public int QrTokenId { get; set; }
+    public int PagoId { get; set; }
+    public string Token { get; set; } = string.Empty;
+    public string QrSvg { get; set; } = string.Empty;
+    public string QrImageDataUri { get; set; } = string.Empty;
+    public DateTime FechaCreacion { get; set; }
+    public DateTime FechaExpiracion { get; set; }
+    public int MinutosValidez => 5;
+    public double SegundosRestantes => Math.Max(0, (FechaExpiracion - DateTime.UtcNow).TotalSeconds);
+}
+
+public class ResultadoEscaneoQrDto
+{
+    public bool Exitoso { get; set; }
+    public string Mensaje { get; set; } = string.Empty;
+    public int EstampitasActuales { get; set; }
+    public string Progreso => $"{EstampitasActuales}/10";
+    public bool CicloCompletado { get; set; }
+    public CuponCanjeadoDto? CuponGenerado { get; set; }
+}
+
+public class TarjetaFidelizacionDto
+{
+    public int UsuarioId { get; set; }
+    public string ClienteNombre { get; set; } = string.Empty;
+    public int EstampitasActuales { get; set; }
+    public int MetaEstampitas => 10;
+    public double PorcentajeProgreso => Math.Clamp((EstampitasActuales / 10.0) * 100, 0, 100);
+    public DateTime UltimaActualizacion { get; set; }
+    public IReadOnlyList<CuponCanjeadoDto> CuponesDisponibles { get; set; } = new List<CuponCanjeadoDto>();
+    public IReadOnlyList<HistorialTratamientoDto> HistorialTratamientos { get; set; } = new List<HistorialTratamientoDto>();
+}

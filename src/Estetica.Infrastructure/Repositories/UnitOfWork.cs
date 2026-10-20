@@ -25,6 +25,7 @@ public class UnitOfWork : IUnitOfWork
     private INotificacionRepository? _notificaciones;
     private IConversacionIARepository? _conversacionesIA;
     private IHistorialTratamientoRepository? _historialesTratamiento;
+    private IQrTokenRepository? _qrTokens;
 
     public UnitOfWork(ApplicationDbContext context)
     {
@@ -47,6 +48,7 @@ public class UnitOfWork : IUnitOfWork
     public INotificacionRepository Notificaciones => _notificaciones ??= new NotificacionRepository(_context);
     public IConversacionIARepository ConversacionesIA => _conversacionesIA ??= new ConversacionIARepository(_context);
     public IHistorialTratamientoRepository HistorialesTratamiento => _historialesTratamiento ??= new HistorialTratamientoRepository(_context);
+    public IQrTokenRepository QrTokens => _qrTokens ??= new QrTokenRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<INotificacionRepository, NotificacionRepository>();
         services.AddScoped<IConversacionIARepository, ConversacionIARepository>();
         services.AddScoped<IHistorialTratamientoRepository, HistorialTratamientoRepository>();
+        services.AddScoped<IQrTokenRepository, QrTokenRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
@@ -35,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IPasarelaPagoService, PasarelaPagoService>();
         services.AddScoped<IIAService, IAService>();
+        services.AddScoped<IQrCodeGeneratorService, QrCodeGeneratorService>();
 
         return services;
     }

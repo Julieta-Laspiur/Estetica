@@ -18,6 +18,7 @@ public interface IUnitOfWork : IDisposable
     INotificacionRepository Notificaciones { get; }
     IConversacionIARepository ConversacionesIA { get; }
     IHistorialTratamientoRepository HistorialesTratamiento { get; }
+    IQrTokenRepository QrTokens { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
