@@ -47,7 +47,7 @@ public class ActualizarStockProductoCommandHandler : IRequestHandler<ActualizarS
                 {
                     UsuarioId = admin.UsuarioId,
                     Mensaje = mensajeAlerta,
-                    Tipo = TipoNotificacion.Sistema,
+                    Tipo = TipoNotificacion.AlertaStock,
                     Leida = false,
                     Fecha = DateTime.UtcNow
                 }, cancellationToken);

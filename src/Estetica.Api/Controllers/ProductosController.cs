@@ -1,5 +1,8 @@
 using Estetica.Application.UseCases.Productos.Commands.ActualizarStockProducto;
+using Estetica.Application.UseCases.Productos.Commands.AjustarStockGerencial;
+using Estetica.Application.UseCases.Productos.Commands.ConfigurarStockMinimo;
 using Estetica.Application.UseCases.Productos.DTOs;
+using Estetica.Application.UseCases.Productos.Queries.ListarProductosBajoStock;
 using Estetica.Application.UseCases.Productos.Queries.ListarProductosPorTipoPiel;
 using Estetica.Application.UseCases.Productos.Queries.ListarServiciosActivos;
 using Estetica.Domain.Enums;
@@ -43,7 +46,18 @@ public class ProductosController : ControllerBase
     }
 
     /// <summary>
-    /// Descontar o ajustar stock de un producto (Solo Administrador y Recepcionista).
+    /// Listar productos que alcanzaron o están por debajo de su umbral de stock mínimo (Solo Administrador y Recepcionista).
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [HttpGet("bajo-stock")]
+    public async Task<ActionResult<IReadOnlyList<StockAlertaDto>>> GetProductosBajoStock()
+    {
+        var productos = await _mediator.Send(new ListarProductosBajoStockQuery());
+        return Ok(productos);
+    }
+
+    /// <summary>
+    /// Descontar stock básico de un producto tras una venta (Solo Administrador y Recepcionista).
     /// </summary>
     [Authorize(Roles = "Administrador,Recepcionista")]
     [HttpPost("{id:int}/stock")]
@@ -52,6 +66,31 @@ public class ProductosController : ControllerBase
         var resultado = await _mediator.Send(new ActualizarStockProductoCommand(id, request.CantidadADescontar));
         return Ok(resultado);
     }
+
+    /// <summary>
+    /// HU-10: Registrar ingreso de mercadería, ajustes manuales, mermas o inventario físico total (Solo Administrador).
+    /// Valida que el stock resultante no sea negativo y emite alertas automáticas ante bajo stock.
+    /// </summary>
+    [Authorize(Roles = "Administrador")]
+    [HttpPost("{id:int}/ajustar-stock")]
+    public async Task<ActionResult<StockMovimientoResultadoDto>> AjustarStockGerencial(int id, [FromBody] AjustarStockGerencialRequest request)
+    {
+        var resultado = await _mediator.Send(new AjustarStockGerencialCommand(id, request.TipoAjuste, request.Cantidad, request.Motivo));
+        return Ok(resultado);
+    }
+
+    /// <summary>
+    /// HU-10: Configurar o actualizar el umbral de stock mínimo de un producto (Solo Administrador).
+    /// </summary>
+    [Authorize(Roles = "Administrador")]
+    [HttpPut("{id:int}/stock-minimo")]
+    public async Task<ActionResult<StockAlertaDto>> ConfigurarStockMinimo(int id, [FromBody] ConfigurarStockMinimoRequest request)
+    {
+        var resultado = await _mediator.Send(new ConfigurarStockMinimoCommand(id, request.NuevoStockMinimo));
+        return Ok(resultado);
+    }
 }
 
 public record ActualizarStockRequest(int CantidadADescontar);
+public record AjustarStockGerencialRequest(TipoAjusteStock TipoAjuste, int Cantidad, string? Motivo = null);
+public record ConfigurarStockMinimoRequest(int NuevoStockMinimo);
