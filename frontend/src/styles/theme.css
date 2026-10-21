@@ -1,0 +1,46 @@
+:root {
+  --background: #F7F4F0;
+  --foreground: #2A2825;
+  --card: #FFFFFF;
+  --card-foreground: #2A2825;
+  --popover: #FFFFFF;
+  --popover-foreground: #2A2825;
+  --primary: #3C3530;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EDE8E1;
+  --secondary-foreground: #2A2825;
+  --muted: #EDE8E1;
+  --muted-foreground: #8A7F74;
+  --accent: #EDE8E1;
+  --accent-foreground: #3C3530;
+  --destructive: #dc2626;
+  --destructive-foreground: #FFFFFF;
+  --border: #DDD5C8;
+  --input: #DDD5C8;
+  --input-background: #FFFFFF;
+  --ring: #3C3530;
+  --radius: 0.75rem;
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-ring: var(--ring);
+}
