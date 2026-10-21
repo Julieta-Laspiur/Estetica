@@ -1,5 +1,6 @@
-import { ShoppingCart, User, QrCode, Calendar, ShoppingBag, MessageCircle, Menu, X, Heart, Search } from 'lucide-react';
+import { ShoppingCart, User, QrCode, Calendar, ShoppingBag, MessageCircle, Menu, X, Heart, Search, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import type { AuthUser } from '../../../services/api';
 
 interface NavbarClienteProps {
     activeSection: string;
@@ -7,9 +8,19 @@ interface NavbarClienteProps {
     cartCount: number;
     wishlistCount?: number;
     onSwitchToAdmin: () => void;
+    currentUser?: AuthUser | null;
+    onLogout?: () => void;
 }
 
-export function NavbarCliente({ activeSection, onSectionChange, cartCount, wishlistCount = 0, onSwitchToAdmin }: NavbarClienteProps) {
+export function NavbarCliente({
+    activeSection,
+    onSectionChange,
+    cartCount,
+    wishlistCount = 0,
+    onSwitchToAdmin,
+    currentUser,
+    onLogout
+}: NavbarClienteProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
     const [scrolled, setScrolled] = useState(false);
@@ -38,10 +49,49 @@ export function NavbarCliente({ activeSection, onSectionChange, cartCount, wishl
     const iconBtn = "relative p-2 hover:bg-[#F7F4F0] rounded-lg transition-colors text-[#3C3530] hover:text-[#7A3B3B]";
 
     const iconGroup = (
-        <div className="flex items-center gap-1">
-            <button onClick={() => onSectionChange('perfil')} className={iconBtn} title="Mi Perfil">
-                <User className="w-5 h-5" />
-            </button>
+        <div className="flex items-center gap-1.5">
+            {/* User Session Button or Iniciar Sesion */}
+            {currentUser ? (
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => onSectionChange('perfil')}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-xs font-medium ${activeSection === 'perfil'
+                            ? 'bg-[#7A3B3B] text-white border-[#7A3B3B]'
+                            : 'bg-[#F7F4F0] text-[#3C3530] border-[#DDD5C8] hover:border-[#7A3B3B]'
+                            }`}
+                        title="Ver mi perfil"
+                    >
+                        <span className="w-5 h-5 rounded-full bg-[#3C3530] text-white flex items-center justify-center text-[10px] font-bold uppercase">
+                            {currentUser.nombre.charAt(0)}
+                        </span>
+                        <span className="hidden sm:inline font-semibold max-w-[100px] truncate">
+                            {currentUser.nombre}
+                        </span>
+                    </button>
+                    {onLogout && (
+                        <button
+                            onClick={onLogout}
+                            className={iconBtn}
+                            title="Cerrar sesión"
+                        >
+                            <LogOut className="w-4 h-4 text-[#8A7F74] hover:text-red-600 transition-colors" />
+                        </button>
+                    )}
+                </div>
+            ) : (
+                <button
+                    onClick={() => onSectionChange('auth')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all text-xs font-semibold ${activeSection === 'auth'
+                        ? 'bg-[#7A3B3B] text-white border-[#7A3B3B]'
+                        : 'border-[#DDD5C8] text-[#3C3530] hover:text-[#7A3B3B] hover:border-[#7A3B3B] hover:bg-[#F7F4F0]'
+                        }`}
+                    title="Iniciar sesión o registrarse"
+                >
+                    <User className="w-3.5 h-3.5" />
+                    <span>Iniciar Sesión</span>
+                </button>
+            )}
+
             <button onClick={() => onSectionChange('wishlist')} className={iconBtn} title="Lista de deseos">
                 <Heart className="w-5 h-5" />
                 {wishlistCount > 0 && (
@@ -52,7 +102,7 @@ export function NavbarCliente({ activeSection, onSectionChange, cartCount, wishl
             </button>
             <button onClick={() => onSectionChange('carrito')} className={iconBtn} title="Carrito">
                 <ShoppingCart className="w-5 h-5" />
-                {cartCount >= 0 && (
+                {cartCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#3C3530] text-white text-[10px] rounded-full flex items-center justify-center font-medium">
                         {cartCount}
                     </span>
@@ -60,13 +110,15 @@ export function NavbarCliente({ activeSection, onSectionChange, cartCount, wishl
             </button>
             <button
                 onClick={onSwitchToAdmin}
-                className="hidden lg:block ml-1 px-3 py-1.5 bg-[#EDE8E1] text-xs rounded-lg hover:bg-[#DDD5C8] transition-colors text-[#8A7F74]"
+                className="hidden lg:block ml-1 px-3 py-1.5 bg-[#EDE8E1] text-xs font-medium rounded-lg hover:bg-[#DDD5C8] transition-colors text-[#8A7F74]"
+                title="Ir al panel de administración"
             >
                 Admin
             </button>
             <button
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="md:hidden p-2 hover:bg-[#EDE8E1] rounded-lg transition-colors ml-1"
+                aria-label="Abrir menú"
             >
                 {menuOpen ? <X className="w-5 h-5 text-[#3C3530]" /> : <Menu className="w-5 h-5 text-[#3C3530]" />}
             </button>
@@ -143,6 +195,7 @@ export function NavbarCliente({ activeSection, onSectionChange, cartCount, wishl
                                             <button
                                                 type="submit"
                                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A7F74] hover:text-[#7A3B3B] transition-colors"
+                                                aria-label="Buscar"
                                             >
                                                 <Search className="w-4 h-4" />
                                             </button>
@@ -194,7 +247,7 @@ export function NavbarCliente({ activeSection, onSectionChange, cartCount, wishl
 
             {/* Mobile dropdown menu */}
             {menuOpen && (
-                <div className="md:hidden border-t border-[#DDD5C8] bg-white shadow-lg">
+                <div className="md:hidden border-t border-[#DDD5C8] bg-white shadow-lg animate-in slide-in-from-top-2">
                     <div className="px-4 py-3">
                         <form onSubmit={handleSearch} className="mb-3">
                             <div className="relative">
@@ -221,19 +274,51 @@ export function NavbarCliente({ activeSection, onSectionChange, cartCount, wishl
                                 {item.label}
                             </button>
                         ))}
-                        <div className="mt-2 pt-2 border-t border-[#EDE8E1] flex gap-2">
+                        <div className="mt-3 pt-3 border-t border-[#EDE8E1] flex flex-col gap-2">
+                            {currentUser ? (
+                                <>
+                                    <div className="flex items-center justify-between p-3 bg-[#F7F4F0] rounded-xl">
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="w-8 h-8 rounded-full bg-[#3C3530] text-white flex items-center justify-center text-xs font-bold uppercase">
+                                                {currentUser.nombre.charAt(0)}
+                                            </span>
+                                            <div>
+                                                <p className="text-xs font-bold text-[#2A2825]">{currentUser.nombre} {currentUser.apellido}</p>
+                                                <p className="text-[10px] text-[#8A7F74]">{currentUser.email}</p>
+                                            </div>
+                                        </div>
+                                        {onLogout && (
+                                            <button
+                                                onClick={() => { onLogout(); setMenuOpen(false); }}
+                                                className="text-xs font-medium text-red-600 hover:underline px-2 py-1"
+                                            >
+                                                Salir
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => { onSectionChange('perfil'); setMenuOpen(false); }}
+                                        className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm text-[#5C534A] hover:bg-[#F7F4F0] transition-colors"
+                                    >
+                                        <User className="w-4 h-4" />
+                                        Mi Perfil
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => { onSectionChange('auth'); setMenuOpen(false); }}
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#3C3530] text-white text-sm font-semibold hover:bg-[#2A2825] transition-colors shadow-xs"
+                                >
+                                    <User className="w-4 h-4" />
+                                    Iniciar Sesión / Registrarse
+                                </button>
+                            )}
+
                             <button
-                                onClick={() => { onSectionChange('perfil'); setMenuOpen(false); }}
-                                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm text-[#5C534A] hover:bg-[#F7F4F0] transition-colors"
+                                onClick={() => { onSwitchToAdmin(); setMenuOpen(false); }}
+                                className="w-full py-2 bg-[#EDE8E1] rounded-lg text-sm text-[#5C534A] hover:bg-[#DDD5C8] transition-colors text-center"
                             >
-                                <User className="w-4 h-4" />
-                                Mi Perfil
-                            </button>
-                            <button
-                                onClick={onSwitchToAdmin}
-                                className="flex-1 py-2 bg-[#EDE8E1] rounded-lg text-sm text-[#5C534A] hover:bg-[#DDD5C8] transition-colors"
-                            >
-                                Vista Admin
+                                Vista Administrador
                             </button>
                         </div>
                     </div>

@@ -54,22 +54,47 @@ export interface AuthResponse {
   usuario: AuthUser;
 }
 
+function normalizeUserRole(user: any): AuthUser {
+  let rolName: 'Cliente' | 'Profesional' | 'Administrador' | 'Recepcionista' = 'Cliente';
+  if (typeof user?.rol === 'number') {
+    switch (user.rol) {
+      case 1:
+        rolName = 'Profesional';
+        break;
+      case 2:
+        rolName = 'Administrador';
+        break;
+      case 3:
+        rolName = 'Recepcionista';
+        break;
+      default:
+        rolName = 'Cliente';
+        break;
+    }
+  } else if (typeof user?.rol === 'string') {
+    rolName = user.rol as any;
+  }
+  return { ...user, rol: rolName };
+}
+
 export const authApi = {
-  login: async (email: string, password: string):Promise<AuthResponse> => {
+  login: async (email: string, password: string): Promise<AuthResponse> => {
     const data = await request<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
+    data.usuario = normalizeUserRole(data.usuario);
     localStorage.setItem('estetica_token', data.token);
     localStorage.setItem('estetica_user', JSON.stringify(data.usuario));
     return data;
   },
 
-  register: async (nombre: string, apellido: string, email: string, telefono: string, password: string, rol = 'Cliente'): Promise<AuthResponse> => {
+  register: async (nombre: string, apellido: string, email: string, telefono: string, password: string, rol = 0): Promise<AuthResponse> => {
     const data = await request<AuthResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ nombre, apellido, email, telefono, password, rol }),
     });
+    data.usuario = normalizeUserRole(data.usuario);
     localStorage.setItem('estetica_token', data.token);
     localStorage.setItem('estetica_user', JSON.stringify(data.usuario));
     return data;
