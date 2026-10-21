@@ -60,6 +60,22 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireRecepcionOAdmin", policy => policy.RequireRole("Administrador", "Recepcionista"));
 });
 
+// Configuración de CORS para el Frontend (React + Vite)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 // Controladores y documentación OpenAPI
 builder.Services.AddControllers();
 builder.Services.AddOpenApi(options =>
@@ -69,6 +85,9 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
+// Inicializar y sembrar datos de prueba en PostgreSQL si está vacía
+await DbSeeder.SeedAsync(app.Services);
+
 // Middleware global de manejo de excepciones
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
@@ -77,6 +96,9 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+// Habilitar CORS antes de Autenticación
+app.UseCors("AllowFrontend");
 
 app.UseHttpsRedirection();
 

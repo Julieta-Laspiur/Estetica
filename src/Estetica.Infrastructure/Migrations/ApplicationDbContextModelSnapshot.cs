@@ -177,6 +177,9 @@ namespace Estetica.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("DiagnosticoId"));
 
+                    b.Property<string>("Alergias")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("Fecha")
                         .HasColumnType("timestamp with time zone");
 
@@ -571,11 +574,17 @@ namespace Estetica.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("FechaHoraFin")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("FechaHoraInicio")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Motivo")
+                        .HasColumnType("text");
 
                     b.Property<int>("ProfesionalId")
                         .HasColumnType("integer");
@@ -621,16 +630,28 @@ namespace Estetica.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("UsuarioId"));
 
+                    b.Property<bool>("Activo")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Apellido")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<bool>("Bloqueado")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("FechaBloqueo")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("FechaRegistro")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("IntentosFallidos")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
