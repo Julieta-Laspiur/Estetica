@@ -8,4 +8,5 @@ public interface IProductoRepository : IRepository<Producto>
     Task<IReadOnlyList<Producto>> GetByTipoPielAsync(int tipoPielId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Producto>> GetConBajoStockAsync(CancellationToken cancellationToken = default);
     Task<Producto?> GetWithTiposPielAsync(int productoId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Producto>> GetAllWithTiposPielAsync(CancellationToken cancellationToken = default);
 }

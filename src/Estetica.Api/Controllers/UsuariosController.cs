@@ -96,6 +96,18 @@ public class UsuariosController : ControllerBase
         var usuario = await _mediator.Send(new Application.UseCases.Usuarios.Commands.CambiarEstadoActivo.CambiarEstadoActivoUsuarioCommand(id, request.Activo, request.Motivo));
         return Ok(usuario);
     }
+
+    /// <summary>
+    /// Resetear la contraseña de un usuario/cliente y desbloquear su cuenta si estaba bloqueada (Solo Administrador).
+    /// </summary>
+    [Authorize(Roles = "Administrador")]
+    [HttpPut("{id:int}/reset-password")]
+    public async Task<ActionResult<UsuarioDto>> ResetearPassword(int id, [FromBody] ResetearPasswordRequest request)
+    {
+        var usuario = await _mediator.Send(new Application.UseCases.Usuarios.Commands.ResetearPassword.ResetearPasswordCommand(id, request.NuevaPassword));
+        return Ok(usuario);
+    }
 }
 
 public record CambiarEstadoUsuarioRequest(bool Activo, string? Motivo = null);
+public record ResetearPasswordRequest(string NuevaPassword);

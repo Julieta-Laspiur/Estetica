@@ -44,4 +44,13 @@ public class ProductoRepository : Repository<Producto>, IProductoRepository
             .Include(p => p.ProductoTiposPiel).ThenInclude(pt => pt.TipoPiel)
             .FirstOrDefaultAsync(p => p.ProductoId == productoId, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Producto>> GetAllWithTiposPielAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Include(p => p.ProductoTiposPiel).ThenInclude(pt => pt.TipoPiel)
+            .OrderBy(p => p.Nombre)
+            .ToListAsync(cancellationToken);
+    }
 }

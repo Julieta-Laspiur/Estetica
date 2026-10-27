@@ -46,6 +46,8 @@ public class ListarProductosPorTipoPielQueryHandler : IRequestHandler<ListarProd
                 Nombre = prodWithTipos.Nombre,
                 Marca = prodWithTipos.Marca,
                 Descripcion = prodWithTipos.Descripcion,
+                ParaQueSirve = prodWithTipos.ParaQueSirve,
+                ImagenUrl = prodWithTipos.ImagenUrl,
                 Precio = prodWithTipos.Precio,
                 StockActual = prodWithTipos.StockActual,
                 StockMinimo = prodWithTipos.StockMinimo,

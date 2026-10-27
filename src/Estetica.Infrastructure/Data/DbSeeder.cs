@@ -18,6 +18,18 @@ public static class DbSeeder
 
         try
         {
+            // 0. Asegurar columnas de Productos si no existen
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE \"Productos\" ADD COLUMN IF NOT EXISTS \"ParaQueSirve\" text; " +
+                    "ALTER TABLE \"Productos\" ADD COLUMN IF NOT EXISTS \"ImagenUrl\" text;");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Aviso de inicialización de columnas opcionales en Productos.");
+            }
+
             // 1. Tipos de Piel
             if (!await context.TiposPiel.AnyAsync())
             {
@@ -273,6 +285,46 @@ public static class DbSeeder
                     );
                 }
 
+                await context.SaveChangesAsync();
+            }
+
+            // Actualizar ParaQueSirve e ImagenUrl para productos existentes que tengan null
+            var productosSinDetalle = await context.Productos.Where(p => p.ParaQueSirve == null).ToListAsync();
+            foreach (var prod in productosSinDetalle)
+            {
+                if (prod.Nombre.Contains("Hidratante"))
+                {
+                    prod.ParaQueSirve = "Hidratación profunda, restauración de la barrera cutánea y prevención de tirantez.";
+                    prod.ImagenUrl ??= "https://images.unsplash.com/photo-1608248597359-242858b2e1bf?w=500&auto=format&fit=crop&q=80";
+                }
+                else if (prod.Nombre.Contains("Vitamina C"))
+                {
+                    prod.ParaQueSirve = "Aporta luminosidad, combate manchas superficiales, unifica el tono y protege del fotoenvejecimiento.";
+                    prod.ImagenUrl ??= "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=500&auto=format&fit=crop&q=80";
+                }
+                else if (prod.Nombre.Contains("Solar"))
+                {
+                    prod.ParaQueSirve = "Protección solar diaria de amplio espectro para prevenir manchas solares, arrugas y daño celular.";
+                    prod.ImagenUrl ??= "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=500&auto=format&fit=crop&q=80";
+                }
+                else if (prod.Nombre.Contains("Lavanda"))
+                {
+                    prod.ParaQueSirve = "Alivio de tensiones, relajación muscular y efecto calmante sobre pieles irritadas o reactivas.";
+                    prod.ImagenUrl ??= "https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=500&auto=format&fit=crop&q=80";
+                }
+                else if (prod.Nombre.Contains("Exfoliante"))
+                {
+                    prod.ParaQueSirve = "Elimina células muertas, suaviza la textura de la piel corporal y estimula la renovación celular.";
+                    prod.ImagenUrl ??= "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=500&auto=format&fit=crop&q=80";
+                }
+                else
+                {
+                    prod.ParaQueSirve = "Cuidado dermoestético avanzado, nutrición y purificación cutánea profunda.";
+                    prod.ImagenUrl ??= "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=500&auto=format&fit=crop&q=80";
+                }
+            }
+            if (productosSinDetalle.Count > 0)
+            {
                 await context.SaveChangesAsync();
             }
 

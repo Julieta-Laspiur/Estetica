@@ -101,6 +101,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowFrontend");
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
 // Pipeline de Seguridad: Autenticación SIEMPRE antes de Autorización
 app.UseAuthentication();
