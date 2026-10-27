@@ -129,6 +129,8 @@ export interface ServicioDto {
   servicioId: number;
   nombre: string;
   descripcion?: string;
+  paraQueSirve?: string;
+  imagenUrl?: string;
   precio: number;
   duracionMin: number;
   activo: boolean;
@@ -172,6 +174,30 @@ export const serviciosApi = {
     return request<{ message: string; desactivadoLogico: boolean }>(`/servicios/${id}`, {
       method: 'DELETE',
     });
+  },
+
+  uploadImagen: async (archivo: File): Promise<{ url: string; message: string }> => {
+    const formData = new FormData();
+    formData.append('archivo', archivo);
+    const token = localStorage.getItem('estetica_token');
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const response = await fetch('/api/v1/servicios/upload-imagen', {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      let msg = 'Error al subir la imagen del servicio';
+      try {
+        const errJson = await response.json();
+        msg = errJson.message || msg;
+      } catch {}
+      throw new Error(msg);
+    }
+    return response.json();
   },
 };
 

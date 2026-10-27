@@ -16,13 +16,24 @@ interface Profesional {
     especialidad: string;
 }
 
-export function ReservarTurno() {
-    const [step, setStep] = useState(1);
-    const [selectedServicio, setSelectedServicio] = useState<string | null>(null);
+interface ReservarTurnoProps {
+    initialServicioId?: string | number | null;
+}
+
+export function ReservarTurno({ initialServicioId }: ReservarTurnoProps = {}) {
+    const [step, setStep] = useState(initialServicioId ? 2 : 1);
+    const [selectedServicio, setSelectedServicio] = useState<string | null>(initialServicioId ? initialServicioId.toString() : null);
     const [selectedProfesional, setSelectedProfesional] = useState<string | null>(null);
     const [selectedFecha, setSelectedFecha] = useState<string>('');
     const [selectedHora, setSelectedHora] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (initialServicioId) {
+            setSelectedServicio(initialServicioId.toString());
+            setStep(2);
+        }
+    }, [initialServicioId]);
 
     const [servicios, setServicios] = useState<Servicio[]>([
         { id: '1', nombre: 'Limpieza Facial Profunda', duracion: 60, precio: 4500, categoria: 'Faciales' },

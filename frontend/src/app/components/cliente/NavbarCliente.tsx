@@ -1,4 +1,4 @@
-import { ShoppingCart, User, QrCode, Calendar, ShoppingBag, MessageCircle, Menu, X, Heart, Search, LogOut, Shield } from 'lucide-react';
+import { ShoppingCart, User, QrCode, Calendar, ShoppingBag, MessageCircle, Menu, X, Heart, Search, LogOut, Shield, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { AuthUser } from '../../../services/api';
 
@@ -35,6 +35,7 @@ export function NavbarCliente({
 
     const allMenuItems = [
         { id: 'inicio', label: 'Inicio', icon: null },
+        { id: 'servicios', label: 'Servicios', icon: Sparkles },
         { id: 'reservar', label: 'Reservar Turno', icon: Calendar },
         { id: 'productos', label: 'Productos', icon: ShoppingBag },
         { id: 'lealtad', label: 'Mi Tarjeta', icon: QrCode },

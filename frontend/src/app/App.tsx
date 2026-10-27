@@ -9,6 +9,7 @@ import { ProgramaLealtad } from './components/ProgramaLealtad';
 import { CalendarioTurnos } from './components/CalendarioTurnos';
 import { NavbarCliente } from './components/cliente/NavbarCliente';
 import { InicioCliente } from './components/cliente/InicioCliente';
+import { ServiciosCliente } from './components/cliente/ServiciosCliente';
 import { ReservarTurno } from './components/cliente/ReservarTurno';
 import { ProductosCliente } from './components/cliente/ProductosCliente';
 import { TarjetaLealtad } from './components/cliente/TarjetaLealtad';
@@ -34,14 +35,25 @@ export default function App() {
     return user?.rol === 'Administrador' ? 'admin' : 'cliente';
   });
   const [activeSection, setActiveSection] = useState('inicio');
+  const [servicioParaReserva, setServicioParaReserva] = useState<string | null>(null);
   const [carritoItems, setCarritoItems] = useState<ProductoCarrito[]>([]);
   const [wishlistItems] = useState<string[]>([]);
+
+  const handleSelectServiceFromCatalog = (serviceId: string) => {
+    if (serviceId === 'chat') {
+      setActiveSection('chat');
+      return;
+    }
+    setServicioParaReserva(serviceId);
+    setActiveSection('reservar');
+  };
 
   const handleLogout = () => {
     authApi.logout();
     setCurrentUser(null);
     setVistaActual('cliente');
     setActiveSection('inicio');
+    setServicioParaReserva(null);
   };
 
   const handleAddToCart = (productId: string) => {
@@ -125,8 +137,11 @@ export default function App() {
       case 'inicio':
         return <InicioCliente onNavigate={setActiveSection} />;
 
+      case 'servicios':
+        return <ServiciosCliente onSelectService={handleSelectServiceFromCatalog} />;
+
       case 'reservar':
-        return <ReservarTurno />;
+        return <ReservarTurno initialServicioId={servicioParaReserva} />;
 
       case 'productos':
         return <ProductosCliente onAddToCart={handleAddToCart} />;

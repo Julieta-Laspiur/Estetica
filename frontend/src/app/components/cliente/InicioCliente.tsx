@@ -192,9 +192,17 @@ export function InicioCliente({ onNavigate }: InicioClienteProps) {
 
             {/* Servicios Destacados */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                <div className="mb-8">
-                    <p className="text-xs font-semibold tracking-widest uppercase text-[#8A7F74] mb-1">Tratamientos</p>
-                    <h2 className="text-2xl font-bold text-[#2A2825]">Servicios Destacados</h2>
+                <div className="flex items-end justify-between mb-8">
+                    <div>
+                        <p className="text-xs font-semibold tracking-widest uppercase text-[#8A7F74] mb-1">Tratamientos</p>
+                        <h2 className="text-2xl font-bold text-[#2A2825]">Servicios Destacados</h2>
+                    </div>
+                    <button
+                        onClick={() => onNavigate('servicios')}
+                        className="text-sm text-[#7A3B3B] hover:text-[#5C2B2B] font-semibold underline underline-offset-4 transition-colors"
+                    >
+                        Ver todos los servicios &rarr;
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
