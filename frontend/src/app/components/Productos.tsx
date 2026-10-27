@@ -1,282 +1,298 @@
-import { useState } from 'react';
-import { Search, Plus, Edit, Trash2, Package, TrendingUp, AlertCircle } from 'lucide-react';
-
-interface Producto {
-  id: string;
-  nombre: string;
-  categoria: string;
-  precio: number;
-  stock: number;
-  stockMinimo: number;
-  marca: string;
-  descripcion: string;
-  imagen?: string;
-}
+import { useState, useEffect, useCallback } from 'react';
+import { Search, Package, TrendingUp, AlertCircle, RefreshCw, X, SlidersHorizontal } from 'lucide-react';
+import { productosApi, type ProductoDto, type StockAlertaDto } from '../../services/api';
 
 export function Productos() {
+  const [productos, setProductos] = useState<ProductoDto[]>([]);
+  const [alertasBajoStock, setAlertasBajoStock] = useState<StockAlertaDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategoria, setSelectedCategoria] = useState('todas');
+  const [selectedBiotipo, setSelectedBiotipo] = useState('todos');
 
-  const productos: Producto[] = [
-    {
-      id: '1',
-      nombre: 'Crema Hidratante Premium',
-      categoria: 'Cuidado Facial',
-      precio: 2500,
-      stock: 45,
-      stockMinimo: 10,
-      marca: 'La Roche-Posay',
-      descripcion: 'Crema hidratante para todo tipo de pieles'
-    },
-    {
-      id: '2',
-      nombre: 'Sérum Vitamina C',
-      categoria: 'Cuidado Facial',
-      precio: 3200,
-      stock: 28,
-      stockMinimo: 15,
-      marca: 'Vichy',
-      descripcion: 'Sérum antioxidante con vitamina C pura'
-    },
-    {
-      id: '3',
-      nombre: 'Protector Solar FPS 50+',
-      categoria: 'Protección Solar',
-      precio: 1800,
-      stock: 62,
-      stockMinimo: 20,
-      marca: 'Eucerin',
-      descripcion: 'Protección solar de amplio espectro'
-    },
-    {
-      id: '4',
-      nombre: 'Aceite Esencial Lavanda',
-      categoria: 'Aromaterapia',
-      precio: 1500,
-      stock: 8,
-      stockMinimo: 10,
-      marca: 'doTERRA',
-      descripcion: 'Aceite esencial 100% puro de lavanda'
-    },
-    {
-      id: '5',
-      nombre: 'Exfoliante Corporal',
-      categoria: 'Cuidado Corporal',
-      precio: 2100,
-      stock: 33,
-      stockMinimo: 12,
-      marca: 'The Body Shop',
-      descripcion: 'Exfoliante corporal con sales marinas'
-    },
-    {
-      id: '6',
-      nombre: 'Máscara Facial Purificante',
-      categoria: 'Cuidado Facial',
-      precio: 1900,
-      stock: 5,
-      stockMinimo: 8,
-      marca: 'Natura',
-      descripcion: 'Máscara de arcilla para pieles grasas'
-    },
-    {
-      id: '7',
-      nombre: 'Loción Corporal Nutritiva',
-      categoria: 'Cuidado Corporal',
-      precio: 1600,
-      stock: 52,
-      stockMinimo: 15,
-      marca: 'Nivea',
-      descripcion: 'Loción corporal hidratante de rápida absorción'
-    },
-    {
-      id: '8',
-      nombre: 'Tónico Facial Equilibrante',
-      categoria: 'Cuidado Facial',
-      precio: 1400,
-      stock: 38,
-      stockMinimo: 10,
-      marca: 'Clinique',
-      descripcion: 'Tónico equilibrante sin alcohol'
-    },
-  ];
+  // Modales
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [selectedProductForAdjust, setSelectedProductForAdjust] = useState<ProductoDto | null>(null);
+  const [tipoAjuste, setTipoAjuste] = useState<number>(0); // 0: Ingreso, 1: AjusteManual, 2: Merma, 3: InventarioTotal
+  const [cantidadAjuste, setCantidadAjuste] = useState('10');
+  const [motivoAjuste, setMotivoAjuste] = useState('');
+  const [submittingAdjust, setSubmittingAdjust] = useState(false);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
 
-  const categorias = ['todas', ...Array.from(new Set(productos.map(p => p.categoria)))];
+  // Modal Umbral
+  const [umbralModalOpen, setUmbralModalOpen] = useState(false);
+  const [selectedProductForUmbral, setSelectedProductForUmbral] = useState<ProductoDto | null>(null);
+  const [nuevoUmbral, setNuevoUmbral] = useState('10');
+  const [submittingUmbral, setSubmittingUmbral] = useState(false);
 
-  const filteredProductos = productos.filter(
-    producto =>
-      (selectedCategoria === 'todas' || producto.categoria === selectedCategoria) &&
-      (producto.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        producto.marca.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const cargarDatos = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [prods, alertas] = await Promise.all([
+        productosApi.getProductos(),
+        productosApi.getBajoStock().catch(() => []),
+      ]);
+      setProductos(prods || []);
+      setAlertasBajoStock(alertas || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al conectar con el inventario de productos.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const stockBajo = productos.filter(p => p.stock <= p.stockMinimo).length;
+  useEffect(() => {
+    cargarDatos();
+  }, [cargarDatos]);
+
+  const handleOpenAdjust = (producto: ProductoDto) => {
+    setSelectedProductForAdjust(producto);
+    setTipoAjuste(0);
+    setCantidadAjuste('10');
+    setMotivoAjuste('');
+    setAdjustError(null);
+    setAdjustModalOpen(true);
+  };
+
+  const handleOpenUmbral = (producto: ProductoDto) => {
+    setSelectedProductForUmbral(producto);
+    setNuevoUmbral(producto.stockMinimo.toString());
+    setUmbralModalOpen(true);
+  };
+
+  const handleSaveAdjust = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductForAdjust) return;
+    const cant = parseInt(cantidadAjuste, 10);
+    if (isNaN(cant) || cant <= 0) {
+      setAdjustError('La cantidad debe ser un número entero mayor a 0.');
+      return;
+    }
+
+    setSubmittingAdjust(true);
+    setAdjustError(null);
+    try {
+      await productosApi.ajustarStock(
+        selectedProductForAdjust.productoId,
+        tipoAjuste,
+        cant,
+        motivoAjuste.trim() || undefined
+      );
+      setAdjustModalOpen(false);
+      await cargarDatos();
+    } catch (err: unknown) {
+      setAdjustError(err instanceof Error ? err.message : 'Error al registrar el movimiento de stock.');
+    } finally {
+      setSubmittingAdjust(false);
+    }
+  };
+
+  const handleSaveUmbral = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductForUmbral) return;
+    const u = parseInt(nuevoUmbral, 10);
+    if (isNaN(u) || u < 0) return;
+
+    setSubmittingUmbral(true);
+    try {
+      await productosApi.configurarStockMinimo(selectedProductForUmbral.productoId, u);
+      setUmbralModalOpen(false);
+      await cargarDatos();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al configurar stock mínimo.');
+    } finally {
+      setSubmittingUmbral(false);
+    }
+  };
+
+  const filteredProductos = productos.filter(p => {
+    const matchesSearch =
+      p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.marca.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesBiotipo =
+      selectedBiotipo === 'todos' ||
+      (p.tiposPiel && p.tiposPiel.some(tp => tp.toLowerCase().includes(selectedBiotipo.toLowerCase())));
+
+    return matchesSearch && matchesBiotipo;
+  });
+
+  const totalValor = productos.reduce((acc, p) => acc + (p.precio * p.stockActual), 0);
+  const cantidadBajoStock = alertasBajoStock.length > 0 ? alertasBajoStock.length : productos.filter(p => p.stockActual <= p.stockMinimo).length;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold">Gestión de Productos</h2>
-          <p className="text-muted-foreground mt-1">Administra el inventario de productos</p>
+          <h2 className="text-2xl font-bold text-foreground">Gestión de Productos & Inventario</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Control de stock, alertas y umbrales de reabastecimiento</p>
         </div>
-        <button className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
-          <Plus className="w-5 h-5" />
-          Nuevo Producto
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={cargarDatos}
+            disabled={loading}
+            className="p-2 border border-border rounded-lg hover:bg-accent text-muted-foreground transition-colors"
+            title="Refrescar datos"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
-      {/* Alert Stock Bajo */}
-      {stockBajo > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-          <div>
-            <p className="font-medium text-yellow-900">Stock bajo detectado</p>
-            <p className="text-sm text-yellow-700 mt-1">
-              {stockBajo} producto{stockBajo > 1 ? 's' : ''} con stock por debajo del mínimo
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button onClick={cargarDatos} className="underline text-xs font-semibold">Reintentar</button>
+        </div>
+      )}
+
+      {/* Alerta Stock Bajo Automática */}
+      {cantidadBajoStock > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in">
+          <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-bold text-amber-900 text-sm">Alerta de Umbral Mínimo de Stock</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Se detectaron <strong>{cantidadBajoStock} producto(s)</strong> que alcanzaron o están por debajo del umbral mínimo de seguridad.
             </p>
           </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar productos por nombre o marca..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          <select
-            value={selectedCategoria}
-            onChange={(e) => setSelectedCategoria(e.target.value)}
-            className="px-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {categorias.map(cat => (
-              <option key={cat} value={cat}>
-                {cat.charAt(0).toUpperCase() + cat.slice(1)}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Package className="w-5 h-5 text-blue-600" />
-            </div>
+      {/* Métricas de Inventario */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-bold">{productos.length}</p>
-              <p className="text-sm text-muted-foreground">Total Productos</p>
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Productos Totales</p>
+              <p className="text-2xl font-bold mt-1">{productos.length}</p>
+            </div>
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+              <Package className="w-5 h-5" />
             </div>
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-            </div>
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-bold">${productos.reduce((acc, p) => acc + (p.precio * p.stock), 0).toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground">Valor Inventario</p>
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Valor en Inventario</p>
+              <p className="text-2xl font-bold mt-1 text-emerald-700">${totalValor.toLocaleString()} <span className="text-xs font-normal text-muted-foreground">ARS</span></p>
+            </div>
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+              <TrendingUp className="w-5 h-5" />
             </div>
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-yellow-600" />
-            </div>
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-bold">{stockBajo}</p>
-              <p className="text-sm text-muted-foreground">Stock Bajo</p>
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Stock Crítico</p>
+              <p className={`text-2xl font-bold mt-1 ${cantidadBajoStock > 0 ? 'text-amber-600' : 'text-foreground'}`}>
+                {cantidadBajoStock}
+              </p>
             </div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Package className="w-5 h-5 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{categorias.length - 1}</p>
-              <p className="text-sm text-muted-foreground">Categorías</p>
+            <div className={`p-3 rounded-xl ${cantidadBajoStock > 0 ? 'bg-amber-50 text-amber-600' : 'bg-muted text-muted-foreground'}`}>
+              <AlertCircle className="w-5 h-5" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Productos Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      {/* Barra de Filtros */}
+      <div className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, marca o características..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <select
+          value={selectedBiotipo}
+          onChange={(e) => setSelectedBiotipo(e.target.value)}
+          className="px-3.5 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="todos">Todos los Tipos de Piel</option>
+          <option value="seca">Piel Seca</option>
+          <option value="grasa">Piel Grasa</option>
+          <option value="mixta">Piel Mixta</option>
+          <option value="sensible">Piel Sensible</option>
+        </select>
+      </div>
+
+      {/* Tabla de Productos */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-secondary">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-muted/40 border-b border-border text-xs uppercase tracking-wider text-muted-foreground font-semibold">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Producto</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Categoría</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Marca</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Precio</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Stock</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Estado</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Acciones</th>
+                <th className="px-5 py-3.5">Producto & Marca</th>
+                <th className="px-4 py-3.5">Precio</th>
+                <th className="px-4 py-3.5">Stock Actual</th>
+                <th className="px-4 py-3.5">Stock Mínimo</th>
+                <th className="px-4 py-3.5">Estado</th>
+                <th className="px-5 py-3.5 text-right">Acciones Gerenciales</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-y divide-border text-sm">
               {filteredProductos.map((producto) => {
-                const stockCritico = producto.stock <= producto.stockMinimo;
+                const esBajo = producto.stockActual <= producto.stockMinimo;
 
                 return (
-                  <tr key={producto.id} className="hover:bg-accent/50 transition-colors">
-                    <td className="px-6 py-4">
+                  <tr key={producto.productoId} className="hover:bg-accent/40 transition-colors">
+                    <td className="px-5 py-3.5">
                       <div>
-                        <p className="font-medium">{producto.nombre}</p>
-                        <p className="text-sm text-muted-foreground line-clamp-1">{producto.descripcion}</p>
+                        <p className="font-semibold text-foreground">{producto.nombre}</p>
+                        <p className="text-xs text-muted-foreground">{producto.marca}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-secondary text-xs rounded">
-                        {producto.categoria}
+                    <td className="px-4 py-3.5 font-bold text-emerald-700">
+                      ${producto.precio.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className={`font-bold ${esBajo ? 'text-amber-600' : 'text-foreground'}`}>
+                        {producto.stockActual} u.
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground">{producto.marca}</td>
-                    <td className="px-6 py-4 font-semibold text-green-600">${producto.precio}</td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className={`font-medium ${stockCritico ? 'text-red-600' : ''}`}>
-                          {producto.stock} unidades
-                        </p>
-                        <p className="text-xs text-muted-foreground">Mín: {producto.stockMinimo}</p>
-                      </div>
+                    <td className="px-4 py-3.5 text-muted-foreground">
+                      {producto.stockMinimo} u.
                     </td>
-                    <td className="px-6 py-4">
-                      {stockCritico ? (
-                        <span className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-full border border-red-200 flex items-center gap-1 w-fit">
-                          <AlertCircle className="w-3 h-3" />
-                          Stock Bajo
+                    <td className="px-4 py-3.5">
+                      {esBajo ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                          <AlertCircle className="w-3 h-3" /> Reabastecer
                         </span>
                       ) : (
-                        <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
-                          Disponible
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                          En Stock
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button className="p-2 hover:bg-secondary rounded-lg transition-colors">
-                          <Edit className="w-4 h-4 text-muted-foreground" />
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleOpenAdjust(producto)}
+                          className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-1 shadow-2xs"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                          <span>Ajustar Stock</span>
                         </button>
-                        <button className="p-2 hover:bg-secondary rounded-lg transition-colors">
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                        <button
+                          onClick={() => handleOpenUmbral(producto)}
+                          className="px-2.5 py-1.5 border border-border text-xs font-medium rounded-lg hover:bg-accent text-foreground transition-colors"
+                          title="Configurar umbral mínimo"
+                        >
+                          Umbral ({producto.stockMinimo})
                         </button>
                       </div>
                     </td>
@@ -288,9 +304,159 @@ export function Productos() {
         </div>
       </div>
 
-      {filteredProductos.length === 0 && (
-        <div className="text-center py-12 bg-card border border-border rounded-lg">
-          <p className="text-muted-foreground">No se encontraron productos</p>
+      {filteredProductos.length === 0 && !loading && (
+        <div className="text-center py-16 bg-card border border-border rounded-xl">
+          <p className="text-muted-foreground text-sm">No se encontraron productos con los criterios especificados.</p>
+        </div>
+      )}
+
+      {/* Modal Ajustar Stock */}
+      {adjustModalOpen && selectedProductForAdjust && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between p-5 border-b border-border bg-muted/20">
+              <div>
+                <h3 className="font-bold text-base text-foreground">Ajuste de Stock</h3>
+                <p className="text-xs text-muted-foreground truncate">{selectedProductForAdjust.nombre}</p>
+              </div>
+              <button
+                onClick={() => setAdjustModalOpen(false)}
+                className="p-1 text-muted-foreground hover:text-foreground rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdjust} className="p-6 space-y-4">
+              {adjustError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                  <span>{adjustError}</span>
+                </div>
+              )}
+
+              <div className="p-3 bg-muted/30 rounded-xl flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Stock actual registrado:</span>
+                <span className="font-bold text-sm text-foreground">{selectedProductForAdjust.stockActual} unidades</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                  Tipo de Movimiento *
+                </label>
+                <select
+                  value={tipoAjuste}
+                  onChange={(e) => setTipoAjuste(parseInt(e.target.value, 10))}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value={0}>+ Ingreso de Mercadería (Recepción de compra)</option>
+                  <option value={1}>± Ajuste Manual / Corrección</option>
+                  <option value={2}>- Merma / Rotura / Vencimiento</option>
+                  <option value={3}>= Inventario Físico Total (Reemplazo exacto)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                  Cantidad *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  value={cantidadAjuste}
+                  onChange={(e) => setCantidadAjuste(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                  Motivo / Justificación
+                </label>
+                <input
+                  type="text"
+                  placeholder="ej. Factura proveedor A-1024 o rotura en depósito"
+                  value={motivoAjuste}
+                  onChange={(e) => setMotivoAjuste(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-border mt-4">
+                <button
+                  type="button"
+                  onClick={() => setAdjustModalOpen(false)}
+                  className="px-4 py-2 border border-border text-foreground hover:bg-accent rounded-xl text-sm font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingAdjust}
+                  className="px-5 py-2 bg-primary text-primary-foreground hover:opacity-90 rounded-xl text-sm font-semibold transition-opacity flex items-center gap-2"
+                >
+                  {submittingAdjust && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  <span>Aplicar Ajuste</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Umbral Mínimo */}
+      {umbralModalOpen && selectedProductForUmbral && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between p-5 border-b border-border bg-muted/20">
+              <h3 className="font-bold text-base text-foreground">Stock Mínimo</h3>
+              <button
+                onClick={() => setUmbralModalOpen(false)}
+                className="p-1 text-muted-foreground hover:text-foreground rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUmbral} className="p-6 space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Configurá el umbral mínimo para <strong>{selectedProductForUmbral.nombre}</strong>. El sistema emitirá alertas preventivas si el stock desciende por debajo de este valor.
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                  Nuevo Umbral Mínimo
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={nuevoUmbral}
+                  onChange={(e) => setNuevoUmbral(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-border mt-4">
+                <button
+                  type="button"
+                  onClick={() => setUmbralModalOpen(false)}
+                  className="px-4 py-2 border border-border text-foreground hover:bg-accent rounded-xl text-sm font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingUmbral}
+                  className="px-5 py-2 bg-primary text-primary-foreground hover:opacity-90 rounded-xl text-sm font-semibold transition-opacity flex items-center gap-2"
+                >
+                  {submittingUmbral && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  <span>Guardar</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

@@ -16,7 +16,7 @@ import { ChatIA } from './components/cliente/ChatIA';
 import { Carrito } from './components/cliente/Carrito';
 import { AuthPage } from './components/cliente/AuthPage';
 import { authApi, type AuthUser } from '../services/api';
-import { User, LogOut, Calendar, QrCode, ShoppingCart, Shield, LayoutDashboard, Scissors } from 'lucide-react';
+import { User, LogOut, Calendar, QrCode, ShoppingCart, Shield, Scissors } from 'lucide-react';
 
 interface ProductoCarrito {
   id: string;
@@ -242,25 +242,13 @@ export default function App() {
 
               {/* Quick shortcuts adaptados según el ROL del usuario */}
               {currentUser.rol === 'Administrador' ? (
-                /* Accesos de gestión para Administrador (SIN Carrito ni Tarjeta de Lealtad) */
+                /* Accesos de gestión para Administrador */
                 <div className="p-6">
                   <div className="mb-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-[#7A3B3B]">Herramientas de Administración</p>
-                    <p className="text-xs text-[#8A7F74]">Accesos directos de gestión del centro estético</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#7A3B3B]">Accesos Rápidos de Gestión</p>
+                    <p className="text-xs text-[#8A7F74]">Atajos a los módulos operativos del centro</p>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button
-                      onClick={() => {
-                        setVistaActual('admin');
-                        setActiveSection('dashboard');
-                      }}
-                      className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                    >
-                      <LayoutDashboard className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                      <h4 className="font-semibold text-sm text-[#2A2825]">Dashboard & Métricas</h4>
-                      <p className="text-xs text-[#8A7F74] mt-0.5">Ingresos, ocupación y resumen</p>
-                    </button>
-
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button
                       onClick={() => {
                         setVistaActual('admin');
@@ -270,7 +258,7 @@ export default function App() {
                     >
                       <Calendar className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
                       <h4 className="font-semibold text-sm text-[#2A2825]">Agenda & Citas</h4>
-                      <p className="text-xs text-[#8A7F74] mt-0.5">Control de turnos y horarios</p>
+                      <p className="text-xs text-[#8A7F74] mt-0.5">Control de turnos, horarios y cabinas</p>
                     </button>
 
                     <button
@@ -281,8 +269,8 @@ export default function App() {
                       className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
                     >
                       <Scissors className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                      <h4 className="font-semibold text-sm text-[#2A2825]">Servicios & Precios</h4>
-                      <p className="text-xs text-[#8A7F74] mt-0.5">Catálogo y configuración</p>
+                      <h4 className="font-semibold text-sm text-[#2A2825]">Servicios & Tratamientos</h4>
+                      <p className="text-xs text-[#8A7F74] mt-0.5">Catálogo, precios y duraciones</p>
                     </button>
                   </div>
                 </div>
@@ -315,29 +303,6 @@ export default function App() {
                     <h4 className="font-semibold text-sm text-[#2A2825]">Mi Carrito</h4>
                     <p className="text-xs text-[#8A7F74] mt-0.5">{carritoItems.length} productos guardados</p>
                   </button>
-                </div>
-              )}
-
-              {currentUser.rol === 'Administrador' && (
-                <div className="px-6 pb-6 pt-2 border-t border-[#EDE8E1]">
-                  <div className="flex items-center justify-between p-4 bg-[#F7F4F0] rounded-xl border border-[#DDD5C8]">
-                    <div className="flex items-center gap-3">
-                      <Shield className="w-5 h-5 text-[#7A3B3B]" />
-                      <div>
-                        <p className="text-xs font-bold text-[#2A2825]">Acceso Administrativo Habilitado</p>
-                        <p className="text-[11px] text-[#8A7F74]">Tu cuenta posee permisos de gestión integral del centro estético.</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setVistaActual('admin');
-                        setActiveSection('dashboard');
-                      }}
-                      className="px-4 py-2 bg-[#3C3530] text-white text-xs font-semibold rounded-lg hover:bg-[#2A2825] transition-colors"
-                    >
-                      Ir al Panel Admin
-                    </button>
-                  </div>
                 </div>
               )}
             </div>

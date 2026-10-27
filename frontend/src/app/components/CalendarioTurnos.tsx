@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Clock, User, Scissors, Plus, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Clock, User, Scissors, X, RefreshCw } from 'lucide-react';
+import { turnosApi } from '../../services/api';
 
-interface Turno {
+interface CalendarTurno {
   id: string;
   hora: string;
   cliente: string;
@@ -12,115 +13,62 @@ interface Turno {
 }
 
 interface DaySchedule {
-  [key: string]: Turno[];
+  [key: string]: CalendarTurno[];
 }
 
 export function CalendarioTurnos() {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 4, 18)); // Mayo 18, 2026
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('week');
+  const [appointments, setAppointments] = useState<DaySchedule>({});
+  const [loading, setLoading] = useState(true);
 
-  // Datos de ejemplo
-  const appointments: DaySchedule = {
-    '2026-05-18': [
-      {
-        id: '1',
-        hora: '09:00',
-        cliente: 'María González',
-        servicio: 'Facial Hidratante',
-        profesional: 'Dra. López',
-        duracion: 60,
-        estado: 'confirmado'
-      },
-      {
-        id: '2',
-        hora: '10:30',
-        cliente: 'Ana Rodríguez',
-        servicio: 'Masaje Relajante',
-        profesional: 'Lic. Martínez',
-        duracion: 90,
-        estado: 'confirmado'
-      },
-      {
-        id: '3',
-        hora: '14:00',
-        cliente: 'Laura Fernández',
-        servicio: 'Depilación Láser',
-        profesional: 'Téc. García',
-        duracion: 45,
-        estado: 'pendiente'
-      },
-      {
-        id: '4',
-        hora: '15:30',
-        cliente: 'Sofía Pérez',
-        servicio: 'Manicura',
-        profesional: 'Est. Torres',
-        duracion: 60,
-        estado: 'confirmado'
-      }
-    ],
-    '2026-05-19': [
-      {
-        id: '5',
-        hora: '10:00',
-        cliente: 'Carla Martín',
-        servicio: 'Limpieza Facial',
-        profesional: 'Dra. López',
-        duracion: 75,
-        estado: 'confirmado'
-      },
-      {
-        id: '6',
-        hora: '12:00',
-        cliente: 'Patricia Silva',
-        servicio: 'Masaje Descontracturante',
-        profesional: 'Lic. Martínez',
-        duracion: 60,
-        estado: 'confirmado'
-      }
-    ],
-    '2026-05-20': [
-      {
-        id: '7',
-        hora: '09:30',
-        cliente: 'Daniela Ruiz',
-        servicio: 'Tratamiento Antiarrugas',
-        profesional: 'Dra. López',
-        duracion: 90,
-        estado: 'confirmado'
-      },
-      {
-        id: '8',
-        hora: '11:30',
-        cliente: 'Valentina Castro',
-        servicio: 'Pedicura',
-        profesional: 'Est. Torres',
-        duracion: 75,
-        estado: 'pendiente'
-      },
-      {
-        id: '9',
-        hora: '15:00',
-        cliente: 'Lucía Morales',
-        servicio: 'Depilación Completa',
-        profesional: 'Téc. García',
-        duracion: 60,
-        estado: 'confirmado'
-      }
-    ],
-    '2026-05-21': [
-      {
-        id: '10',
-        hora: '10:00',
-        cliente: 'Florencia Díaz',
-        servicio: 'Facial Hidratante',
-        profesional: 'Dra. López',
-        duracion: 60,
-        estado: 'confirmado'
-      }
-    ]
+  const cargarTurnosCalendario = async () => {
+    setLoading(true);
+    try {
+      const data = await turnosApi.getTurnos();
+      const schedule: DaySchedule = {};
+
+      data.forEach(t => {
+        const dateObj = new Date(t.fechaHoraInicio);
+        const dateKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+
+        const hora = dateObj.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const duracion = t.servicios?.[0]?.duracionMin || 60;
+        const servicio = t.servicios?.[0]?.nombre || 'Tratamiento';
+
+        let estadoNorm: 'confirmado' | 'pendiente' | 'cancelado' | 'completado' = 'pendiente';
+        if (t.estado === 1 || String(t.estado).toLowerCase().includes('conf')) estadoNorm = 'confirmado';
+        else if (t.estado === 2 || String(t.estado).toLowerCase().includes('comp')) estadoNorm = 'completado';
+        else if (t.estado === 3 || String(t.estado).toLowerCase().includes('canc')) estadoNorm = 'cancelado';
+
+        const item: CalendarTurno = {
+          id: String(t.turnoId),
+          hora,
+          cliente: t.clienteNombreCompleto || 'Cliente',
+          servicio,
+          profesional: t.profesionalNombreCompleto || 'Profesional',
+          duracion,
+          estado: estadoNorm,
+        };
+
+        if (!schedule[dateKey]) {
+          schedule[dateKey] = [];
+        }
+        schedule[dateKey].push(item);
+      });
+
+      setAppointments(schedule);
+    } catch (err) {
+      console.error('Error al cargar agenda para calendario:', err);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    cargarTurnosCalendario();
+  }, []);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -134,9 +82,10 @@ export function CalendarioTurnos() {
   };
 
   const getWeekDays = (date: Date) => {
-    const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(date.setDate(diff));
+    const current = new Date(date);
+    const day = current.getDay();
+    const diff = current.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(current.setDate(diff));
 
     const weekDays = [];
     for (let i = 0; i < 7; i++) {
@@ -151,7 +100,7 @@ export function CalendarioTurnos() {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   };
 
-  const getAppointmentsForDate = (date: Date): Turno[] => {
+  const getAppointmentsForDate = (date: Date): CalendarTurno[] => {
     const key = formatDateKey(date);
     return appointments[key] || [];
   };
@@ -180,13 +129,13 @@ export function CalendarioTurnos() {
     setCurrentDate(newDate);
   };
 
-  const getEstadoColor = (estado: Turno['estado']) => {
+  const getEstadoColor = (estado: CalendarTurno['estado']) => {
     switch (estado) {
-      case 'confirmado': return 'bg-green-500';
-      case 'pendiente': return 'bg-yellow-500';
+      case 'confirmado': return 'bg-green-600';
+      case 'pendiente': return 'bg-amber-500';
       case 'cancelado': return 'bg-red-500';
-      case 'completado': return 'bg-blue-500';
-      default: return 'bg-gray-500';
+      case 'completado': return 'bg-blue-600';
+      default: return 'bg-gray-400';
     }
   };
 
@@ -194,40 +143,44 @@ export function CalendarioTurnos() {
     const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);
     const days = [];
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const todayStr = new Date().toDateString();
 
-    // Días vacíos al inicio
     for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(<div key={`empty-${i}`} className="h-24 bg-secondary/30" />);
+      days.push(<div key={`empty-${i}`} className="h-28 bg-[#FAF8F5]/50 border border-[#EDE8E1]" />);
     }
 
-    // Días del mes
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const dayAppointments = getAppointmentsForDate(date);
-      const isToday = date.toDateString() === new Date(2026, 4, 18).toDateString();
+      const isToday = date.toDateString() === todayStr;
 
       days.push(
         <div
           key={day}
-          className={`h-24 border border-border p-2 cursor-pointer hover:bg-accent transition-colors ${isToday ? 'bg-blue-50 border-blue-300' : 'bg-card'
-            }`}
+          className={`h-28 border border-[#EDE8E1] p-2 cursor-pointer hover:bg-[#FAF8F5] transition-colors ${
+            isToday ? 'bg-amber-50/50 border-amber-300' : 'bg-white'
+          }`}
           onClick={() => setSelectedDay(date)}
         >
-          <div className={`text-sm font-medium mb-1 ${isToday ? 'text-blue-600' : ''}`}>
-            {day}
-            {isToday && <span className="ml-1 text-xs">(Hoy)</span>}
+          <div className="flex items-center justify-between mb-1">
+            <span className={`text-xs font-bold ${isToday ? 'text-[#7A3B3B]' : 'text-[#2A2825]'}`}>
+              {day}
+            </span>
+            {isToday && <span className="text-[10px] font-semibold text-[#7A3B3B]">Hoy</span>}
           </div>
           <div className="space-y-1">
             {dayAppointments.slice(0, 2).map((apt) => (
               <div
                 key={apt.id}
-                className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded truncate"
+                className="text-[10px] px-1.5 py-0.5 rounded bg-[#FAF8F5] border border-[#EDE8E1] text-[#3C3530] font-medium truncate flex items-center gap-1"
               >
-                {apt.hora} - {apt.cliente}
+                <span className={`w-1.5 h-1.5 rounded-full ${getEstadoColor(apt.estado)}`} />
+                <span>{apt.hora}</span>
+                <span className="truncate">{apt.cliente}</span>
               </div>
             ))}
             {dayAppointments.length > 2 && (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-[10px] text-[#8A7F74] font-medium">
                 +{dayAppointments.length - 2} más
               </div>
             )}
@@ -237,15 +190,15 @@ export function CalendarioTurnos() {
     }
 
     return (
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="bg-secondary p-4 flex items-center justify-between">
-          <h3 className="font-semibold text-lg">
+      <div className="bg-white border border-[#EDE8E1] rounded-2xl overflow-hidden shadow-sm">
+        <div className="bg-[#FAF8F5] p-4 flex items-center justify-between border-b border-[#EDE8E1]">
+          <h3 className="font-bold text-base text-[#2A2825]">
             {monthNames[month]} {year}
           </h3>
         </div>
         <div className="grid grid-cols-7 gap-0">
           {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day) => (
-            <div key={day} className="bg-secondary p-2 text-center text-sm font-medium border-b border-border">
+            <div key={day} className="bg-[#FAF8F5] p-2 text-center text-xs font-bold text-[#7A3B3B] border-b border-[#EDE8E1]">
               {day}
             </div>
           ))}
@@ -257,33 +210,34 @@ export function CalendarioTurnos() {
 
   const renderWeekView = () => {
     const weekDays = getWeekDays(new Date(currentDate));
-    const hours = Array.from({ length: 12 }, (_, i) => i + 8); // 8:00 - 19:00
+    const hours = Array.from({ length: 11 }, (_, i) => i + 9); // 9:00 - 19:00
+    const todayStr = new Date().toDateString();
 
     return (
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="grid grid-cols-8 border-b border-border">
-          <div className="p-4 bg-secondary" />
+      <div className="bg-white border border-[#EDE8E1] rounded-2xl overflow-hidden shadow-sm">
+        <div className="grid grid-cols-8 border-b border-[#EDE8E1]">
+          <div className="p-3 bg-[#FAF8F5]" />
           {weekDays.map((day, idx) => {
-            const isToday = day.toDateString() === new Date(2026, 4, 18).toDateString();
+            const isToday = day.toDateString() === todayStr;
             return (
               <div
                 key={idx}
-                className={`p-4 text-center ${isToday ? 'bg-blue-100' : 'bg-secondary'}`}
+                className={`p-3 text-center border-l border-[#EDE8E1] ${isToday ? 'bg-amber-50/70' : 'bg-[#FAF8F5]'}`}
               >
-                <div className="text-xs text-muted-foreground">
+                <div className="text-[11px] font-medium text-[#8A7F74]">
                   {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][day.getDay()]}
                 </div>
-                <div className={`text-lg font-semibold ${isToday ? 'text-blue-600' : ''}`}>
+                <div className={`text-base font-bold ${isToday ? 'text-[#7A3B3B]' : 'text-[#2A2825]'}`}>
                   {day.getDate()}
                 </div>
               </div>
             );
           })}
         </div>
-        <div className="overflow-y-auto max-h-[600px]">
+        <div className="overflow-y-auto max-h-[580px]">
           {hours.map((hour) => (
-            <div key={hour} className="grid grid-cols-8 border-b border-border min-h-[80px]">
-              <div className="p-2 text-sm text-muted-foreground bg-secondary flex items-start justify-center">
+            <div key={hour} className="grid grid-cols-8 border-b border-[#EDE8E1] min-h-[75px]">
+              <div className="p-2 text-xs font-semibold text-[#8A7F74] bg-[#FAF8F5] flex items-start justify-center">
                 {hour}:00
               </div>
               {weekDays.map((day, idx) => {
@@ -294,17 +248,19 @@ export function CalendarioTurnos() {
                 });
 
                 return (
-                  <div key={idx} className="p-1 border-l border-border hover:bg-accent/50 cursor-pointer relative">
+                  <div key={idx} className="p-1 border-l border-[#EDE8E1] hover:bg-[#FAF8F5]/50 transition-colors relative">
                     {hourAppointments.map((apt) => (
                       <div
                         key={apt.id}
-                        className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-2 rounded text-xs mb-1 relative"
-                        style={{ height: `${(apt.duracion / 60) * 80}px`, minHeight: '60px' }}
+                        className="bg-gradient-to-r from-[#3C3530] to-[#2A2825] text-white p-2 rounded-xl text-xs mb-1 relative shadow-sm"
+                        style={{ minHeight: '55px' }}
                       >
-                        <div className="font-medium">{apt.cliente}</div>
-                        <div className="opacity-90">{apt.servicio}</div>
-                        <div className="opacity-75 text-xs">{apt.profesional}</div>
-                        <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${getEstadoColor(apt.estado)}`} />
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-bold text-[11px] text-[#D4C8BC]">{apt.hora}</span>
+                          <span className={`w-2 h-2 rounded-full ${getEstadoColor(apt.estado)}`} />
+                        </div>
+                        <div className="font-semibold text-xs leading-tight truncate">{apt.cliente}</div>
+                        <div className="text-[10px] text-white/70 truncate">{apt.servicio}</div>
                       </div>
                     ))}
                   </div>
@@ -318,18 +274,18 @@ export function CalendarioTurnos() {
   };
 
   const renderDayView = () => {
-    const hours = Array.from({ length: 12 }, (_, i) => i + 8);
+    const hours = Array.from({ length: 11 }, (_, i) => i + 9);
     const dayAppointments = getAppointmentsForDate(currentDate);
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-card border border-border rounded-lg overflow-hidden">
-          <div className="bg-secondary p-4">
-            <h3 className="font-semibold text-lg">
+        <div className="lg:col-span-2 bg-white border border-[#EDE8E1] rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-[#FAF8F5] p-4 border-b border-[#EDE8E1]">
+            <h3 className="font-bold text-base text-[#2A2825] capitalize">
               {currentDate.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </h3>
           </div>
-          <div className="overflow-y-auto max-h-[600px]">
+          <div className="overflow-y-auto max-h-[580px]">
             {hours.map((hour) => {
               const hourAppointments = dayAppointments.filter((apt) => {
                 const aptHour = parseInt(apt.hora.split(':')[0]);
@@ -337,34 +293,36 @@ export function CalendarioTurnos() {
               });
 
               return (
-                <div key={hour} className="flex border-b border-border min-h-[80px]">
-                  <div className="w-20 p-4 text-sm text-muted-foreground bg-secondary flex items-start justify-center">
+                <div key={hour} className="flex border-b border-[#EDE8E1] min-h-[75px]">
+                  <div className="w-20 p-3 text-xs font-semibold text-[#8A7F74] bg-[#FAF8F5] flex items-start justify-center">
                     {hour}:00
                   </div>
-                  <div className="flex-1 p-2 hover:bg-accent/50 cursor-pointer">
+                  <div className="flex-1 p-2 hover:bg-[#FAF8F5]/40 transition-colors">
                     {hourAppointments.map((apt) => (
                       <div
                         key={apt.id}
-                        className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-lg mb-2"
+                        className="bg-gradient-to-r from-[#3C3530] to-[#2A2825] text-white p-4 rounded-xl mb-2 shadow-sm"
                       >
-                        <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-start justify-between mb-1.5">
                           <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            <span className="font-medium">{apt.hora}</span>
-                            <span className="text-xs opacity-75">({apt.duracion} min)</span>
+                            <Clock className="w-4 h-4 text-[#D4C8BC]" />
+                            <span className="font-bold text-xs">{apt.hora}</span>
+                            <span className="text-[11px] text-white/70">({apt.duracion} min)</span>
                           </div>
-                          <span className={`w-3 h-3 rounded-full ${getEstadoColor(apt.estado)}`} />
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold text-white ${getEstadoColor(apt.estado)}`}>
+                            {apt.estado}
+                          </span>
                         </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            <span className="font-medium">{apt.cliente}</span>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <User className="w-3.5 h-3.5 text-[#D4C8BC]" />
+                            <span>{apt.cliente}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Scissors className="w-4 h-4" />
-                            <span className="text-sm">{apt.servicio}</span>
+                          <div className="flex items-center gap-1.5 text-white/80">
+                            <Scissors className="w-3.5 h-3.5 text-[#D4C8BC]" />
+                            <span>{apt.servicio}</span>
                           </div>
-                          <div className="text-sm opacity-90">Prof: {apt.profesional}</div>
+                          <div className="text-[11px] text-white/60">Prof: {apt.profesional}</div>
                         </div>
                       </div>
                     ))}
@@ -376,32 +334,27 @@ export function CalendarioTurnos() {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-card border border-border rounded-lg p-6">
-            <h3 className="font-semibold mb-4">Resumen del Día</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Turnos:</span>
-                <span className="font-semibold">{dayAppointments.length}</span>
+          <div className="bg-white border border-[#EDE8E1] rounded-2xl p-6 shadow-sm">
+            <h3 className="font-bold text-sm text-[#2A2825] mb-3">Resumen de la Jornada</h3>
+            <div className="space-y-2.5 text-xs">
+              <div className="flex justify-between pb-2 border-b border-[#EDE8E1]">
+                <span className="text-[#8A7F74]">Total Turnos:</span>
+                <span className="font-bold text-[#2A2825]">{dayAppointments.length}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Confirmados:</span>
-                <span className="font-semibold text-green-600">
+              <div className="flex justify-between pb-2 border-b border-[#EDE8E1]">
+                <span className="text-[#8A7F74]">Confirmados:</span>
+                <span className="font-bold text-green-700">
                   {dayAppointments.filter(a => a.estado === 'confirmado').length}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Pendientes:</span>
-                <span className="font-semibold text-yellow-600">
+                <span className="text-[#8A7F74]">Pendientes:</span>
+                <span className="font-bold text-amber-700">
                   {dayAppointments.filter(a => a.estado === 'pendiente').length}
                 </span>
               </div>
             </div>
           </div>
-
-          <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
-            <Plus className="w-5 h-5" />
-            Nuevo Turno
-          </button>
         </div>
       </div>
     );
@@ -409,31 +362,37 @@ export function CalendarioTurnos() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold">Calendario de Turnos</h2>
-          <p className="text-muted-foreground mt-1">Vista interactiva de la agenda</p>
+          <h2 className="text-2xl font-bold text-[#2A2825]">Calendario de Turnos</h2>
+          <p className="text-sm text-[#8A7F74] mt-0.5">Vista interactiva de la agenda de profesionales y cabinas</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex bg-secondary rounded-lg p-1">
+          <button
+            onClick={cargarTurnosCalendario}
+            disabled={loading}
+            className="p-2.5 rounded-xl border border-[#EDE8E1] hover:bg-[#FAF8F5] text-[#3C3530] transition-colors"
+            title="Refrescar agenda"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <div className="flex bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl p-1 text-xs font-semibold">
             <button
               onClick={() => setViewMode('day')}
-              className={`px-4 py-2 rounded transition-colors ${viewMode === 'day' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
-                }`}
+              className={`px-3 py-1.5 rounded-lg transition-colors ${viewMode === 'day' ? 'bg-[#3C3530] text-white shadow-sm' : 'text-[#8A7F74] hover:text-[#2A2825]'}`}
             >
               Día
             </button>
             <button
               onClick={() => setViewMode('week')}
-              className={`px-4 py-2 rounded transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
-                }`}
+              className={`px-3 py-1.5 rounded-lg transition-colors ${viewMode === 'week' ? 'bg-[#3C3530] text-white shadow-sm' : 'text-[#8A7F74] hover:text-[#2A2825]'}`}
             >
               Semana
             </button>
             <button
               onClick={() => setViewMode('month')}
-              className={`px-4 py-2 rounded transition-colors ${viewMode === 'month' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
-                }`}
+              className={`px-3 py-1.5 rounded-lg transition-colors ${viewMode === 'month' ? 'bg-[#3C3530] text-white shadow-sm' : 'text-[#8A7F74] hover:text-[#2A2825]'}`}
             >
               Mes
             </button>
@@ -441,16 +400,17 @@ export function CalendarioTurnos() {
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
+      {/* Navegación de Período */}
+      <div className="bg-white border border-[#EDE8E1] rounded-2xl p-4 shadow-sm flex items-center justify-between">
         <button
           onClick={previousPeriod}
-          className="p-2 hover:bg-secondary rounded-lg transition-colors"
+          className="p-2 hover:bg-[#FAF8F5] rounded-xl border border-[#EDE8E1] text-[#3C3530] transition-colors"
         >
-          <ChevronLeft className="w-6 h-6" />
+          <ChevronLeft className="w-5 h-5" />
         </button>
 
         <div className="text-center">
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-sm font-bold text-[#2A2825] capitalize">
             {viewMode === 'month' && currentDate.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
             {viewMode === 'week' && `Semana del ${getWeekDays(new Date(currentDate))[0].toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })}`}
             {viewMode === 'day' && currentDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
@@ -459,58 +419,51 @@ export function CalendarioTurnos() {
 
         <button
           onClick={nextPeriod}
-          className="p-2 hover:bg-secondary rounded-lg transition-colors"
+          className="p-2 hover:bg-[#FAF8F5] rounded-xl border border-[#EDE8E1] text-[#3C3530] transition-colors"
         >
-          <ChevronRight className="w-6 h-6" />
+          <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
+      {/* Views */}
       {viewMode === 'month' && renderMonthView()}
       {viewMode === 'week' && renderWeekView()}
       {viewMode === 'day' && renderDayView()}
 
+      {/* MODAL DETALLE DE DÍA DESDE VISTA MES */}
       {selectedDay && viewMode === 'month' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-card rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-secondary p-4 flex items-center justify-between border-b border-border">
-              <h3 className="font-semibold text-lg">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto border border-[#EDE8E1] shadow-xl">
+            <div className="sticky top-0 bg-[#FAF8F5] p-4 flex items-center justify-between border-b border-[#EDE8E1]">
+              <h3 className="font-bold text-sm text-[#2A2825] capitalize">
                 {selectedDay.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </h3>
               <button
                 onClick={() => setSelectedDay(null)}
-                className="p-2 hover:bg-accent rounded-lg transition-colors"
+                className="p-1 rounded-lg text-[#8A7F74] hover:bg-[#EDE8E1]"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-5 space-y-3">
               {getAppointmentsForDate(selectedDay).length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No hay turnos para este día</p>
+                <p className="text-center text-[#8A7F74] text-xs py-8">No hay turnos agendados para este día.</p>
               ) : (
                 getAppointmentsForDate(selectedDay).map((apt) => (
-                  <div key={apt.id} className="bg-secondary p-4 rounded-lg">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-muted-foreground" />
-                        <span className="font-semibold">{apt.hora}</span>
-                        <span className="text-sm text-muted-foreground">({apt.duracion} min)</span>
+                  <div key={apt.id} className="bg-[#FAF8F5] border border-[#EDE8E1] p-3.5 rounded-xl">
+                    <div className="flex items-start justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#7A3B3B]">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{apt.hora} ({apt.duracion} min)</span>
                       </div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs text-white ${getEstadoColor(apt.estado)}`}
-                      >
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold text-white ${getEstadoColor(apt.estado)}`}>
                         {apt.estado}
                       </span>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        <span>{apt.cliente}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Scissors className="w-4 h-4 text-muted-foreground" />
-                        <span>{apt.servicio}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">Profesional: {apt.profesional}</p>
+                    <div className="text-xs space-y-0.5">
+                      <div className="font-bold text-[#2A2825]">{apt.cliente}</div>
+                      <div className="text-[#8A7F74]">{apt.servicio}</div>
+                      <div className="text-[11px] text-[#8A7F74]">Profesional: {apt.profesional}</div>
                     </div>
                   </div>
                 ))

@@ -161,10 +161,16 @@ export const serviciosApi = {
     });
   },
 
-  cambiarEstado: (id: number, activo: boolean): Promise<void> => {
-    return request<void>(`/servicios/${id}/estado`, {
-      method: 'PATCH',
+  cambiarEstado: (id: number, activo: boolean): Promise<ServicioDto> => {
+    return request<ServicioDto>(`/servicios/${id}/estado`, {
+      method: 'PUT',
       body: JSON.stringify({ activo }),
+    });
+  },
+
+  eliminar: (id: number): Promise<{ message: string; desactivadoLogico: boolean }> => {
+    return request<{ message: string; desactivadoLogico: boolean }>(`/servicios/${id}`, {
+      method: 'DELETE',
     });
   },
 };
@@ -182,35 +188,70 @@ export interface ProductoDto {
   tiposPiel?: string[];
 }
 
+export interface StockAlertaDto {
+  productoId: number;
+  nombre: string;
+  stockActual: number;
+  stockMinimo: number;
+  alertaStockBajo: boolean;
+}
+
 export const productosApi = {
   getProductos: (tipoPiel?: string): Promise<ProductoDto[]> => {
     const query = tipoPiel ? `?tipoPiel=${encodeURIComponent(tipoPiel)}` : '';
     return request<ProductoDto[]>(`/productos${query}`);
   },
 
-  getBajoStock: (): Promise<ProductoDto[]> => {
-    return request<ProductoDto[]>('/productos/bajo-stock');
+  getBajoStock: (): Promise<StockAlertaDto[]> => {
+    return request<StockAlertaDto[]>('/productos/bajo-stock');
   },
 
-  ajustarStock: (productoId: number, cantidad: number, motivo: string): Promise<void> => {
-    return request<void>('/productos/ajuste-stock', {
+  ajustarStock: (id: number, tipoAjuste: number, cantidad: number, motivo?: string): Promise<any> => {
+    return request<any>(`/productos/${id}/ajustar-stock`, {
       method: 'POST',
-      body: JSON.stringify({ productoId, cantidad, motivo }),
+      body: JSON.stringify({ tipoAjuste, cantidad, motivo }),
+    });
+  },
+
+  configurarStockMinimo: (id: number, nuevoStockMinimo: number): Promise<StockAlertaDto> => {
+    return request<StockAlertaDto>(`/productos/${id}/stock-minimo`, {
+      method: 'PUT',
+      body: JSON.stringify({ nuevoStockMinimo }),
     });
   },
 };
 
 // 4. Módulo de Turnos y Agenda
+export interface TurnoServicioItemDto {
+  servicioId: number;
+  nombre: string;
+  duracionMin: number;
+  precio: number;
+}
+
 export interface TurnoDto {
   turnoId: number;
   usuarioId: number;
+  clienteNombreCompleto?: string;
   profesionalId: number;
+  profesionalNombreCompleto?: string;
   cabinaId: number;
+  cabinaNombre?: string;
   fechaHoraInicio: string;
   fechaHoraFin: string;
-  estado: string;
+  estado: string | number;
   total: number;
-  serviciosIds: number[];
+  fechaCreacion?: string;
+  motivo?: string;
+  estaExpirado?: boolean;
+  servicios?: TurnoServicioItemDto[];
+}
+
+export interface CabinaDto {
+  cabinaId: number;
+  nombre: string;
+  descripcion?: string;
+  estado: string;
 }
 
 export interface DisponibilidadResponse {
@@ -219,6 +260,19 @@ export interface DisponibilidadResponse {
 }
 
 export const turnosApi = {
+  getTurnos: (params?: { fechaInicio?: string; fechaFin?: string; estado?: number }): Promise<TurnoDto[]> => {
+    const searchParams = new URLSearchParams();
+    if (params?.fechaInicio) searchParams.append('fechaInicio', params.fechaInicio);
+    if (params?.fechaFin) searchParams.append('fechaFin', params.fechaFin);
+    if (params?.estado !== undefined) searchParams.append('estado', params.estado.toString());
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    return request<TurnoDto[]>(`/turnos${query}`);
+  },
+
+  getCabinas: (): Promise<CabinaDto[]> => {
+    return request<CabinaDto[]>('/turnos/cabinas');
+  },
+
   consultarDisponibilidad: (profesionalId: number, cabinaId: number, fechaHoraInicio: string, duracionMin: number): Promise<DisponibilidadResponse> => {
     const params = new URLSearchParams({
       profesionalId: profesionalId.toString(),
@@ -229,10 +283,17 @@ export const turnosApi = {
     return request<DisponibilidadResponse>(`/turnos/disponibilidad?${params.toString()}`);
   },
 
-  reservar: (turno: { profesionalId: number; cabinaId: number; fechaHoraInicio: string; serviciosIds: number[] }): Promise<TurnoDto> => {
+  reservar: (turno: { usuarioId?: number; profesionalId: number; cabinaId: number; fechaHoraInicio: string; servicioIds?: number[]; serviciosIds?: number[] }): Promise<TurnoDto> => {
+    const ids = turno.servicioIds || turno.serviciosIds || [];
     return request<TurnoDto>('/turnos/reservar', {
       method: 'POST',
-      body: JSON.stringify(turno),
+      body: JSON.stringify({
+        usuarioId: turno.usuarioId,
+        profesionalId: turno.profesionalId,
+        cabinaId: turno.cabinaId,
+        fechaHoraInicio: turno.fechaHoraInicio,
+        servicioIds: ids,
+      }),
     });
   },
 
@@ -240,15 +301,89 @@ export const turnosApi = {
     return request<TurnoDto[]>('/turnos/mis-turnos');
   },
 
-  cancelar: (turnoId: number, motivo: string): Promise<void> => {
+  confirmar: (id: number): Promise<{ message: string }> => {
+    return request<{ message: string }>(`/turnos/${id}/confirmar`, { method: 'PUT' });
+  },
+
+  cancelar: (turnoId: number, motivo?: string): Promise<void> => {
     return request<void>(`/turnos/${turnoId}/cancelar`, {
-      method: 'PATCH',
-      body: JSON.stringify({ motivo }),
+      method: 'PUT',
+      body: JSON.stringify({ motivo: motivo || 'Cancelación administrativa' }),
     });
+  },
+
+  reprogramar: (id: number, data: { nuevaFechaHoraInicio: string; nuevaCabinaId?: number; nuevoProfesionalId?: number; motivo?: string }): Promise<TurnoDto> => {
+    return request<TurnoDto>(`/turnos/${id}/reprogramar`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  bloquearHorario: (data: { profesionalId: number; cabinaId: number; fechaHoraInicio: string; fechaHoraFin: string; motivo?: string }): Promise<TurnoDto> => {
+    return request<TurnoDto>('/turnos/bloquear', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  expirarPendientes: (): Promise<{ turnosLiberados: number; message: string }> => {
+    return request<{ turnosLiberados: number; message: string }>('/turnos/expirar-pendientes', { method: 'POST' });
+  },
+
+  getPorUsuario: (usuarioId: number): Promise<TurnoDto[]> => {
+    return request<TurnoDto[]>(`/turnos/usuario/${usuarioId}`);
+  },
+
+  getPorProfesional: (profesionalId: number, fecha?: string): Promise<TurnoDto[]> => {
+    const query = fecha ? `?fecha=${encodeURIComponent(fecha)}` : '';
+    return request<TurnoDto[]>(`/turnos/profesional/${profesionalId}${query}`);
   },
 };
 
-// 5. Módulo de Fidelización & QR
+// 5. Módulo de Gestión de Usuarios y Clientes
+export interface UsuarioDetalleDto {
+  usuarioId: number;
+  nombre: string;
+  apellido: string;
+  email: string;
+  telefono?: string;
+  rol: string | number;
+  fechaRegistro: string;
+  activo: boolean;
+  bloqueado: boolean;
+  intentosFallidos: number;
+}
+
+export const usuariosApi = {
+  getClientes: (): Promise<UsuarioDetalleDto[]> => {
+    return request<UsuarioDetalleDto[]>('/usuarios/rol/Cliente');
+  },
+
+  getProfesionales: (): Promise<UsuarioDetalleDto[]> => {
+    return request<UsuarioDetalleDto[]>('/usuarios/rol/Profesional');
+  },
+
+  getBloqueados: (): Promise<UsuarioDetalleDto[]> => {
+    return request<UsuarioDetalleDto[]>('/usuarios/bloqueados');
+  },
+
+  desbloquear: (id: number): Promise<UsuarioDetalleDto> => {
+    return request<UsuarioDetalleDto>(`/usuarios/${id}/desbloquear`, { method: 'PUT' });
+  },
+
+  cambiarEstado: (id: number, activo: boolean, motivo?: string): Promise<UsuarioDetalleDto> => {
+    return request<UsuarioDetalleDto>(`/usuarios/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ activo, motivo: motivo || 'Actualización administrativa' }),
+    });
+  },
+
+  getPerfil: (id: number): Promise<any> => {
+    return request<any>(`/usuarios/perfil/${id}`);
+  },
+};
+
+// 6. Módulo de Fidelización & QR
 export interface TarjetaFidelizacionDto {
   fidelizacionId: number;
   usuarioId: number;
@@ -262,16 +397,27 @@ export const fidelizacionApi = {
     return request<TarjetaFidelizacionDto>('/fidelizacion/mi-tarjeta');
   },
 
+  getTarjetaPorUsuario: (usuarioId: number): Promise<TarjetaFidelizacionDto> => {
+    return request<TarjetaFidelizacionDto>(`/fidelizacion/usuario/${usuarioId}`);
+  },
+
+  acumularEstampitas: (usuarioId: number, cantidadEstampitas: number, motivo?: string): Promise<any> => {
+    return request<any>('/fidelizacion/estampitas', {
+      method: 'POST',
+      body: JSON.stringify({ usuarioId, cantidadEstampitas, motivo }),
+    });
+  },
+
   generarQr: (): Promise<{ qrToken: string; expiraEnMinutos: number }> => {
     return request<{ qrToken: string; expiraEnMinutos: number }>('/fidelizacion/generar-qr', {
       method: 'POST',
     });
   },
 
-  escanearQr: (codigoQr: string): Promise<{ mensaje: string; estampitasActuales: number }> => {
-    return request<{ mensaje: string; estampitasActuales: number }>('/fidelizacion/escanear-qr', {
+  escanearQr: (token: string): Promise<{ mensaje: string; estampitasActuales: number; cuponGenerado?: boolean }> => {
+    return request<any>('/fidelizacion/escanear-qr', {
       method: 'POST',
-      body: JSON.stringify({ codigoQr }),
+      body: JSON.stringify({ token }),
     });
   },
 };
