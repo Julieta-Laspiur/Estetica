@@ -7,7 +7,9 @@ using Estetica.Application.UseCases.Turnos.Commands.ConfirmarTurno;
 using Estetica.Application.UseCases.Turnos.Commands.ExpirarTurnosPendientes;
 using Estetica.Application.UseCases.Turnos.Commands.ReprogramarTurno;
 using Estetica.Application.UseCases.Turnos.DTOs;
+using Estetica.Application.UseCases.Turnos.Queries.GetCabinas;
 using Estetica.Application.UseCases.Turnos.Queries.GetDisponibilidad;
+using Estetica.Application.UseCases.Turnos.Queries.GetTodosTurnos;
 using Estetica.Application.UseCases.Turnos.Queries.GetTurnoById;
 using Estetica.Application.UseCases.Turnos.Queries.GetTurnosPorProfesional;
 using Estetica.Application.UseCases.Turnos.Queries.GetTurnosPorUsuario;
@@ -30,6 +32,31 @@ public class TurnosController : ControllerBase
     {
         _mediator = mediator;
         _currentUserService = currentUserService;
+    }
+
+    /// <summary>
+    /// Listar todos los turnos del centro estético (Solo Administrador y Recepcionista).
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<TurnoDto>>> GetTurnos(
+        [FromQuery] DateTime? fechaInicio = null,
+        [FromQuery] DateTime? fechaFin = null,
+        [FromQuery] EstadoTurno? estado = null)
+    {
+        var turnos = await _mediator.Send(new GetTodosTurnosQuery(fechaInicio, fechaFin, estado));
+        return Ok(turnos);
+    }
+
+    /// <summary>
+    /// Listar todas las cabinas registradas para agenda y turnos (Público).
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("cabinas")]
+    public async Task<ActionResult<IReadOnlyList<CabinaDto>>> GetCabinas()
+    {
+        var cabinas = await _mediator.Send(new GetCabinasQuery());
+        return Ok(cabinas);
     }
 
     /// <summary>

@@ -25,6 +25,28 @@ public class TurnoRepository : Repository<Turno>, ITurnoRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Turno>> GetAllWithDetailsAsync(DateTime? fechaInicio = null, DateTime? fechaFin = null, EstadoTurno? estado = null, CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet
+            .AsNoTracking()
+            .Include(t => t.Usuario)
+            .Include(t => t.Profesional).ThenInclude(p => p.Usuario)
+            .Include(t => t.Cabina)
+            .Include(t => t.TurnoServicios).ThenInclude(ts => ts.Servicio)
+            .AsQueryable();
+
+        if (fechaInicio.HasValue)
+            query = query.Where(t => t.FechaHoraInicio >= fechaInicio.Value);
+
+        if (fechaFin.HasValue)
+            query = query.Where(t => t.FechaHoraInicio <= fechaFin.Value);
+
+        if (estado.HasValue)
+            query = query.Where(t => t.Estado == estado.Value);
+
+        return await query.OrderBy(t => t.FechaHoraInicio).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Turno>> GetByUsuarioIdAsync(int usuarioId, CancellationToken cancellationToken = default)
     {
         return await _dbSet

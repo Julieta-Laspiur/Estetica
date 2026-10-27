@@ -276,6 +276,116 @@ public static class DbSeeder
                 await context.SaveChangesAsync();
             }
 
+            // 6. Clientes adicionales para pruebas
+            var clientesNuevos = new[]
+            {
+                new { Nombre = "María", Apellido = "González", Email = "maria.gonzalez@email.com", Tel = "+5491123456789" },
+                new { Nombre = "Ana", Apellido = "Rodríguez", Email = "ana.rodriguez@email.com", Tel = "+5491134567890" },
+                new { Nombre = "Laura", Apellido = "Fernández", Email = "laura.fernandez@email.com", Tel = "+5491145678901" },
+                new { Nombre = "Sofía", Apellido = "Pérez", Email = "sofia.perez@email.com", Tel = "+5491156789012" }
+            };
+
+            foreach (var cl in clientesNuevos)
+            {
+                if (!await context.Usuarios.AnyAsync(u => u.Email == cl.Email))
+                {
+                    var u = new Usuario
+                    {
+                        Nombre = cl.Nombre,
+                        Apellido = cl.Apellido,
+                        Email = cl.Email,
+                        Telefono = cl.Tel,
+                        Rol = RolUsuario.Cliente,
+                        PasswordHash = passwordHasher.Hash("Cliente123!"),
+                        Activo = true,
+                        FechaRegistro = DateTime.UtcNow.AddDays(-15)
+                    };
+                    await context.Usuarios.AddAsync(u);
+                    await context.SaveChangesAsync();
+
+                    await context.Fidelizaciones.AddAsync(new Fidelizacion
+                    {
+                        UsuarioId = u.UsuarioId,
+                        EstampitasActuales = 4,
+                        UltimaActualizacion = DateTime.UtcNow
+                    });
+                    await context.SaveChangesAsync();
+                }
+            }
+
+            // 7. Turnos de ejemplo para agenda y métricas
+            if (!await context.Turnos.AnyAsync())
+            {
+                var prof = await context.Profesionales.Include(p => p.Usuario).FirstOrDefaultAsync();
+                var cabinasList = await context.Cabinas.ToListAsync();
+                var serviciosList = await context.Servicios.ToListAsync();
+                var clientesList = await context.Usuarios.Where(u => u.Rol == RolUsuario.Cliente).ToListAsync();
+
+                if (prof != null && cabinasList.Count > 0 && serviciosList.Count > 0 && clientesList.Count > 0)
+                {
+                    var c1 = clientesList.First();
+                    var c2 = clientesList.Skip(1).FirstOrDefault() ?? c1;
+                    var c3 = clientesList.Skip(2).FirstOrDefault() ?? c1;
+
+                    var hoy = DateTime.UtcNow.Date;
+
+                    var t1 = new Turno
+                    {
+                        UsuarioId = c1.UsuarioId,
+                        ProfesionalId = prof.ProfesionalId,
+                        CabinaId = cabinasList[0].CabinaId,
+                        FechaHoraInicio = hoy.AddHours(10),
+                        FechaHoraFin = hoy.AddHours(11),
+                        Estado = EstadoTurno.Confirmado,
+                        Total = serviciosList[0].Precio,
+                        FechaCreacion = hoy.AddDays(-1),
+                    };
+                    t1.TurnoServicios.Add(new TurnoServicio { ServicioId = serviciosList[0].ServicioId, Turno = t1 });
+
+                    var t2 = new Turno
+                    {
+                        UsuarioId = c2.UsuarioId,
+                        ProfesionalId = prof.ProfesionalId,
+                        CabinaId = cabinasList[Math.Min(1, cabinasList.Count - 1)].CabinaId,
+                        FechaHoraInicio = hoy.AddHours(11).AddMinutes(30),
+                        FechaHoraFin = hoy.AddHours(12).AddMinutes(30),
+                        Estado = EstadoTurno.Pendiente,
+                        Total = serviciosList[Math.Min(1, serviciosList.Count - 1)].Precio,
+                        FechaCreacion = hoy.AddHours(-1),
+                    };
+                    t2.TurnoServicios.Add(new TurnoServicio { ServicioId = serviciosList[Math.Min(1, serviciosList.Count - 1)].ServicioId, Turno = t2 });
+
+                    var t3 = new Turno
+                    {
+                        UsuarioId = c3.UsuarioId,
+                        ProfesionalId = prof.ProfesionalId,
+                        CabinaId = cabinasList[0].CabinaId,
+                        FechaHoraInicio = hoy.AddHours(14),
+                        FechaHoraFin = hoy.AddHours(15),
+                        Estado = EstadoTurno.Confirmado,
+                        Total = serviciosList[Math.Min(2, serviciosList.Count - 1)].Precio,
+                        FechaCreacion = hoy.AddDays(-2),
+                    };
+                    t3.TurnoServicios.Add(new TurnoServicio { ServicioId = serviciosList[Math.Min(2, serviciosList.Count - 1)].ServicioId, Turno = t3 });
+
+                    var t4 = new Turno
+                    {
+                        UsuarioId = c1.UsuarioId,
+                        ProfesionalId = prof.ProfesionalId,
+                        CabinaId = cabinasList[Math.Min(2, cabinasList.Count - 1)].CabinaId,
+                        FechaHoraInicio = hoy.AddDays(1).AddHours(15),
+                        FechaHoraFin = hoy.AddDays(1).AddHours(16),
+                        Estado = EstadoTurno.Confirmado,
+                        Total = serviciosList[Math.Min(3, serviciosList.Count - 1)].Precio,
+                        FechaCreacion = hoy.AddDays(-1),
+                    };
+                    t4.TurnoServicios.Add(new TurnoServicio { ServicioId = serviciosList[Math.Min(3, serviciosList.Count - 1)].ServicioId, Turno = t4 });
+
+                    await context.Turnos.AddRangeAsync(t1, t2, t3, t4);
+                    await context.SaveChangesAsync();
+                }
+            }
+
             logger.LogInformation("Base de datos inicializada y sembrada con datos de prueba exitosamente.");
         }
         catch (Exception ex)

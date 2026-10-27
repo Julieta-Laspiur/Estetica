@@ -6,6 +6,7 @@ namespace Estetica.Application.Interfaces;
 public interface ITurnoRepository : IRepository<Turno>
 {
     Task<IReadOnlyList<Turno>> GetByFechaRangeAsync(DateTime inicio, DateTime fin, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Turno>> GetAllWithDetailsAsync(DateTime? fechaInicio = null, DateTime? fechaFin = null, EstadoTurno? estado = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Turno>> GetByUsuarioIdAsync(int usuarioId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Turno>> GetByProfesionalIdAsync(int profesionalId, DateTime? fecha = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Turno>> GetByCabinaIdAsync(int cabinaId, DateTime? fecha = null, CancellationToken cancellationToken = default);
