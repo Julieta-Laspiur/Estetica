@@ -181,11 +181,14 @@ export interface ProductoDto {
   nombre: string;
   marca: string;
   descripcion?: string;
+  paraQueSirve?: string;
+  imagenUrl?: string;
   precio: number;
   stockActual: number;
   stockMinimo: number;
   activo: boolean;
   tiposPiel?: string[];
+  tiposPielAptos?: string[];
 }
 
 export interface StockAlertaDto {
@@ -200,6 +203,54 @@ export const productosApi = {
   getProductos: (tipoPiel?: string): Promise<ProductoDto[]> => {
     const query = tipoPiel ? `?tipoPiel=${encodeURIComponent(tipoPiel)}` : '';
     return request<ProductoDto[]>(`/productos${query}`);
+  },
+
+  getTodos: (): Promise<ProductoDto[]> => {
+    return request<ProductoDto[]>('/productos/todos');
+  },
+
+  crear: (producto: Omit<ProductoDto, 'productoId'> & { tiposPiel?: string[] }): Promise<ProductoDto> => {
+    return request<ProductoDto>('/productos', {
+      method: 'POST',
+      body: JSON.stringify(producto),
+    });
+  },
+
+  actualizar: (id: number, producto: Partial<ProductoDto> & { tiposPiel?: string[] }): Promise<ProductoDto> => {
+    return request<ProductoDto>(`/productos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(producto),
+    });
+  },
+
+  eliminar: (id: number): Promise<{ message: string; desactivadoLogico: boolean }> => {
+    return request<{ message: string; desactivadoLogico: boolean }>(`/productos/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  uploadImagen: async (archivo: File): Promise<{ url: string; message: string }> => {
+    const formData = new FormData();
+    formData.append('archivo', archivo);
+    const token = localStorage.getItem('estetica_token');
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const response = await fetch('/api/v1/productos/upload-imagen', {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      let msg = 'Error al subir la imagen';
+      try {
+        const errJson = await response.json();
+        msg = errJson.message || msg;
+      } catch {}
+      throw new Error(msg);
+    }
+    return response.json();
   },
 
   getBajoStock: (): Promise<StockAlertaDto[]> => {
@@ -380,6 +431,13 @@ export const usuariosApi = {
 
   getPerfil: (id: number): Promise<any> => {
     return request<any>(`/usuarios/perfil/${id}`);
+  },
+
+  resetPassword: (id: number, nuevaPassword: string): Promise<{ message: string }> => {
+    return request<{ message: string }>(`/usuarios/${id}/reset-password`, {
+      method: 'PUT',
+      body: JSON.stringify({ nuevaPassword }),
+    });
   },
 };
 

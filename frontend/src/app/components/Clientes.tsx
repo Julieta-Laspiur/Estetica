@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Phone, Mail, Award, Unlock, CheckCircle2, XCircle, Loader2, RefreshCw, UserCheck, ShieldAlert, X } from 'lucide-react';
+import { Search, Plus, Phone, Mail, Award, Unlock, CheckCircle2, XCircle, Loader2, RefreshCw, UserCheck, ShieldAlert, X, KeyRound, Copy, Check, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { usuariosApi, fidelizacionApi, authApi, type UsuarioDetalleDto } from '../../services/api';
 
 export function Clientes() {
@@ -26,6 +26,16 @@ export function Clientes() {
   const [estampitasToAdd, setEstampitasToAdd] = useState(1);
   const [motivoEstampitas, setMotivoEstampitas] = useState('Atención en centro estético');
   const [savingEstampitas, setSavingEstampitas] = useState(false);
+
+  // Modal Resetear Contraseña
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [clienteParaReset, setClienteParaReset] = useState<UsuarioDetalleDto | null>(null);
+  const [nuevaPassword, setNuevaPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [submittingReset, setSubmittingReset] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetExitoso, setResetExitoso] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   const cargarClientes = async () => {
     setLoading(true);
@@ -68,6 +78,60 @@ export function Clientes() {
       alert(`Error al desbloquear: ${err.message}`);
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const generarPasswordSegura = () => {
+    const num = Math.floor(1000 + Math.random() * 9000);
+    const pass = `Estetica${num}!`;
+    setNuevaPassword(pass);
+    setShowPassword(true);
+  };
+
+  const handleOpenResetPassword = (cliente: UsuarioDetalleDto) => {
+    setClienteParaReset(cliente);
+    const num = Math.floor(1000 + Math.random() * 9000);
+    setNuevaPassword(`Estetica${num}!`);
+    setShowPassword(true);
+    setResetError(null);
+    setResetExitoso(false);
+    setCopiado(false);
+    setResetModalOpen(true);
+  };
+
+  const handleConfirmarReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clienteParaReset) return;
+    if (!nuevaPassword || nuevaPassword.length < 6) {
+      setResetError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    setSubmittingReset(true);
+    setResetError(null);
+    try {
+      await usuariosApi.resetPassword(clienteParaReset.usuarioId, nuevaPassword);
+      setClientes(prev => prev.map(c => c.usuarioId === clienteParaReset.usuarioId ? {
+        ...c,
+        bloqueado: false,
+        intentosFallidos: 0,
+        activo: true
+      } : c));
+      setResetExitoso(true);
+    } catch (err: any) {
+      setResetError(err.message || 'Error al restablecer la contraseña.');
+    } finally {
+      setSubmittingReset(false);
+    }
+  };
+
+  const handleCopiarPassword = async () => {
+    if (!nuevaPassword) return;
+    try {
+      await navigator.clipboard.writeText(nuevaPassword);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch {
+      // fallback
     }
   };
 
@@ -272,6 +336,15 @@ export function Clientes() {
 
                   {/* Acciones de gestión de cuenta */}
                   <div className="flex items-center gap-1.5">
+                    {/* Botón Resetear Contraseña */}
+                    <button
+                      onClick={() => handleOpenResetPassword(cliente)}
+                      className="p-2 text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors border border-indigo-200"
+                      title="Resetear contraseña y desbloquear cuenta"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                    </button>
+
                     {/* Botón Fidelización */}
                     <button
                       onClick={() => handleAbrirLealtad(cliente)}
@@ -533,6 +606,154 @@ export function Clientes() {
                   </button>
                 </div>
               </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RESETEAR CONTRASEÑA */}
+      {resetModalOpen && clienteParaReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-xl border border-[#EDE8E1] w-full max-w-md p-6 overflow-hidden">
+            <div className="flex items-center justify-between mb-4 border-b border-[#EDE8E1] pb-3">
+              <div className="flex items-center gap-2 text-indigo-700">
+                <KeyRound className="w-5 h-5" />
+                <h3 className="text-base font-bold text-[#2A2825]">Restablecer Contraseña</h3>
+              </div>
+              <button
+                onClick={() => setResetModalOpen(false)}
+                className="p-1.5 rounded-lg text-[#8A7F74] hover:bg-[#FAF8F5]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Datos del cliente */}
+            <div className="p-3 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[#8A7F74]">Cliente seleccionado</p>
+                <p className="font-bold text-sm text-[#2A2825]">
+                  {clienteParaReset.nombre} {clienteParaReset.apellido}
+                </p>
+                <p className="text-xs text-[#8A7F74]">{clienteParaReset.email}</p>
+              </div>
+              {clienteParaReset.bloqueado ? (
+                <span className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-red-100 text-red-800 flex items-center gap-1">
+                  <ShieldAlert className="w-3 h-3" /> Bloqueado
+                </span>
+              ) : (
+                <span className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-green-100 text-green-800 flex items-center gap-1">
+                  <UserCheck className="w-3 h-3" /> Activo
+                </span>
+              )}
+            </div>
+
+            {resetError && (
+              <div className="mb-4 p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
+                {resetError}
+              </div>
+            )}
+
+            {!resetExitoso ? (
+              <form onSubmit={handleConfirmarReset} className="space-y-4">
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed">
+                  💡 <strong>Información importante:</strong> Al restablecer la contraseña, si la cuenta estaba <strong>bloqueada</strong> por intentos fallidos, se <strong>desbloqueará automáticamente</strong> y los intentos fallidos volverán a 0.
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-[#3C3530]">Nueva Contraseña *</label>
+                    <button
+                      type="button"
+                      onClick={generarPasswordSegura}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 hover:underline"
+                    >
+                      <Sparkles className="w-3 h-3" /> Generar otra
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={nuevaPassword}
+                      onChange={(e) => setNuevaPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      className="w-full pl-3 pr-10 py-2.5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] font-mono focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A7F74] hover:text-[#2A2825]"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-[#8A7F74] mt-1">Podés usar la contraseña autogenerada o escribir una manual.</p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EDE8E1]">
+                  <button
+                    type="button"
+                    onClick={() => setResetModalOpen(false)}
+                    className="px-4 py-2 border border-[#EDE8E1] text-[#8A7F74] hover:bg-[#FAF8F5] rounded-xl text-xs font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingReset}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    {submittingReset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
+                    Restablecer y Desbloquear
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-4 py-2 animate-in fade-in">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-center">
+                  <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                  <p className="font-bold text-sm text-green-900">¡Contraseña Restablecida con Éxito!</p>
+                  <p className="text-xs text-green-700 mt-1">
+                    La cuenta de {clienteParaReset.nombre} {clienteParaReset.apellido} fue actualizada y desbloqueada.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-gray-50 border border-gray-200 rounded-xl">
+                  <p className="text-[11px] text-gray-500 font-medium mb-1">Nueva contraseña asignada:</p>
+                  <div className="flex items-center justify-between bg-white px-3 py-2 border border-gray-300 rounded-lg">
+                    <code className="text-sm font-bold font-mono text-[#2A2825] tracking-wide">
+                      {nuevaPassword}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={handleCopiarPassword}
+                      className="px-2.5 py-1 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded-md border border-indigo-200 flex items-center gap-1 transition-colors"
+                    >
+                      {copiado ? (
+                        <>
+                          <Check className="w-3 h-3 text-green-600" />
+                          <span className="text-green-700">¡Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end pt-2">
+                  <button
+                    onClick={() => setResetModalOpen(false)}
+                    className="w-full py-2.5 bg-[#3C3530] hover:bg-[#2A2825] text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -10,6 +10,8 @@ interface Producto {
     categoria: string;
     tipoPiel: string[];
     descripcion: string;
+    paraQueSirve?: string;
+    imagenUrl?: string;
     imagen: string;
     rating: number;
     stock: number;
@@ -98,8 +100,10 @@ export function ProductosCliente({ onAddToCart }: ProductosClienteProps) {
                         marca: p.marca,
                         precio: p.precio,
                         categoria: 'Cuidado Facial',
-                        tipoPiel: p.tiposPiel && p.tiposPiel.length > 0 ? p.tiposPiel : ['Normal', 'Seca'],
+                        tipoPiel: (p.tiposPiel && p.tiposPiel.length > 0) ? p.tiposPiel : (p.tiposPielAptos && p.tiposPielAptos.length > 0) ? p.tiposPielAptos : ['Normal', 'Seca'],
                         descripcion: p.descripcion || '',
+                        paraQueSirve: p.paraQueSirve,
+                        imagenUrl: p.imagenUrl,
                         imagen: '🧴',
                         rating: 4.8,
                         stock: p.stockActual,
@@ -334,20 +338,50 @@ export function ProductosCliente({ onAddToCart }: ProductosClienteProps) {
                                         key={producto.id}
                                         className="bg-white rounded-xl overflow-hidden border border-[#EDE8E1] hover:shadow-md transition-shadow"
                                     >
-                                        <div className="bg-[#EDE8E1] h-44 flex items-center justify-center text-6xl">
-                                            {producto.imagen}
+                                        <div className="bg-[#FAF8F5] h-48 flex items-center justify-center overflow-hidden border-b border-[#EDE8E1] relative">
+                                            {producto.imagenUrl ? (
+                                                <img
+                                                    src={producto.imagenUrl}
+                                                    alt={producto.nombre}
+                                                    className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLElement).style.display = 'none';
+                                                    }}
+                                                />
+                                            ) : (
+                                                <span className="text-6xl">{producto.imagen}</span>
+                                            )}
                                         </div>
 
                                         <div className="p-5">
-                                            <span className="text-xs font-medium bg-[#EDE8E1] text-[#3C3530] px-2 py-0.5 rounded-full">
-                                                {producto.categoria}
-                                            </span>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-xs font-medium bg-[#EDE8E1] text-[#3C3530] px-2 py-0.5 rounded-full">
+                                                    {producto.categoria}
+                                                </span>
+                                                {producto.tipoPiel.length > 0 && (
+                                                    <span className="text-[10px] text-[#8A7F74]">
+                                                        Piel: {producto.tipoPiel.slice(0, 2).join(', ')}
+                                                    </span>
+                                                )}
+                                            </div>
 
-                                            <p className="text-xs text-[#8A7F74] mt-2 mb-0.5">{producto.marca}</p>
+                                            <p className="text-xs text-[#8A7F74] mt-1 mb-0.5">{producto.marca}</p>
                                             <h3 className="font-semibold text-[#2A2825] mb-1.5 line-clamp-1 text-sm">{producto.nombre}</h3>
-                                            <p className="text-xs text-[#8A7F74] mb-3 line-clamp-2 leading-relaxed">
-                                                {producto.descripcion}
-                                            </p>
+                                            
+                                            {producto.paraQueSirve ? (
+                                                <div className="mb-3 p-2.5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#5A524A]">
+                                                    <span className="font-bold text-[#7A3B3B] block text-[10px] uppercase tracking-wider mb-0.5">
+                                                        ¿Para qué sirve?
+                                                    </span>
+                                                    <p className="line-clamp-2 text-xs leading-relaxed text-[#3C3530]">
+                                                        {producto.paraQueSirve}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-[#8A7F74] mb-3 line-clamp-2 leading-relaxed">
+                                                    {producto.descripcion}
+                                                </p>
+                                            )}
 
                                             <div className="flex items-center gap-1 mb-3">
                                                 {Array.from({ length: 5 }).map((_, idx) => (
