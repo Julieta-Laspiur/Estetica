@@ -39,6 +39,8 @@ public class ActualizarServicioCommandHandler : IRequestHandler<ActualizarServic
 
         servicio.Nombre = request.Nombre.Trim();
         servicio.Descripcion = request.Descripcion?.Trim();
+        servicio.ParaQueSirve = request.ParaQueSirve?.Trim();
+        servicio.ImagenUrl = request.ImagenUrl?.Trim();
         servicio.Precio = request.Precio;
         servicio.DuracionMin = request.DuracionMin;
         servicio.Activo = request.Activo;
@@ -51,6 +53,8 @@ public class ActualizarServicioCommandHandler : IRequestHandler<ActualizarServic
             ServicioId = servicio.ServicioId,
             Nombre = servicio.Nombre,
             Descripcion = servicio.Descripcion,
+            ParaQueSirve = servicio.ParaQueSirve,
+            ImagenUrl = servicio.ImagenUrl,
             Precio = servicio.Precio,
             DuracionMin = servicio.DuracionMin,
             Activo = servicio.Activo

@@ -65,7 +65,15 @@ public class ServiciosController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ServicioDetalleDto>> CrearServicio([FromBody] CrearServicioRequest request)
     {
-        var command = new CrearServicioCommand(request.Nombre, request.Descripcion, request.Precio, request.DuracionMin, request.Activo);
+        var command = new CrearServicioCommand(
+            request.Nombre,
+            request.Descripcion,
+            request.Precio,
+            request.DuracionMin,
+            request.Activo,
+            request.ParaQueSirve,
+            request.ImagenUrl
+        );
         var servicio = await _mediator.Send(command);
         return CreatedAtAction(nameof(GetServicioPorId), new { id = servicio.ServicioId }, servicio);
     }
@@ -77,7 +85,16 @@ public class ServiciosController : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<ActionResult<ServicioDetalleDto>> ActualizarServicio(int id, [FromBody] ActualizarServicioRequest request)
     {
-        var command = new ActualizarServicioCommand(id, request.Nombre, request.Descripcion, request.Precio, request.DuracionMin, request.Activo);
+        var command = new ActualizarServicioCommand(
+            id,
+            request.Nombre,
+            request.Descripcion,
+            request.Precio,
+            request.DuracionMin,
+            request.Activo,
+            request.ParaQueSirve,
+            request.ImagenUrl
+        );
         var servicio = await _mediator.Send(command);
         return Ok(servicio);
     }
@@ -104,8 +121,50 @@ public class ServiciosController : ControllerBase
         var servicio = await _mediator.Send(new CambiarEstadoServicioCommand(id, request.Activo));
         return Ok(servicio);
     }
+
+    /// <summary>
+    /// Subir imagen para un servicio estético (Solo Administrador).
+    /// </summary>
+    [Authorize(Roles = "Administrador")]
+    [HttpPost("upload-imagen")]
+    public async Task<ActionResult> UploadImagen([FromForm] IFormFile? archivo)
+    {
+        if (archivo == null || archivo.Length == 0)
+        {
+            return BadRequest(new { message = "No se envió ningún archivo de imagen." });
+        }
+
+        var extensionesPermitidas = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+        var extension = Path.GetExtension(archivo.FileName).ToLowerInvariant();
+        if (!extensionesPermitidas.Contains(extension))
+        {
+            return BadRequest(new { message = "Formato de imagen no permitido. Formatos aceptados: JPG, PNG, WebP, GIF." });
+        }
+
+        if (archivo.Length > 5 * 1024 * 1024)
+        {
+            return BadRequest(new { message = "El tamaño de la imagen no puede superar los 5MB." });
+        }
+
+        var uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "servicios");
+        if (!Directory.Exists(uploadDir))
+        {
+            Directory.CreateDirectory(uploadDir);
+        }
+
+        var nombreArchivoUnico = $"{Guid.NewGuid():N}{extension}";
+        var rutaDestino = Path.Combine(uploadDir, nombreArchivoUnico);
+
+        using (var stream = new FileStream(rutaDestino, FileMode.Create))
+        {
+            await archivo.CopyToAsync(stream);
+        }
+
+        var urlRelativa = $"/uploads/servicios/{nombreArchivoUnico}";
+        return Ok(new { url = urlRelativa, message = "Imagen de servicio subida exitosamente." });
+    }
 }
 
-public record CrearServicioRequest(string Nombre, string? Descripcion, decimal Precio, int DuracionMin, bool Activo = true);
-public record ActualizarServicioRequest(string Nombre, string? Descripcion, decimal Precio, int DuracionMin, bool Activo = true);
+public record CrearServicioRequest(string Nombre, string? Descripcion, decimal Precio, int DuracionMin, bool Activo = true, string? ParaQueSirve = null, string? ImagenUrl = null);
+public record ActualizarServicioRequest(string Nombre, string? Descripcion, decimal Precio, int DuracionMin, bool Activo = true, string? ParaQueSirve = null, string? ImagenUrl = null);
 public record CambiarEstadoServicioRequest(bool Activo);

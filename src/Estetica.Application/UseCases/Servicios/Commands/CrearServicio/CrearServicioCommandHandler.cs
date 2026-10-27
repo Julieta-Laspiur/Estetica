@@ -36,6 +36,8 @@ public class CrearServicioCommandHandler : IRequestHandler<CrearServicioCommand,
         {
             Nombre = request.Nombre.Trim(),
             Descripcion = request.Descripcion?.Trim(),
+            ParaQueSirve = request.ParaQueSirve?.Trim(),
+            ImagenUrl = request.ImagenUrl?.Trim(),
             Precio = request.Precio,
             DuracionMin = request.DuracionMin,
             Activo = request.Activo
@@ -49,6 +51,8 @@ public class CrearServicioCommandHandler : IRequestHandler<CrearServicioCommand,
             ServicioId = servicio.ServicioId,
             Nombre = servicio.Nombre,
             Descripcion = servicio.Descripcion,
+            ParaQueSirve = servicio.ParaQueSirve,
+            ImagenUrl = servicio.ImagenUrl,
             Precio = servicio.Precio,
             DuracionMin = servicio.DuracionMin,
             Activo = servicio.Activo

@@ -24,6 +24,8 @@ public class ListarTodosServiciosQueryHandler : IRequestHandler<ListarTodosServi
                 ServicioId = s.ServicioId,
                 Nombre = s.Nombre,
                 Descripcion = s.Descripcion,
+                ParaQueSirve = s.ParaQueSirve,
+                ImagenUrl = s.ImagenUrl,
                 Precio = s.Precio,
                 DuracionMin = s.DuracionMin,
                 Activo = s.Activo

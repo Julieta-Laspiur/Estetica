@@ -8,5 +8,7 @@ public record CrearServicioCommand(
     string? Descripcion,
     decimal Precio,
     int DuracionMin,
-    bool Activo = true
+    bool Activo = true,
+    string? ParaQueSirve = null,
+    string? ImagenUrl = null
 ) : IRequest<ServicioDetalleDto>;

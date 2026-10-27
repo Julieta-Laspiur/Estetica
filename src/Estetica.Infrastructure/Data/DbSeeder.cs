@@ -23,11 +23,13 @@ public static class DbSeeder
             {
                 await context.Database.ExecuteSqlRawAsync(
                     "ALTER TABLE \"Productos\" ADD COLUMN IF NOT EXISTS \"ParaQueSirve\" text; " +
-                    "ALTER TABLE \"Productos\" ADD COLUMN IF NOT EXISTS \"ImagenUrl\" text;");
+                    "ALTER TABLE \"Productos\" ADD COLUMN IF NOT EXISTS \"ImagenUrl\" text; " +
+                    "ALTER TABLE \"Servicios\" ADD COLUMN IF NOT EXISTS \"ParaQueSirve\" text; " +
+                    "ALTER TABLE \"Servicios\" ADD COLUMN IF NOT EXISTS \"ImagenUrl\" text;");
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Aviso de inicialización de columnas opcionales en Productos.");
+                logger.LogWarning(ex, "Aviso de inicialización de columnas opcionales en Productos y Servicios.");
             }
 
             // 1. Tipos de Piel
@@ -141,6 +143,8 @@ public static class DbSeeder
                     {
                         Nombre = "Limpieza Facial Profunda",
                         Descripcion = "Higiene cutánea completa con punta de diamante, extracción suave y máscara descongestiva.",
+                        ParaQueSirve = "Remueve impurezas, células muertas y puntos negros, desobstruyendo los poros y devolviendo vitalidad y oxigenación a la piel.",
+                        ImagenUrl = "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=800",
                         Precio = 4500m,
                         DuracionMin = 60,
                         Activo = true
@@ -149,6 +153,8 @@ public static class DbSeeder
                     {
                         Nombre = "Masaje Relajante & Descontracturante",
                         Descripcion = "Sesión corporal con aceites esenciales botánicos y piedras calientes para aliviar tensiones.",
+                        ParaQueSirve = "Alivia contracturas musculares, reduce el estrés físico y mental, y estimula la circulación sanguínea mediante maniobras lentas y profundas.",
+                        ImagenUrl = "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800",
                         Precio = 5200m,
                         DuracionMin = 50,
                         Activo = true
@@ -157,6 +163,8 @@ public static class DbSeeder
                     {
                         Nombre = "Drenaje Linfático Manual",
                         Descripcion = "Técnica manual especializada para reducir retención de líquidos y mejorar circulación.",
+                        ParaQueSirve = "Favorece la eliminación de toxinas acumuladas, combate la retención de líquidos, disminuye edemas y alivia piernas cansadas.",
+                        ImagenUrl = "https://images.unsplash.com/photo-1519823551278-64ac92734fb1?w=800",
                         Precio = 4800m,
                         DuracionMin = 45,
                         Activo = true
@@ -165,6 +173,8 @@ public static class DbSeeder
                     {
                         Nombre = "Radiofrecuencia Facial Tensora",
                         Descripcion = "Estímulo térmico de colágeno y elastina para efecto lifting no invasivo y luminosidad.",
+                        ParaQueSirve = "Reafirma el tejido dérmico, estimula la formación de nuevo colágeno, combate la flacidez facial y redefine el óvalo del rostro.",
+                        ImagenUrl = "https://images.unsplash.com/photo-1512290900672-1f4153ae5891?w=800",
                         Precio = 6500m,
                         DuracionMin = 45,
                         Activo = true
@@ -173,12 +183,48 @@ public static class DbSeeder
                     {
                         Nombre = "Peeling Químico Renovador",
                         Descripcion = "Exfoliación química adaptada a cada biotipo cutáneo para unificar tono y textura.",
+                        ParaQueSirve = "Acelera la renovación celular, aclara manchas solares o de acné, suaviza arrugas finas y aporta un brillo radiante y parejo.",
+                        ImagenUrl = "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800",
                         Precio = 5800m,
                         DuracionMin = 40,
                         Activo = true
                     }
                 };
                 await context.Servicios.AddRangeAsync(servicios);
+                await context.SaveChangesAsync();
+            }
+            else
+            {
+                var s1 = await context.Servicios.FirstOrDefaultAsync(s => s.Nombre == "Limpieza Facial Profunda");
+                if (s1 != null && string.IsNullOrEmpty(s1.ParaQueSirve))
+                {
+                    s1.ParaQueSirve = "Remueve impurezas, células muertas y puntos negros, desobstruyendo los poros y devolviendo vitalidad y oxigenación a la piel.";
+                    s1.ImagenUrl = "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=800";
+                }
+                var s2 = await context.Servicios.FirstOrDefaultAsync(s => s.Nombre == "Masaje Relajante & Descontracturante");
+                if (s2 != null && string.IsNullOrEmpty(s2.ParaQueSirve))
+                {
+                    s2.ParaQueSirve = "Alivia contracturas musculares, reduce el estrés físico y mental, y estimula la circulación sanguínea mediante maniobras lentas y profundas.";
+                    s2.ImagenUrl = "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800";
+                }
+                var s3 = await context.Servicios.FirstOrDefaultAsync(s => s.Nombre == "Drenaje Linfático Manual");
+                if (s3 != null && string.IsNullOrEmpty(s3.ParaQueSirve))
+                {
+                    s3.ParaQueSirve = "Favorece la eliminación de toxinas acumuladas, combate la retención de líquidos, disminuye edemas y alivia piernas cansadas.";
+                    s3.ImagenUrl = "https://images.unsplash.com/photo-1519823551278-64ac92734fb1?w=800";
+                }
+                var s4 = await context.Servicios.FirstOrDefaultAsync(s => s.Nombre == "Radiofrecuencia Facial Tensora");
+                if (s4 != null && string.IsNullOrEmpty(s4.ParaQueSirve))
+                {
+                    s4.ParaQueSirve = "Reafirma el tejido dérmico, estimula la formación de nuevo colágeno, combate la flacidez facial y redefine el óvalo del rostro.";
+                    s4.ImagenUrl = "https://images.unsplash.com/photo-1512290900672-1f4153ae5891?w=800";
+                }
+                var s5 = await context.Servicios.FirstOrDefaultAsync(s => s.Nombre == "Peeling Químico Renovador");
+                if (s5 != null && string.IsNullOrEmpty(s5.ParaQueSirve))
+                {
+                    s5.ParaQueSirve = "Acelera la renovación celular, aclara manchas solares o de acné, suaviza arrugas finas y aporta un brillo radiante y parejo.";
+                    s5.ImagenUrl = "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800";
+                }
                 await context.SaveChangesAsync();
             }
 

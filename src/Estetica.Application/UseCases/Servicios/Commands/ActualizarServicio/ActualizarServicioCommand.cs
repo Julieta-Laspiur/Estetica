@@ -9,5 +9,7 @@ public record ActualizarServicioCommand(
     string? Descripcion,
     decimal Precio,
     int DuracionMin,
-    bool Activo
+    bool Activo,
+    string? ParaQueSirve = null,
+    string? ImagenUrl = null
 ) : IRequest<ServicioDetalleDto>;

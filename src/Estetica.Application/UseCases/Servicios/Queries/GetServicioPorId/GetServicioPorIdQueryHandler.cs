@@ -27,6 +27,8 @@ public class GetServicioPorIdQueryHandler : IRequestHandler<GetServicioPorIdQuer
             ServicioId = servicio.ServicioId,
             Nombre = servicio.Nombre,
             Descripcion = servicio.Descripcion,
+            ParaQueSirve = servicio.ParaQueSirve,
+            ImagenUrl = servicio.ImagenUrl,
             Precio = servicio.Precio,
             DuracionMin = servicio.DuracionMin,
             Activo = servicio.Activo
