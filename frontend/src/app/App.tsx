@@ -28,15 +28,19 @@ interface ProductoCarrito {
 }
 
 export default function App() {
-  const [vistaActual, setVistaActual] = useState<'admin' | 'cliente'>('cliente');
-  const [activeSection, setActiveSection] = useState('inicio');
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authApi.getCurrentUser());
+  const [vistaActual, setVistaActual] = useState<'admin' | 'cliente'>(() => {
+    const user = authApi.getCurrentUser();
+    return user?.rol === 'Administrador' ? 'admin' : 'cliente';
+  });
+  const [activeSection, setActiveSection] = useState('inicio');
   const [carritoItems, setCarritoItems] = useState<ProductoCarrito[]>([]);
   const [wishlistItems] = useState<string[]>([]);
 
   const handleLogout = () => {
     authApi.logout();
     setCurrentUser(null);
+    setVistaActual('cliente');
     setActiveSection('inicio');
   };
 
@@ -120,22 +124,6 @@ export default function App() {
     switch (activeSection) {
       case 'inicio':
         return <InicioCliente onNavigate={setActiveSection} />;
-
-      case 'auth':
-        return (
-          <AuthPage
-            onLogin={(user) => {
-              setCurrentUser(user);
-              if (user.rol === 'Administrador') {
-                setVistaActual('admin');
-                setActiveSection('dashboard');
-              } else {
-                setActiveSection('inicio');
-              }
-            }}
-            onCancel={() => setActiveSection('inicio')}
-          />
-        );
 
       case 'reservar':
         return <ReservarTurno />;
@@ -243,7 +231,7 @@ export default function App() {
                       <Shield className="w-5 h-5 text-[#7A3B3B]" />
                       <div>
                         <p className="text-xs font-bold text-[#2A2825]">Acceso Administrativo Habilitado</p>
-                        <p className="text-[11px] text-[#8A7F74]">Tenés permisos de gestión integral del centro estético.</p>
+                        <p className="text-[11px] text-[#8A7F74]">Tu cuenta posee permisos de gestión integral del centro estético.</p>
                       </div>
                     </div>
                     <button
@@ -283,28 +271,54 @@ export default function App() {
     }
   };
 
+  // 1. Vista de Autenticación a pantalla completa (sin barra de navegación)
+  if (activeSection === 'auth') {
+    return (
+      <AuthPage
+        onLogin={(user) => {
+          setCurrentUser(user);
+          if (user.rol === 'Administrador') {
+            setVistaActual('admin');
+            setActiveSection('dashboard');
+          } else {
+            setVistaActual('cliente');
+            setActiveSection('inicio');
+          }
+        }}
+        onCancel={() => setActiveSection('inicio')}
+      />
+    );
+  }
+
+  // 2. Vista Administrativa (acceso condicionado por rol del usuario)
   if (vistaActual === 'admin') {
+    // Si no es administrador, retornar a la vista de cliente
+    if (currentUser?.rol !== 'Administrador') {
+      setVistaActual('cliente');
+      setActiveSection('inicio');
+      return null;
+    }
+
     return (
       <div className="flex h-screen bg-background">
-        <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+        <Sidebar
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          currentUser={currentUser}
+          onSwitchToCliente={() => {
+            setVistaActual('cliente');
+            setActiveSection('inicio');
+          }}
+          onLogout={handleLogout}
+        />
         <main className="flex-1 overflow-y-auto p-8">
-          <div className="mb-4">
-            <button
-              onClick={() => {
-                setVistaActual('cliente');
-                setActiveSection('inicio');
-              }}
-              className="px-4 py-2 bg-secondary rounded-lg hover:bg-accent transition-colors"
-            >
-              Vista Cliente
-            </button>
-          </div>
           {renderAdminSection()}
         </main>
       </div>
     );
   }
 
+  // 3. Vista Cliente con Barra de Navegación adaptada al usuario
   return (
     <div className="min-h-screen bg-background">
       <NavbarCliente
@@ -314,10 +328,14 @@ export default function App() {
         wishlistCount={wishlistItems.length}
         currentUser={currentUser}
         onLogout={handleLogout}
-        onSwitchToAdmin={() => {
-          setVistaActual('admin');
-          setActiveSection('dashboard');
-        }}
+        onSwitchToAdmin={
+          currentUser?.rol === 'Administrador'
+            ? () => {
+                setVistaActual('admin');
+                setActiveSection('dashboard');
+              }
+            : undefined
+        }
       />
       <main>
         {renderClienteSection()}

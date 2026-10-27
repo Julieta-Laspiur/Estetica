@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, ArrowRight, Sparkles, Check, ArrowLeft, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, Sparkles, Check, ArrowLeft, AlertCircle, ShieldCheck, X } from 'lucide-react';
 import { authApi, type AuthUser } from '../../../services/api';
 
 interface AuthPageProps {
@@ -157,7 +157,7 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
     const strengthColor = ['', 'bg-red-400', 'bg-amber-400', 'bg-lime-500', 'bg-emerald-500'];
 
     return (
-        <div className="min-h-[calc(100vh-70px)] bg-[#F7F4F0] flex flex-col lg:flex-row">
+        <div className="min-h-screen bg-[#F7F4F0] flex flex-col lg:flex-row">
             {/* Left panel — decorative */}
             <div
                 className="hidden lg:flex flex-col justify-between w-[44%] relative overflow-hidden p-12 text-white"
@@ -222,8 +222,21 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
             </div>
 
             {/* Right panel — form */}
-            <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-10">
+            <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-10 relative">
                 <div className="w-full max-w-[460px] bg-white rounded-2xl shadow-sm border border-[#EDE8E1] p-6 sm:p-8">
+
+                    {/* Desktop close button */}
+                    {onCancel && (
+                        <div className="hidden lg:flex justify-end mb-1 -mt-2 -mr-2">
+                            <button
+                                onClick={onCancel}
+                                className="text-xs text-[#8A7F74] hover:text-[#7A3B3B] inline-flex items-center gap-1 font-medium transition-colors p-1"
+                                title="Volver a la tienda"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
 
                     {/* Mobile top bar */}
                     <div className="flex items-center justify-between mb-6 lg:hidden">

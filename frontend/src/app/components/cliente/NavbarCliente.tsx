@@ -7,9 +7,9 @@ interface NavbarClienteProps {
     onSectionChange: (section: string) => void;
     cartCount: number;
     wishlistCount?: number;
-    onSwitchToAdmin: () => void;
     currentUser?: AuthUser | null;
     onLogout?: () => void;
+    onSwitchToAdmin?: () => void;
 }
 
 export function NavbarCliente({
@@ -17,9 +17,9 @@ export function NavbarCliente({
     onSectionChange,
     cartCount,
     wishlistCount = 0,
-    onSwitchToAdmin,
     currentUser,
-    onLogout
+    onLogout,
+    onSwitchToAdmin
 }: NavbarClienteProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
@@ -67,6 +67,11 @@ export function NavbarCliente({
                         <span className="hidden sm:inline font-semibold max-w-[100px] truncate">
                             {currentUser.nombre}
                         </span>
+                        {currentUser.rol === 'Administrador' && (
+                            <span className="hidden sm:inline px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#7A3B3B]/15 text-[#7A3B3B] uppercase tracking-wider">
+                                Admin
+                            </span>
+                        )}
                     </button>
                     {onLogout && (
                         <button
@@ -108,13 +113,7 @@ export function NavbarCliente({
                     </span>
                 )}
             </button>
-            <button
-                onClick={onSwitchToAdmin}
-                className="hidden lg:block ml-1 px-3 py-1.5 bg-[#EDE8E1] text-xs font-medium rounded-lg hover:bg-[#DDD5C8] transition-colors text-[#8A7F74]"
-                title="Ir al panel de administración"
-            >
-                Admin
-            </button>
+
             <button
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="md:hidden p-2 hover:bg-[#EDE8E1] rounded-lg transition-colors ml-1"
@@ -283,7 +282,14 @@ export function NavbarCliente({
                                                 {currentUser.nombre.charAt(0)}
                                             </span>
                                             <div>
-                                                <p className="text-xs font-bold text-[#2A2825]">{currentUser.nombre} {currentUser.apellido}</p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-xs font-bold text-[#2A2825]">{currentUser.nombre} {currentUser.apellido}</p>
+                                                    {currentUser.rol === 'Administrador' && (
+                                                        <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-[#7A3B3B]/15 text-[#7A3B3B] uppercase">
+                                                            Admin
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-[10px] text-[#8A7F74]">{currentUser.email}</p>
                                             </div>
                                         </div>
@@ -303,6 +309,15 @@ export function NavbarCliente({
                                         <User className="w-4 h-4" />
                                         Mi Perfil
                                     </button>
+
+                                    {currentUser.rol === 'Administrador' && onSwitchToAdmin && (
+                                        <button
+                                            onClick={() => { onSwitchToAdmin(); setMenuOpen(false); }}
+                                            className="w-full py-2 bg-[#EDE8E1] rounded-lg text-sm font-semibold text-[#7A3B3B] hover:bg-[#DDD5C8] transition-colors text-center"
+                                        >
+                                            Ir al Panel de Administración
+                                        </button>
+                                    )}
                                 </>
                             ) : (
                                 <button
@@ -313,13 +328,6 @@ export function NavbarCliente({
                                     Iniciar Sesión / Registrarse
                                 </button>
                             )}
-
-                            <button
-                                onClick={() => { onSwitchToAdmin(); setMenuOpen(false); }}
-                                className="w-full py-2 bg-[#EDE8E1] rounded-lg text-sm text-[#5C534A] hover:bg-[#DDD5C8] transition-colors text-center"
-                            >
-                                Vista Administrador
-                            </button>
                         </div>
                     </div>
                 </div>
