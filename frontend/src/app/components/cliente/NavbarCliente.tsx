@@ -1,4 +1,4 @@
-import { ShoppingCart, User, QrCode, Calendar, ShoppingBag, MessageCircle, Menu, X, Heart, Search, LogOut } from 'lucide-react';
+import { ShoppingCart, User, QrCode, Calendar, ShoppingBag, MessageCircle, Menu, X, Heart, Search, LogOut, Shield } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { AuthUser } from '../../../services/api';
 
@@ -25,19 +25,26 @@ export function NavbarCliente({
     const [searchValue, setSearchValue] = useState('');
     const [scrolled, setScrolled] = useState(false);
 
+    const isAdmin = currentUser?.rol === 'Administrador';
+
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 60);
         window.addEventListener('scroll', onScroll, { passive: true });
         return () => window.removeEventListener('scroll', onScroll);
     }, []);
 
-    const menuItems = [
+    const allMenuItems = [
         { id: 'inicio', label: 'Inicio', icon: null },
         { id: 'reservar', label: 'Reservar Turno', icon: Calendar },
         { id: 'productos', label: 'Productos', icon: ShoppingBag },
         { id: 'lealtad', label: 'Mi Tarjeta', icon: QrCode },
         { id: 'chat', label: 'Consultorio IA', icon: MessageCircle },
     ];
+
+    // El administrador no utiliza la tarjeta de lealtad como cliente
+    const menuItems = isAdmin
+        ? allMenuItems.filter(item => item.id !== 'lealtad')
+        : allMenuItems;
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -67,7 +74,7 @@ export function NavbarCliente({
                         <span className="hidden sm:inline font-semibold max-w-[100px] truncate">
                             {currentUser.nombre}
                         </span>
-                        {currentUser.rol === 'Administrador' && (
+                        {isAdmin && (
                             <span className="hidden sm:inline px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#7A3B3B]/15 text-[#7A3B3B] uppercase tracking-wider">
                                 Admin
                             </span>
@@ -97,22 +104,39 @@ export function NavbarCliente({
                 </button>
             )}
 
-            <button onClick={() => onSectionChange('wishlist')} className={iconBtn} title="Lista de deseos">
-                <Heart className="w-5 h-5" />
-                {wishlistCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#7A3B3B] text-white text-[10px] rounded-full flex items-center justify-center font-medium">
-                        {wishlistCount}
-                    </span>
-                )}
-            </button>
-            <button onClick={() => onSectionChange('carrito')} className={iconBtn} title="Carrito">
-                <ShoppingCart className="w-5 h-5" />
-                {cartCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#3C3530] text-white text-[10px] rounded-full flex items-center justify-center font-medium">
-                        {cartCount}
-                    </span>
-                )}
-            </button>
+            {/* Carrito y Lista de Deseos: SOLO para Clientes e Invitados, NO para Administradores */}
+            {!isAdmin && (
+                <>
+                    <button onClick={() => onSectionChange('wishlist')} className={iconBtn} title="Lista de deseos">
+                        <Heart className="w-5 h-5" />
+                        {wishlistCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#7A3B3B] text-white text-[10px] rounded-full flex items-center justify-center font-medium">
+                                {wishlistCount}
+                            </span>
+                        )}
+                    </button>
+                    <button onClick={() => onSectionChange('carrito')} className={iconBtn} title="Carrito">
+                        <ShoppingCart className="w-5 h-5" />
+                        {cartCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#3C3530] text-white text-[10px] rounded-full flex items-center justify-center font-medium">
+                                {cartCount}
+                            </span>
+                        )}
+                    </button>
+                </>
+            )}
+
+            {/* Acceso rápido directo al Panel Administrativo cuando un administrador recorre la tienda */}
+            {isAdmin && onSwitchToAdmin && (
+                <button
+                    onClick={onSwitchToAdmin}
+                    className="ml-1 px-3 py-1.5 bg-[#EDE8E1] hover:bg-[#DDD5C8] text-[#7A3B3B] text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 shadow-2xs"
+                    title="Volver al panel administrativo"
+                >
+                    <Shield className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Panel Admin</span>
+                </button>
+            )}
 
             <button
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -284,7 +308,7 @@ export function NavbarCliente({
                                             <div>
                                                 <div className="flex items-center gap-1.5">
                                                     <p className="text-xs font-bold text-[#2A2825]">{currentUser.nombre} {currentUser.apellido}</p>
-                                                    {currentUser.rol === 'Administrador' && (
+                                                    {isAdmin && (
                                                         <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-[#7A3B3B]/15 text-[#7A3B3B] uppercase">
                                                             Admin
                                                         </span>
@@ -310,11 +334,12 @@ export function NavbarCliente({
                                         Mi Perfil
                                     </button>
 
-                                    {currentUser.rol === 'Administrador' && onSwitchToAdmin && (
+                                    {isAdmin && onSwitchToAdmin && (
                                         <button
                                             onClick={() => { onSwitchToAdmin(); setMenuOpen(false); }}
-                                            className="w-full py-2 bg-[#EDE8E1] rounded-lg text-sm font-semibold text-[#7A3B3B] hover:bg-[#DDD5C8] transition-colors text-center"
+                                            className="w-full py-2 bg-[#EDE8E1] rounded-lg text-sm font-semibold text-[#7A3B3B] hover:bg-[#DDD5C8] transition-colors flex items-center justify-center gap-2"
                                         >
+                                            <Shield className="w-4 h-4" />
                                             Ir al Panel de Administración
                                         </button>
                                     )}

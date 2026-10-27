@@ -16,7 +16,7 @@ import { ChatIA } from './components/cliente/ChatIA';
 import { Carrito } from './components/cliente/Carrito';
 import { AuthPage } from './components/cliente/AuthPage';
 import { authApi, type AuthUser } from '../services/api';
-import { User, LogOut, Calendar, QrCode, ShoppingCart, Shield } from 'lucide-react';
+import { User, LogOut, Calendar, QrCode, ShoppingCart, Shield, LayoutDashboard, Scissors } from 'lucide-react';
 
 interface ProductoCarrito {
   id: string;
@@ -132,12 +132,58 @@ export default function App() {
         return <ProductosCliente onAddToCart={handleAddToCart} />;
 
       case 'lealtad':
+        // El Administrador no usa tarjeta de lealtad como cliente
+        if (currentUser?.rol === 'Administrador') {
+          return (
+            <div className="max-w-xl mx-auto py-16 px-4 text-center">
+              <div className="w-14 h-14 bg-[#EDE8E1] rounded-full flex items-center justify-center mx-auto mb-3 text-[#7A3B3B]">
+                <Shield className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl font-bold text-[#2A2825] mb-2">Programa de Lealtad (Clientes)</h2>
+              <p className="text-sm text-[#8A7F74] mb-6">
+                La tarjeta de sellos y recompensas es exclusiva para cuentas de clientes. Como administrador podés configurar las reglas y recompensas desde el panel de control.
+              </p>
+              <button
+                onClick={() => {
+                  setVistaActual('admin');
+                  setActiveSection('lealtad');
+                }}
+                className="px-5 py-2.5 bg-[#3C3530] text-white rounded-xl hover:bg-[#2A2825] transition-colors text-xs font-semibold"
+              >
+                Gestionar Programa en Panel Admin
+              </button>
+            </div>
+          );
+        }
         return <TarjetaLealtad />;
 
       case 'chat':
         return <ChatIA />;
 
       case 'carrito':
+        // El Administrador no tiene carrito de compras personal
+        if (currentUser?.rol === 'Administrador') {
+          return (
+            <div className="max-w-xl mx-auto py-16 px-4 text-center">
+              <div className="w-14 h-14 bg-[#EDE8E1] rounded-full flex items-center justify-center mx-auto mb-3 text-[#7A3B3B]">
+                <Shield className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl font-bold text-[#2A2825] mb-2">Carrito de Compras (Clientes)</h2>
+              <p className="text-sm text-[#8A7F74] mb-6">
+                El carrito de compras está reservado para clientes. Como administrador podés administrar el inventario, catálogo y precios de productos desde el panel.
+              </p>
+              <button
+                onClick={() => {
+                  setVistaActual('admin');
+                  setActiveSection('productos');
+                }}
+                className="px-5 py-2.5 bg-[#3C3530] text-white rounded-xl hover:bg-[#2A2825] transition-colors text-xs font-semibold"
+              >
+                Gestionar Productos en Panel Admin
+              </button>
+            </div>
+          );
+        }
         return (
           <Carrito
             items={carritoItems}
@@ -194,35 +240,83 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Quick shortcuts */}
-              <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <button
-                  onClick={() => setActiveSection('reservar')}
-                  className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                >
-                  <Calendar className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                  <h4 className="font-semibold text-sm text-[#2A2825]">Mis Turnos</h4>
-                  <p className="text-xs text-[#8A7F74] mt-0.5">Reservá o gestioná citas</p>
-                </button>
+              {/* Quick shortcuts adaptados según el ROL del usuario */}
+              {currentUser.rol === 'Administrador' ? (
+                /* Accesos de gestión para Administrador (SIN Carrito ni Tarjeta de Lealtad) */
+                <div className="p-6">
+                  <div className="mb-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#7A3B3B]">Herramientas de Administración</p>
+                    <p className="text-xs text-[#8A7F74]">Accesos directos de gestión del centro estético</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <button
+                      onClick={() => {
+                        setVistaActual('admin');
+                        setActiveSection('dashboard');
+                      }}
+                      className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
+                    >
+                      <LayoutDashboard className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
+                      <h4 className="font-semibold text-sm text-[#2A2825]">Dashboard & Métricas</h4>
+                      <p className="text-xs text-[#8A7F74] mt-0.5">Ingresos, ocupación y resumen</p>
+                    </button>
 
-                <button
-                  onClick={() => setActiveSection('lealtad')}
-                  className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                >
-                  <QrCode className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                  <h4 className="font-semibold text-sm text-[#2A2825]">Tarjeta Lealtad</h4>
-                  <p className="text-xs text-[#8A7F74] mt-0.5">Ver sellos y recompensas</p>
-                </button>
+                    <button
+                      onClick={() => {
+                        setVistaActual('admin');
+                        setActiveSection('calendario');
+                      }}
+                      className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
+                    >
+                      <Calendar className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
+                      <h4 className="font-semibold text-sm text-[#2A2825]">Agenda & Citas</h4>
+                      <p className="text-xs text-[#8A7F74] mt-0.5">Control de turnos y horarios</p>
+                    </button>
 
-                <button
-                  onClick={() => setActiveSection('carrito')}
-                  className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                >
-                  <ShoppingCart className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                  <h4 className="font-semibold text-sm text-[#2A2825]">Mi Carrito</h4>
-                  <p className="text-xs text-[#8A7F74] mt-0.5">{carritoItems.length} productos guardados</p>
-                </button>
-              </div>
+                    <button
+                      onClick={() => {
+                        setVistaActual('admin');
+                        setActiveSection('servicios');
+                      }}
+                      className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
+                    >
+                      <Scissors className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
+                      <h4 className="font-semibold text-sm text-[#2A2825]">Servicios & Precios</h4>
+                      <p className="text-xs text-[#8A7F74] mt-0.5">Catálogo y configuración</p>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Accesos de Cliente (Turnos, Tarjeta de Lealtad y Carrito) */
+                <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <button
+                    onClick={() => setActiveSection('reservar')}
+                    className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
+                  >
+                    <Calendar className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
+                    <h4 className="font-semibold text-sm text-[#2A2825]">Mis Turnos</h4>
+                    <p className="text-xs text-[#8A7F74] mt-0.5">Reservá o gestioná citas</p>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveSection('lealtad')}
+                    className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
+                  >
+                    <QrCode className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
+                    <h4 className="font-semibold text-sm text-[#2A2825]">Tarjeta Lealtad</h4>
+                    <p className="text-xs text-[#8A7F74] mt-0.5">Ver sellos y recompensas</p>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveSection('carrito')}
+                    className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
+                  >
+                    <ShoppingCart className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
+                    <h4 className="font-semibold text-sm text-[#2A2825]">Mi Carrito</h4>
+                    <p className="text-xs text-[#8A7F74] mt-0.5">{carritoItems.length} productos guardados</p>
+                  </button>
+                </div>
+              )}
 
               {currentUser.rol === 'Administrador' && (
                 <div className="px-6 pb-6 pt-2 border-t border-[#EDE8E1]">
