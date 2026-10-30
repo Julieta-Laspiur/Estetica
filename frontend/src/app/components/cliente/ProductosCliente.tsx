@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Search, ShoppingCart, Star, SlidersHorizontal, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Search, ShoppingCart, Star, SlidersHorizontal, ChevronDown, ChevronUp, X, Package, Heart, Eye } from 'lucide-react';
 import { productosApi } from '../../../services/api';
+import { DetalleProductoModal } from './DetalleProductoModal';
 
 interface Producto {
     id: string;
@@ -12,22 +13,26 @@ interface Producto {
     descripcion: string;
     paraQueSirve?: string;
     imagenUrl?: string;
-    imagen: string;
+    imagen?: string;
     rating: number;
     stock: number;
 }
 
 interface ProductosClienteProps {
-    onAddToCart: (productId: string) => void;
+    onAddToCart: (productId: string, itemData?: { nombre: string; marca: string; precio: number; imagen?: string }, quantity?: number) => void;
+    wishlistIds?: string[];
+    onToggleWishlist?: (productId: string, itemData?: { nombre: string; marca: string; precio: number; imagenUrl?: string; descripcion?: string }) => void;
+    searchQuery?: string;
+    onClearSearch?: () => void;
 }
 
 const PRODUCTOS: Producto[] = [
-    { id: '1', nombre: 'Crema Hidratante Premium', marca: 'La Roche-Posay', precio: 2500, categoria: 'Cuidado Facial', tipoPiel: ['Seca', 'Normal'], descripcion: 'Crema hidratante para todo tipo de pieles con ácido hialurónico', imagen: '🧴', rating: 4.8, stock: 45 },
-    { id: '2', nombre: 'Sérum Vitamina C', marca: 'Vichy', precio: 3200, categoria: 'Cuidado Facial', tipoPiel: ['Normal', 'Mixta'], descripcion: 'Sérum antioxidante con vitamina C pura para iluminar la piel', imagen: '💧', rating: 4.9, stock: 28 },
-    { id: '3', nombre: 'Protector Solar FPS 50+', marca: 'Eucerin', precio: 1800, categoria: 'Protección Solar', tipoPiel: ['Seca', 'Sensible', 'Normal', 'Mixta', 'Grasa'], descripcion: 'Protección solar de amplio espectro con textura ligera', imagen: '☀️', rating: 4.7, stock: 62 },
-    { id: '4', nombre: 'Aceite Esencial Lavanda', marca: 'doTERRA', precio: 1500, categoria: 'Aromaterapia', tipoPiel: ['Sensible', 'Normal'], descripcion: 'Aceite esencial 100% puro de lavanda para relajación', imagen: '🌿', rating: 4.6, stock: 8 },
-    { id: '5', nombre: 'Exfoliante Corporal', marca: 'The Body Shop', precio: 2100, categoria: 'Cuidado Corporal', tipoPiel: ['Normal', 'Mixta', 'Grasa'], descripcion: 'Exfoliante corporal con sales marinas y aceites naturales', imagen: '🧂', rating: 4.5, stock: 33 },
-    { id: '6', nombre: 'Máscara Facial Purificante', marca: 'Natura', precio: 1900, categoria: 'Cuidado Facial', tipoPiel: ['Grasa', 'Mixta'], descripcion: 'Máscara de arcilla para pieles grasas y mixtas', imagen: '🎭', rating: 4.4, stock: 5 },
+    { id: '1', nombre: 'Crema Hidratante Premium', marca: 'La Roche-Posay', precio: 2500, categoria: 'Cuidado Facial', tipoPiel: ['Seca', 'Normal'], descripcion: 'Crema hidratante para todo tipo de pieles con ácido hialurónico', imagenUrl: 'https://images.unsplash.com/photo-1608248597359-242858b2e1bf?w=500&auto=format&fit=crop&q=80', rating: 4.8, stock: 45 },
+    { id: '2', nombre: 'Sérum Vitamina C', marca: 'Vichy', precio: 3200, categoria: 'Cuidado Facial', tipoPiel: ['Normal', 'Mixta'], descripcion: 'Sérum antioxidante con vitamina C pura para iluminar la piel', imagenUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=500&auto=format&fit=crop&q=80', rating: 4.9, stock: 28 },
+    { id: '3', nombre: 'Protector Solar FPS 50+', marca: 'Eucerin', precio: 1800, categoria: 'Protección Solar', tipoPiel: ['Seca', 'Sensible', 'Normal', 'Mixta', 'Grasa'], descripcion: 'Protección solar de amplio espectro con textura ligera', imagenUrl: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=500&auto=format&fit=crop&q=80', rating: 4.7, stock: 62 },
+    { id: '4', nombre: 'Aceite Esencial Lavanda', marca: 'doTERRA', precio: 1500, categoria: 'Aromaterapia', tipoPiel: ['Sensible', 'Normal'], descripcion: 'Aceite esencial 100% puro de lavanda para relajación', imagenUrl: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=500&auto=format&fit=crop&q=80', rating: 4.6, stock: 8 },
+    { id: '5', nombre: 'Exfoliante Corporal', marca: 'The Body Shop', precio: 2100, categoria: 'Cuidado Corporal', tipoPiel: ['Normal', 'Mixta', 'Grasa'], descripcion: 'Exfoliante corporal con sales marinas y aceites naturales', imagenUrl: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=500&auto=format&fit=crop&q=80', rating: 4.5, stock: 33 },
+    { id: '6', nombre: 'Máscara Facial Purificante', marca: 'Natura', precio: 1900, categoria: 'Cuidado Facial', tipoPiel: ['Grasa', 'Mixta'], descripcion: 'Máscara de arcilla para pieles grasas y mixtas', imagenUrl: 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=500&auto=format&fit=crop&q=80', rating: 4.4, stock: 5 },
 ];
 
 const FILTER_SECTIONS = [
@@ -83,12 +88,25 @@ function matchesPrecio(precio: number, option: string): boolean {
     return false;
 }
 
-export function ProductosCliente({ onAddToCart }: ProductosClienteProps) {
+export function ProductosCliente({
+    onAddToCart,
+    wishlistIds = [],
+    onToggleWishlist,
+    searchQuery = '',
+    onClearSearch
+}: ProductosClienteProps) {
     const [productosList, setProductosList] = useState<Producto[]>(PRODUCTOS);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(searchQuery);
     const [openSections, setOpenSections] = useState<string[]>(['categoria', 'tipoPiel']);
     const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [productoDetalle, setProductoDetalle] = useState<Producto | null>(null);
+
+    useEffect(() => {
+        if (searchQuery !== undefined) {
+            setSearchTerm(searchQuery);
+        }
+    }, [searchQuery]);
 
     useEffect(() => {
         productosApi.getProductos()
@@ -132,7 +150,11 @@ export function ProductosCliente({ onAddToCart }: ProductosClienteProps) {
         });
     };
 
-    const clearAll = () => setActiveFilters({});
+    const clearAll = () => {
+        setActiveFilters({});
+        setSearchTerm('');
+        if (onClearSearch) onClearSearch();
+    };
 
     const totalActiveFilters = Object.values(activeFilters).flat().length;
 
@@ -274,8 +296,21 @@ export function ProductosCliente({ onAddToCart }: ProductosClienteProps) {
                                 placeholder="Buscar productos o marcas..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2.5 border border-[#DDD5C8] rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#3C3530]/20 focus:border-[#3C3530] text-[#2A2825] placeholder:text-[#8A7F74]"
+                                className="w-full pl-9 pr-9 py-2.5 border border-[#DDD5C8] rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#3C3530]/20 focus:border-[#3C3530] text-[#2A2825] placeholder:text-[#8A7F74]"
                             />
+                            {searchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchTerm('');
+                                        if (onClearSearch) onClearSearch();
+                                    }}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A7F74] hover:text-[#2A2825] transition-colors"
+                                    title="Limpiar búsqueda"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
                         </div>
 
                         {/* Mobile filter toggle */}
@@ -336,79 +371,140 @@ export function ProductosCliente({ onAddToCart }: ProductosClienteProps) {
                                 {filteredProductos.map((producto) => (
                                     <div
                                         key={producto.id}
-                                        className="bg-white rounded-xl overflow-hidden border border-[#EDE8E1] hover:shadow-md transition-shadow"
+                                        onClick={() => setProductoDetalle(producto)}
+                                        className="bg-white rounded-2xl overflow-hidden border border-[#EDE8E1] hover:shadow-xl hover:border-[#DDD5C8] transition-all duration-300 flex flex-col justify-between group cursor-pointer"
                                     >
-                                        <div className="bg-[#FAF8F5] h-48 flex items-center justify-center overflow-hidden border-b border-[#EDE8E1] relative">
+                                        <div className="bg-[#FAF8F5] h-52 flex items-center justify-center overflow-hidden border-b border-[#EDE8E1] relative">
                                             {producto.imagenUrl ? (
                                                 <img
                                                     src={producto.imagenUrl}
                                                     alt={producto.nombre}
-                                                    className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-108"
                                                     onError={(e) => {
                                                         (e.target as HTMLElement).style.display = 'none';
                                                     }}
                                                 />
                                             ) : (
-                                                <span className="text-6xl">{producto.imagen}</span>
+                                                <div className="w-14 h-14 rounded-2xl bg-white shadow-xs border border-[#DDD5C8] flex items-center justify-center text-[#7A3B3B] group-hover:scale-110 transition-transform">
+                                                    <Package className="w-7 h-7" />
+                                                </div>
+                                            )}
+
+                                            {/* Hover overlay indicativo de Ver Detalle */}
+                                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center pointer-events-none">
+                                                <span className="bg-white/95 text-[#2A2825] text-xs font-semibold px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-200">
+                                                    <Eye className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                                                    Ver detalles completos
+                                                </span>
+                                            </div>
+
+                                            {/* Botón de Lista de Deseos (Favorito) */}
+                                            {onToggleWishlist && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onToggleWishlist(producto.id, {
+                                                            nombre: producto.nombre,
+                                                            marca: producto.marca,
+                                                            precio: producto.precio,
+                                                            imagenUrl: producto.imagenUrl,
+                                                            descripcion: producto.paraQueSirve || producto.descripcion
+                                                        });
+                                                    }}
+                                                    className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm z-10 ${
+                                                        wishlistIds.includes(producto.id)
+                                                            ? 'bg-[#7A3B3B] text-white shadow-md'
+                                                            : 'bg-white/95 backdrop-blur-xs text-[#8A7F74] hover:text-[#7A3B3B] hover:bg-white border border-white/60'
+                                                    }`}
+                                                    title={wishlistIds.includes(producto.id) ? 'Quitar de lista de deseos' : 'Guardar en lista de deseos'}
+                                                    aria-label="Lista de deseos"
+                                                >
+                                                    <Heart className={`w-4 h-4 ${wishlistIds.includes(producto.id) ? 'fill-current' : ''}`} />
+                                                </button>
                                             )}
                                         </div>
 
-                                        <div className="p-5">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-xs font-medium bg-[#EDE8E1] text-[#3C3530] px-2 py-0.5 rounded-full">
-                                                    {producto.categoria}
-                                                </span>
-                                                {producto.tipoPiel.length > 0 && (
-                                                    <span className="text-[10px] text-[#8A7F74]">
-                                                        Piel: {producto.tipoPiel.slice(0, 2).join(', ')}
+                                        <div className="p-5 flex-1 flex flex-col justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="text-xs font-medium bg-[#EDE8E1] text-[#3C3530] px-2.5 py-0.5 rounded-full">
+                                                        {producto.categoria}
                                                     </span>
-                                                )}
-                                            </div>
-
-                                            <p className="text-xs text-[#8A7F74] mt-1 mb-0.5">{producto.marca}</p>
-                                            <h3 className="font-semibold text-[#2A2825] mb-1.5 line-clamp-1 text-sm">{producto.nombre}</h3>
-                                            
-                                            {producto.paraQueSirve ? (
-                                                <div className="mb-3 p-2.5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#5A524A]">
-                                                    <span className="font-bold text-[#7A3B3B] block text-[10px] uppercase tracking-wider mb-0.5">
-                                                        ¿Para qué sirve?
-                                                    </span>
-                                                    <p className="line-clamp-2 text-xs leading-relaxed text-[#3C3530]">
-                                                        {producto.paraQueSirve}
-                                                    </p>
+                                                    {producto.tipoPiel.length > 0 && (
+                                                        <span className="text-[11px] text-[#8A7F74]">
+                                                            Piel: {producto.tipoPiel.slice(0, 2).join(', ')}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                            ) : (
-                                                <p className="text-xs text-[#8A7F74] mb-3 line-clamp-2 leading-relaxed">
-                                                    {producto.descripcion}
-                                                </p>
-                                            )}
 
-                                            <div className="flex items-center gap-1 mb-3">
-                                                {Array.from({ length: 5 }).map((_, idx) => (
-                                                    <Star
-                                                        key={idx}
-                                                        className={`w-3.5 h-3.5 ${idx < Math.floor(producto.rating) ? 'fill-amber-400 text-amber-400' : 'text-[#DDD5C8]'}`}
-                                                    />
-                                                ))}
-                                                <span className="text-xs text-[#8A7F74] ml-1">({producto.rating})</span>
-                                            </div>
-
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="text-lg font-bold text-[#3C3530]">${producto.precio.toLocaleString()}</div>
-                                                {producto.stock < 10 && (
-                                                    <span className="text-xs text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded-full">
-                                                        ¡Últimas {producto.stock}!
-                                                    </span>
+                                                <p className="text-xs font-semibold text-[#8A7F74] mt-1 mb-0.5 uppercase tracking-wider">{producto.marca}</p>
+                                                <h3 className="font-bold text-[#2A2825] group-hover:text-[#7A3B3B] transition-colors mb-1.5 line-clamp-1 text-sm">{producto.nombre}</h3>
+                                                
+                                                {producto.paraQueSirve ? (
+                                                    <div className="mb-3 p-2.5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#5A524A]">
+                                                        <span className="font-bold text-[#7A3B3B] block text-[10px] uppercase tracking-wider mb-0.5">
+                                                            ¿Para qué sirve?
+                                                        </span>
+                                                        <p className="line-clamp-2 text-xs leading-relaxed text-[#3C3530]">
+                                                            {producto.paraQueSirve}
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-[#8A7F74] mb-3 line-clamp-2 leading-relaxed">
+                                                        {producto.descripcion}
+                                                    </p>
                                                 )}
+
+                                                <div className="flex items-center gap-1 mb-3">
+                                                    {Array.from({ length: 5 }).map((_, idx) => (
+                                                        <Star
+                                                            key={idx}
+                                                            className={`w-3.5 h-3.5 ${idx < Math.floor(producto.rating) ? 'fill-amber-400 text-amber-400' : 'text-[#DDD5C8]'}`}
+                                                        />
+                                                    ))}
+                                                    <span className="text-xs font-semibold text-[#8A7F74] ml-1">({producto.rating})</span>
+                                                </div>
+
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="text-lg font-extrabold text-[#3C3530]">${producto.precio.toLocaleString()}</div>
+                                                    {producto.stock < 10 && (
+                                                        <span className="text-xs text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded-full">
+                                                            ¡Últimas {producto.stock}!
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
 
-                                            <button
-                                                onClick={() => onAddToCart(producto.id)}
-                                                className="w-full bg-[#3C3530] text-white py-2.5 rounded-lg hover:bg-[#2A2825] transition-colors flex items-center justify-center gap-2 text-sm font-medium"
-                                            >
-                                                <ShoppingCart className="w-4 h-4" />
-                                                Agregar al Carrito
-                                            </button>
+                                            {/* Acciones: Ver Detalles y Agregar al Carrito */}
+                                            <div className="grid grid-cols-5 gap-2 pt-2 border-t border-[#F5F2EB]">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setProductoDetalle(producto);
+                                                    }}
+                                                    className="col-span-2 bg-[#FAF8F5] hover:bg-[#EDE8E1] text-[#3C3530] border border-[#EDE8E1] py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold"
+                                                    title="Ver descripción detallada"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                                                    <span>Detalles</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onAddToCart(producto.id, {
+                                                            nombre: producto.nombre,
+                                                            marca: producto.marca,
+                                                            precio: producto.precio,
+                                                            imagen: producto.imagenUrl || '🧴'
+                                                        }, 1);
+                                                    }}
+                                                    className="col-span-3 bg-[#3C3530] hover:bg-[#7A3B3B] text-white py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold shadow-xs"
+                                                >
+                                                    <ShoppingCart className="w-3.5 h-3.5" />
+                                                    <span>Agregar</span>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -428,6 +524,16 @@ export function ProductosCliente({ onAddToCart }: ProductosClienteProps) {
                     </div>
                 </div>
             </div>
+
+            {/* Modal de Detalle de Producto */}
+            <DetalleProductoModal
+                producto={productoDetalle}
+                isOpen={!!productoDetalle}
+                onClose={() => setProductoDetalle(null)}
+                onAddToCart={(id, item, qty) => onAddToCart(id, item, qty)}
+                isWishlisted={productoDetalle ? wishlistIds.includes(productoDetalle.id) : false}
+                onToggleWishlist={onToggleWishlist}
+            />
         </div>
     );
 }

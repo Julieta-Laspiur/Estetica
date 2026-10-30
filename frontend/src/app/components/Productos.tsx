@@ -475,7 +475,7 @@ export function Productos() {
                               }}
                             />
                           ) : (
-                            <span className="text-xl">🧴</span>
+                            <Package className="w-5 h-5 text-[#8A7F74]" />
                           )}
                         </div>
                         <div>
