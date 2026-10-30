@@ -22,14 +22,18 @@ public class ConsultarAsistenteIACommandHandler : IRequestHandler<ConsultarAsist
 
     public async Task<ConversacionIADto> Handle(ConsultarAsistenteIACommand request, CancellationToken cancellationToken)
     {
-        var usuario = await _unitOfWork.Usuarios.GetByIdAsync(request.UsuarioId, cancellationToken);
-        if (usuario == null)
-        {
-            throw new NotFoundException("Usuario", request.UsuarioId);
-        }
+        Usuario? usuario = null;
+        DiagnosticoPiel? ultimoDiagnostico = null;
 
-        // 1. Obtener contexto dermatológico del cliente (HU-11, RF-09)
-        var ultimoDiagnostico = await _unitOfWork.DiagnosticosPiel.GetUltimoDiagnosticoAsync(request.UsuarioId, cancellationToken);
+        // 1. Obtener contexto dermatológico del cliente si está autenticado (HU-11, RF-09)
+        if (request.UsuarioId.HasValue)
+        {
+            usuario = await _unitOfWork.Usuarios.GetByIdAsync(request.UsuarioId.Value, cancellationToken);
+            if (usuario != null)
+            {
+                ultimoDiagnostico = await _unitOfWork.DiagnosticosPiel.GetUltimoDiagnosticoAsync(request.UsuarioId.Value, cancellationToken);
+            }
+        }
 
         // 2. Obtener productos activos con stock disponible (RAG Retrieval)
         var productos = await _unitOfWork.Productos.GetActivosAsync(cancellationToken);
@@ -40,6 +44,8 @@ public class ConsultarAsistenteIACommandHandler : IRequestHandler<ConsultarAsist
                 p.Nombre,
                 p.Marca,
                 p.Descripcion,
+                p.ParaQueSirve,
+                p.ImagenUrl,
                 p.Precio,
                 p.StockActual,
                 p.ProductoTiposPiel.Select(pt => pt.TipoPiel.Nombre.ToString()).ToList()
@@ -52,6 +58,8 @@ public class ConsultarAsistenteIACommandHandler : IRequestHandler<ConsultarAsist
             s.ServicioId,
             s.Nombre,
             s.Descripcion,
+            s.ParaQueSirve,
+            s.ImagenUrl,
             s.Precio,
             s.DuracionMin
         )).ToList();
@@ -59,7 +67,7 @@ public class ConsultarAsistenteIACommandHandler : IRequestHandler<ConsultarAsist
         // 4. Construir contexto enriquecido para la inferencia RAG
         var ragContexto = new RagConsultaContexto(
             Pregunta: request.Pregunta.Trim(),
-            ClienteNombre: $"{usuario.Nombre} {usuario.Apellido}".Trim(),
+            ClienteNombre: usuario != null ? $"{usuario.Nombre} {usuario.Apellido}".Trim() : null,
             TipoPiel: ultimoDiagnostico?.TipoPiel.Nombre.ToString(),
             Alergias: ultimoDiagnostico?.Alergias,
             DiagnosticoResultado: ultimoDiagnostico?.Resultado,
@@ -70,17 +78,24 @@ public class ConsultarAsistenteIACommandHandler : IRequestHandler<ConsultarAsist
         // 5. Inferencia RAG con guardrails médicos y de marcas ajenas (HU-12)
         var resultadoRag = await _iaService.GenerarRespuestaRagAsync(ragContexto, cancellationToken);
 
-        // 6. Persistir la interacción conversacional
-        var conversacion = new ConversacionIA
-        {
-            UsuarioId = request.UsuarioId,
-            Pregunta = request.Pregunta.Trim(),
-            Respuesta = resultadoRag.Respuesta,
-            Fecha = DateTime.UtcNow
-        };
+        // 6. Persistir la interacción conversacional si el usuario está registrado
+        int conversacionId = 0;
+        var fecha = DateTime.UtcNow;
 
-        await _unitOfWork.ConversacionesIA.AddAsync(conversacion, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        if (usuario != null)
+        {
+            var conversacion = new ConversacionIA
+            {
+                UsuarioId = usuario.UsuarioId,
+                Pregunta = request.Pregunta.Trim(),
+                Respuesta = resultadoRag.Respuesta,
+                Fecha = fecha
+            };
+
+            await _unitOfWork.ConversacionesIA.AddAsync(conversacion, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            conversacionId = conversacion.ConversacionId;
+        }
 
         // 7. Mapear productos y servicios relacionados para la respuesta estructurada
         var productosRelacionados = productos
@@ -91,6 +106,8 @@ public class ConsultarAsistenteIACommandHandler : IRequestHandler<ConsultarAsist
                 Nombre = p.Nombre,
                 Marca = p.Marca,
                 Descripcion = p.Descripcion,
+                ParaQueSirve = p.ParaQueSirve,
+                ImagenUrl = p.ImagenUrl,
                 Precio = p.Precio,
                 StockActual = p.StockActual,
                 StockMinimo = p.StockMinimo,
@@ -106,6 +123,8 @@ public class ConsultarAsistenteIACommandHandler : IRequestHandler<ConsultarAsist
                 ServicioId = s.ServicioId,
                 Nombre = s.Nombre,
                 Descripcion = s.Descripcion,
+                ParaQueSirve = s.ParaQueSirve,
+                ImagenUrl = s.ImagenUrl,
                 Precio = s.Precio,
                 DuracionMin = s.DuracionMin,
                 Activo = s.Activo
@@ -114,11 +133,11 @@ public class ConsultarAsistenteIACommandHandler : IRequestHandler<ConsultarAsist
 
         return new ConversacionIADto
         {
-            ConversacionId = conversacion.ConversacionId,
-            UsuarioId = conversacion.UsuarioId,
-            Pregunta = conversacion.Pregunta,
-            Respuesta = conversacion.Respuesta,
-            Fecha = conversacion.Fecha,
+            ConversacionId = conversacionId,
+            UsuarioId = usuario?.UsuarioId ?? 0,
+            Pregunta = request.Pregunta.Trim(),
+            Respuesta = resultadoRag.Respuesta,
+            Fecha = fecha,
             EsAclaracionMedicaOExterna = resultadoRag.EsAclaracionMedicaOExterna,
             ProductosRelacionados = productosRelacionados,
             ServiciosRelacionados = serviciosRelacionados

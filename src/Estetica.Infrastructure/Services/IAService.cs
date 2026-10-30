@@ -17,10 +17,10 @@ public class IAService : IIAService
         "dermatitis infecciosa", "psoriasis clinica", "melanoma", "cancer", "cáncer", "quiste infectado"
     };
 
-    private static readonly string[] MarcasAjenas =
+    private static readonly string[] MarcasAjenasConocidas =
     {
-        "la roche posay", "la roche-posay", "cerave", "eucerin", "avene", "avène",
-        "vichy", "bioderma", "isdin", "neutrogena", "cetaphil"
+        "cerave", "bioderma", "isdin", "neutrogena", "cetaphil", "the ordinary",
+        "clinique", "kiehls", "kiehl's", "avene", "avène", "nivea", "garnier"
     };
 
     public IAService(IConfiguration configuration)
@@ -48,8 +48,13 @@ public class IAService : IIAService
         bool esAclaracionMedicaOExterna = false;
 
         // 1. Guardrail HU-12: Detección de tratamientos médicos complejos o marcas ajenas
+        var marcasEnCatalogo = contexto.ProductosEnStock
+            .Select(p => p.Marca.ToLowerInvariant().Trim())
+            .Distinct()
+            .ToList();
+
         bool contieneConsultaMedica = TerminosMedicosOClinicos.Any(tm => preguntaLower.Contains(tm));
-        bool contieneMarcaAjena = MarcasAjenas.Any(ma => preguntaLower.Contains(ma));
+        bool contieneMarcaAjena = MarcasAjenasConocidas.Any(ma => preguntaLower.Contains(ma) && !marcasEnCatalogo.Any(mc => mc.Contains(ma)));
 
         if (contieneConsultaMedica || contieneMarcaAjena)
         {
@@ -58,7 +63,7 @@ public class IAService : IIAService
 
             if (contieneMarcaAjena)
             {
-                sb.AppendLine("Respecto a las marcas ajenas o productos externos consultados, te recordamos que en nuestro centro trabajamos exclusivamente con líneas cosmecéuticas profesionales certificadas con respaldo dermatológico y stock verificado.");
+                sb.AppendLine("Respecto a las marcas ajenas consultadas, en nuestro centro trabajamos exclusivamente con líneas cosmecéuticas profesionales certificadas con respaldo dermatológico y stock verificado.");
             }
 
             sb.AppendLine("Para el cuidado seguro y el embellecimiento de tu piel, te compartimos nuestras mejores opciones y tratamientos afines disponibles en el centro:\n");
@@ -96,7 +101,7 @@ public class IAService : IIAService
         var productosAptos = contexto.ProductosEnStock.Where(p =>
         {
             if (alergiasTokens.Length == 0) return true;
-            var txt = $"{p.Nombre} {p.Marca} {p.Descripcion}".ToLowerInvariant();
+            var txt = $"{p.Nombre} {p.Marca} {p.Descripcion} {p.ParaQueSirve}".ToLowerInvariant();
             return !alergiasTokens.Any(a => txt.Contains(a.ToLowerInvariant()));
         }).ToList();
 
@@ -104,7 +109,7 @@ public class IAService : IIAService
         var productosPuntuados = productosAptos.Select(p =>
         {
             int score = 0;
-            var texto = $"{p.Nombre} {p.Marca} {p.Descripcion}".ToLowerInvariant();
+            var texto = $"{p.Nombre} {p.Marca} {p.Descripcion} {p.ParaQueSirve}".ToLowerInvariant();
 
             if (!string.IsNullOrWhiteSpace(tipoPielDetectado) && p.TiposPielAptos.Any(tp => tp.Equals(tipoPielDetectado, StringComparison.OrdinalIgnoreCase)))
                 score += 5;
@@ -136,7 +141,7 @@ public class IAService : IIAService
         var serviciosPuntuados = contexto.ServiciosActivos.Select(s =>
         {
             int score = 0;
-            var texto = $"{s.Nombre} {s.Descripcion}".ToLowerInvariant();
+            var texto = $"{s.Nombre} {s.Descripcion} {s.ParaQueSirve}".ToLowerInvariant();
 
             if (preguntaLower.Contains("limpieza") || preguntaLower.Contains("puntos negros") || preguntaLower.Contains("poros"))
                 if (texto.Contains("limpieza") || texto.Contains("facial") || texto.Contains("higiene")) score += 5;
@@ -167,7 +172,8 @@ public class IAService : IIAService
             foreach (var p in productosPuntuados)
             {
                 productoIdsRelacionados.Add(p.ProductoId);
-                sb.AppendLine($"• {p.Nombre} ({p.Marca}) - ${p.Precio:F2}: {p.Descripcion ?? "Fórmula cosmecéutica de alta tolerancia."} [Stock: {p.StockActual} disp.]");
+                var detalle = !string.IsNullOrWhiteSpace(p.ParaQueSirve) ? p.ParaQueSirve : (p.Descripcion ?? "Fórmula cosmecéutica de alta tolerancia.");
+                sb.AppendLine($"• {p.Nombre} ({p.Marca}) - ${p.Precio:N0}: {detalle} [Stock: {p.StockActual} disp.]");
             }
         }
 
@@ -177,7 +183,8 @@ public class IAService : IIAService
             foreach (var s in serviciosPuntuados)
             {
                 servicioIdsRelacionados.Add(s.ServicioId);
-                sb.AppendLine($"• {s.Nombre} (Duración: {s.DuracionMin} min, ${s.Precio:F2}): {s.Descripcion ?? "Tratamiento personalizado en cabina profesional."}");
+                var detalle = !string.IsNullOrWhiteSpace(s.ParaQueSirve) ? s.ParaQueSirve : (s.Descripcion ?? "Tratamiento personalizado en cabina profesional.");
+                sb.AppendLine($"• {s.Nombre} (Duración: {s.DuracionMin} min, ${s.Precio:N0}): {detalle}");
             }
         }
 

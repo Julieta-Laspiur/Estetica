@@ -44,12 +44,13 @@ public class DiagnosticoIAController : ControllerBase
     /// HU-12: Enviar una consulta al Chatbot Inteligente 24/7 (Arquitectura RAG).
     /// El asistente evalúa el tipo de piel, catálogo de tratamientos, stock real disponible y guardrails médicos.
     /// </summary>
+    [AllowAnonymous]
     [HttpPost("consultar-asistente")]
     public async Task<ActionResult<ConversacionIADto>> ConsultarAsistente([FromBody] ConsultarAsistenteRequest request)
     {
-        int usuarioId = request.UsuarioId.HasValue && (_currentUserService.EstaEnRol("Administrador") || _currentUserService.EstaEnRol("Recepcionista") || _currentUserService.EstaEnRol("Profesional"))
+        int? usuarioId = request.UsuarioId.HasValue && (_currentUserService.EstaEnRol("Administrador") || _currentUserService.EstaEnRol("Recepcionista") || _currentUserService.EstaEnRol("Profesional"))
             ? request.UsuarioId.Value
-            : _currentUserService.UsuarioId ?? throw new UnauthorizedAccessException("Usuario no autenticado.");
+            : _currentUserService.UsuarioId;
 
         var command = new ConsultarAsistenteIACommand(usuarioId, request.Pregunta);
         var conversacion = await _mediator.Send(command);
@@ -64,7 +65,7 @@ public class DiagnosticoIAController : ControllerBase
     {
         if (!_currentUserService.UsuarioId.HasValue)
         {
-            return Unauthorized();
+            return Ok(Array.Empty<ConversacionIADto>());
         }
 
         var historial = await _mediator.Send(new GetHistorialConversacionesQuery(_currentUserService.UsuarioId.Value, limite));

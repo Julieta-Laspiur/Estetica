@@ -133,6 +133,35 @@ public static class DbSeeder
                 await context.Fidelizaciones.AddAsync(fidelizacion);
                 await context.SaveChangesAsync();
             }
+            else
+            {
+                // Sincronizar contraseña documentada y desbloquear si estaba bloqueado
+                clienteUser.PasswordHash = passwordHasher.Hash("Cliente123!");
+                clienteUser.Activo = true;
+                clienteUser.Bloqueado = false;
+                clienteUser.IntentosFallidos = 0;
+                await context.SaveChangesAsync();
+            }
+
+            // Diagnóstico dermatológico inicial para el cliente de prueba (HU-11)
+            var clienteTest = await context.Usuarios.FirstOrDefaultAsync(u => u.Email == "cliente@estetica.com");
+            if (clienteTest != null && !await context.DiagnosticosPiel.AnyAsync(d => d.UsuarioId == clienteTest.UsuarioId))
+            {
+                var tipoPielMixta = await context.TiposPiel.FirstOrDefaultAsync(t => t.Nombre == TipoPielEnum.Mixta);
+                if (tipoPielMixta != null)
+                {
+                    var diagInicial = new DiagnosticoPiel
+                    {
+                        UsuarioId = clienteTest.UsuarioId,
+                        TipoPielId = tipoPielMixta.TipoPielId,
+                        Resultado = "Biotipo cutáneo mixto: zona T con leve brillo sebáceo, mejillas con tendencia a deshidratación y poros visibles en nariz.",
+                        Alergias = "Fragancias sintéticas fuertes, Parabenos",
+                        Fecha = DateTime.UtcNow
+                    };
+                    await context.DiagnosticosPiel.AddAsync(diagInicial);
+                    await context.SaveChangesAsync();
+                }
+            }
 
             // 4. Servicios estéticos
             if (!await context.Servicios.AnyAsync())

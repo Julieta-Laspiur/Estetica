@@ -15,6 +15,8 @@ public record RagProductoItem(
     string Nombre,
     string Marca,
     string? Descripcion,
+    string? ParaQueSirve,
+    string? ImagenUrl,
     decimal Precio,
     int StockActual,
     IReadOnlyList<string> TiposPielAptos
@@ -24,6 +26,8 @@ public record RagServicioItem(
     int ServicioId,
     string Nombre,
     string? Descripcion,
+    string? ParaQueSirve,
+    string? ImagenUrl,
     decimal Precio,
     int DuracionMin
 );
