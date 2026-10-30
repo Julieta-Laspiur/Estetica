@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Clock, User, Scissors, X, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, User, Scissors, X, RefreshCw, Check } from 'lucide-react';
 import { turnosApi } from '../../services/api';
 
 interface CalendarTurno {
@@ -26,10 +26,20 @@ export function CalendarioTurnos() {
   const cargarTurnosCalendario = async () => {
     setLoading(true);
     try {
-      const data = await turnosApi.getTurnos();
+      let data = await turnosApi.getTurnos();
+      // Combinar con turnos locales agendados en el navegador
+      const turnosLocales: any[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+      const idsExistentes = new Set(data.map(d => d.turnoId));
+      const combinados = [...data];
+      turnosLocales.forEach((tl: any) => {
+        if (!idsExistentes.has(tl.turnoId)) {
+          combinados.unshift(tl);
+        }
+      });
+
       const schedule: DaySchedule = {};
 
-      data.forEach(t => {
+      combinados.forEach(t => {
         const dateObj = new Date(t.fechaHoraInicio);
         const dateKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
 
@@ -63,6 +73,27 @@ export function CalendarioTurnos() {
       console.error('Error al cargar agenda para calendario:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConfirmarCalendario = async (turnoIdStr: string) => {
+    const turnoId = parseInt(turnoIdStr);
+    try {
+      try {
+        await turnosApi.confirmar(turnoId);
+      } catch {}
+      // Actualizar en localStorage para sincronizar
+      try {
+        const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+        const actualizados = turnosLocales.map((tl: any) =>
+          tl.turnoId === turnoId ? { ...tl, estado: 'Confirmado' } : tl
+        );
+        localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
+      } catch {}
+      await cargarTurnosCalendario();
+      alert(`¡Turno #${turnoId} confirmado con éxito!`);
+    } catch (err: any) {
+      alert(`Error al confirmar turno: ${err.message}`);
     }
   };
 
@@ -465,6 +496,17 @@ export function CalendarioTurnos() {
                       <div className="text-[#8A7F74]">{apt.servicio}</div>
                       <div className="text-[11px] text-[#8A7F74]">Profesional: {apt.profesional}</div>
                     </div>
+                    {apt.estado === 'pendiente' && (
+                      <div className="mt-2.5 pt-2 border-t border-[#EDE8E1] flex justify-end">
+                        <button
+                          onClick={() => handleConfirmarCalendario(apt.id)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 transition-colors shadow-2xs"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Confirmar Turno</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

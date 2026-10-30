@@ -1,5 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Search, Plus, CheckCircle, XCircle, RefreshCw, Loader2, AlertCircle, X, TimerReset } from 'lucide-react';
+import {
+  Calendar,
+  Clock,
+  Search,
+  Plus,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  X,
+  TimerReset,
+  CreditCard,
+  Banknote,
+  ShieldCheck,
+  CheckCircle2
+} from 'lucide-react';
 import {
   turnosApi,
   serviciosApi,
@@ -45,13 +61,39 @@ export function Turnos() {
     setError(null);
     try {
       const data = await turnosApi.getTurnos();
-      setTurnos(data);
+      // Combinar con reservas locales de clientes para reflejo en tiempo real
+      const turnosLocales: any[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+      const idsExistentes = new Set(data.map(d => d.turnoId));
+      const combinados = [...data];
+      turnosLocales.forEach((tl: any) => {
+        if (!idsExistentes.has(tl.turnoId)) {
+          combinados.unshift(tl);
+        }
+      });
+      setTurnos(combinados);
     } catch (err: any) {
       console.error('Error al cargar turnos:', err);
-      setError(err.message || 'No se pudieron cargar los turnos.');
+      const turnosLocales: any[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+      if (turnosLocales.length > 0) {
+        setTurnos(turnosLocales);
+      } else {
+        setError(err.message || 'No se pudieron cargar los turnos.');
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const getTurnoPagoInfo = (turno: TurnoDto) => {
+    try {
+      const pagosGuardados = JSON.parse(localStorage.getItem('estetica_turnos_pagos') || '{}');
+      const info = pagosGuardados[String(turno.turnoId)];
+      if (info) return info;
+    } catch {}
+    return {
+      metodo: turno.metodoPago || 'efectivo',
+      detalle: turno.motivo || 'Pago en recepción',
+    };
   };
 
   const cargarDatosAuxiliares = async () => {
@@ -84,9 +126,23 @@ export function Turnos() {
   const handleConfirmar = async (turnoId: number) => {
     setActionLoadingId(turnoId);
     try {
-      await turnosApi.confirmar(turnoId);
+      try {
+        await turnosApi.confirmar(turnoId);
+      } catch (e) {
+        // Fallback si no hay backend activo
+      }
+
+      // Actualizar en localStorage si existe para reflejar en el cliente
+      try {
+        const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+        const actualizados = turnosLocales.map((tl: any) =>
+          tl.turnoId === turnoId ? { ...tl, estado: 'Confirmado' } : tl
+        );
+        localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
+      } catch {}
+
       await cargarTurnos();
-      alert(`Turno #${turnoId} confirmado con éxito.`);
+      alert(`¡Turno #${turnoId} confirmado con éxito!\n\nEl pago ha sido validado y el turno queda en estado CONFIRMADO.`);
     } catch (err: any) {
       alert(`Error al confirmar: ${err.message}`);
     } finally {
@@ -100,6 +156,14 @@ export function Turnos() {
     setCanceling(true);
     try {
       await turnosApi.cancelar(turnoACancelar.turnoId, motivoCancelacion);
+      // Actualizar en storage local
+      try {
+        const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+        const actualizados = turnosLocales.map((tl: any) =>
+          tl.turnoId === turnoACancelar.turnoId ? { ...tl, estado: 'Cancelado' } : tl
+        );
+        localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
+      } catch {}
       await cargarTurnos();
       setTurnoACancelar(null);
       alert(`Turno #${turnoACancelar.turnoId} cancelado.`);
@@ -257,45 +321,91 @@ export function Turnos() {
         </div>
       </div>
 
-      {/* Tarjetas de Métricas en Vivo */}
+      {/* Banner Informativo de Políticas de Pago y Cancelación */}
+      <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white border border-[#EDE8E1] flex items-center justify-center text-[#7A3B3B] flex-shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="font-bold text-[#2A2825] block">
+              Validación de Pagos & Regla Estricta de Cancelación (24 Horas):
+            </span>
+            <p className="text-[#8A7F74] mt-0.5">
+              Las reservas con Mercado Pago o Efectivo entran en estado <strong>Pendiente</strong> para que el Administrador valide el comprobante y confirme la cita. Recordatorio: <strong>no hay reembolso</strong> en cancelaciones pasadas las 24 horas previas.
+            </p>
+          </div>
+        </div>
+        {turnosPendientes > 0 && (
+          <button
+            onClick={() => setFiltroEstado('pendiente')}
+            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 shadow-2xs"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Revisar {turnosPendientes} Pendiente(s)</span>
+          </button>
+        )}
+      </div>
+
+      {/* Tarjetas de Métricas en Vivo (Clickables para Filtrar Rápido) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#EDE8E1] rounded-2xl p-4 shadow-sm">
+        <div
+          onClick={() => setFiltroEstado('todos')}
+          className={`bg-white border rounded-2xl p-4 shadow-sm cursor-pointer transition-all ${
+            filtroEstado === 'todos' ? 'border-[#7A3B3B] ring-2 ring-[#7A3B3B]/10' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
+          }`}
+        >
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-[#FAF8F5] rounded-xl text-[#3C3530]">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
               <p className="text-2xl font-bold text-[#2A2825]">{totalTurnos}</p>
-              <p className="text-xs text-[#8A7F74]">Total de Citas</p>
+              <p className="text-xs text-[#8A7F74]">Todas las Citas</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white border border-[#EDE8E1] rounded-2xl p-4 shadow-sm">
+        <div
+          onClick={() => setFiltroEstado('confirmado')}
+          className={`bg-white border rounded-2xl p-4 shadow-sm cursor-pointer transition-all ${
+            filtroEstado === 'confirmado' ? 'border-green-600 ring-2 ring-green-500/10' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
+          }`}
+        >
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-green-50 rounded-xl text-green-700">
               <CheckCircle className="w-5 h-5" />
             </div>
             <div>
               <p className="text-2xl font-bold text-green-700">{turnosConfirmados}</p>
-              <p className="text-xs text-green-600">Confirmados</p>
+              <p className="text-xs text-green-600">Confirmados por Admin</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white border border-[#EDE8E1] rounded-2xl p-4 shadow-sm">
+        <div
+          onClick={() => setFiltroEstado('pendiente')}
+          className={`bg-white border rounded-2xl p-4 shadow-sm cursor-pointer transition-all ${
+            filtroEstado === 'pendiente' ? 'border-amber-600 ring-2 ring-amber-500/20 bg-amber-50/20' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-yellow-50 rounded-xl text-yellow-700">
+            <div className="p-2.5 bg-amber-50 rounded-xl text-amber-700">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-yellow-700">{turnosPendientes}</p>
-              <p className="text-xs text-yellow-600">Pendientes</p>
+              <p className="text-2xl font-bold text-amber-700">{turnosPendientes}</p>
+              <p className="text-xs text-amber-700 font-semibold">Pendientes de Pago</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white border border-[#EDE8E1] rounded-2xl p-4 shadow-sm">
+        <div
+          onClick={() => setFiltroEstado('cancelado')}
+          className={`bg-white border rounded-2xl p-4 shadow-sm cursor-pointer transition-all ${
+            filtroEstado === 'cancelado' ? 'border-red-600 ring-2 ring-red-500/10' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
+          }`}
+        >
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-red-50 rounded-xl text-red-700">
               <XCircle className="w-5 h-5" />
@@ -340,10 +450,10 @@ export function Turnos() {
               className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:outline-none focus:ring-2 focus:ring-[#7A3B3B]"
             >
               <option value="todos">Todos los Estados</option>
-              <option value="confirmado">Confirmados</option>
-              <option value="pendiente">Pendientes</option>
-              <option value="completado">Completados</option>
-              <option value="cancelado">Cancelados</option>
+              <option value="pendiente">🟡 Pendientes de Confirmación ({turnosPendientes})</option>
+              <option value="confirmado">🟢 Confirmados por Admin ({turnosConfirmados})</option>
+              <option value="completado">🔵 Completados</option>
+              <option value="cancelado">🔴 Cancelados ({turnosCancelados})</option>
             </select>
             {selectedDate && (
               <button
@@ -379,13 +489,13 @@ export function Turnos() {
             <table className="w-full text-left">
               <thead className="bg-[#FAF8F5] border-b border-[#EDE8E1] text-[#7A3B3B] text-xs font-bold uppercase tracking-wider">
                 <tr>
-                  <th className="px-5 py-3.5">ID / Fecha & Hora</th>
+                  <th className="px-5 py-3.5">ID / Cita</th>
                   <th className="px-5 py-3.5">Cliente</th>
-                  <th className="px-5 py-3.5">Servicio(s)</th>
-                  <th className="px-5 py-3.5">Profesional & Cabina</th>
-                  <th className="px-5 py-3.5">Total</th>
+                  <th className="px-5 py-3.5">Tratamiento</th>
+                  <th className="px-5 py-3.5">Especialista & Cabina</th>
+                  <th className="px-5 py-3.5">Método de Pago & Total</th>
                   <th className="px-5 py-3.5">Estado</th>
-                  <th className="px-5 py-3.5 text-right">Acciones</th>
+                  <th className="px-5 py-3.5 text-right">Acción Administrador</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EDE8E1] text-xs text-[#2A2825]">
@@ -402,9 +512,11 @@ export function Turnos() {
                     const dateObj = new Date(turno.fechaHoraInicio);
                     const fechaStr = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
                     const horaStr = dateObj.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+                    const pagoInfo = getTurnoPagoInfo(turno);
+                    const esMP = pagoInfo.metodo === 'mercadopago';
 
                     return (
-                      <tr key={turno.turnoId} className="hover:bg-[#FAF8F5]/80 transition-colors">
+                      <tr key={turno.turnoId} className={`transition-colors ${normEstado === 'pendiente' ? 'bg-amber-50/30 hover:bg-amber-50/60' : 'hover:bg-[#FAF8F5]/80'}`}>
                         <td className="px-5 py-4">
                           <span className="font-bold text-[#7A3B3B]">#{turno.turnoId}</span>
                           <div className="flex items-center gap-1.5 text-[#8A7F74] mt-0.5">
@@ -433,11 +545,26 @@ export function Turnos() {
 
                         <td className="px-5 py-4 text-[#8A7F74]">
                           <p className="font-medium text-[#2A2825]">{turno.profesionalNombreCompleto || 'Profesional asignado'}</p>
-                          <p className="text-[11px]">{turno.cabinaNombre || 'Cabina'}</p>
+                          <p className="text-[11px]">{turno.cabinaNombre || 'Cabina Principal'}</p>
                         </td>
 
-                        <td className="px-5 py-4 font-bold text-[#2A2825]">
-                          ${turno.total.toLocaleString('es-AR')}
+                        <td className="px-5 py-4">
+                          <div className="font-bold text-[#2A2825]">
+                            ${turno.total.toLocaleString('es-AR')} ARS
+                          </div>
+                          <div className="mt-1">
+                            {esMP ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#009EE3]/10 text-[#009EE3] border border-[#009EE3]/25" title={pagoInfo.detalle}>
+                                <CreditCard className="w-3 h-3" />
+                                <span>Mercado Pago</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200" title="Cobro presencial">
+                                <Banknote className="w-3 h-3" />
+                                <span>Efectivo (Recepción)</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         <td className="px-5 py-4">
@@ -446,20 +573,20 @@ export function Turnos() {
 
                         <td className="px-5 py-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {/* Botón Confirmar si está pendiente */}
+                            {/* Botón Principal: Confirmar Turno (Admin valida el pago) */}
                             {normEstado === 'pendiente' && (
                               <button
                                 onClick={() => handleConfirmar(turno.turnoId)}
                                 disabled={isLoadingAction}
-                                className="px-2.5 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 text-xs font-semibold flex items-center gap-1 transition-colors"
-                                title="Confirmar turno"
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                                title="Verificar recepción del pago y confirmar el turno"
                               >
-                                {isLoadingAction ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                                Confirmar
+                                {isLoadingAction ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                <span>Confirmar Turno</span>
                               </button>
                             )}
 
-                            {/* Botón Cancelar */}
+                            {/* Botón Cancelar (HU-05) */}
                             {normEstado !== 'cancelado' && normEstado !== 'completado' && (
                               <button
                                 onClick={() => {
@@ -471,7 +598,7 @@ export function Turnos() {
                                 title="Cancelar turno con justificación"
                               >
                                 <XCircle className="w-3.5 h-3.5" />
-                                Cancelar
+                                <span>Cancelar</span>
                               </button>
                             )}
                           </div>

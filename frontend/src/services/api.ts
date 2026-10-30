@@ -320,6 +320,7 @@ export interface TurnoDto {
   total: number;
   fechaCreacion?: string;
   motivo?: string;
+  metodoPago?: 'mercadopago' | 'efectivo' | string;
   estaExpirado?: boolean;
   servicios?: TurnoServicioItemDto[];
 }
@@ -506,19 +507,107 @@ export const fidelizacionApi = {
   },
 };
 
-// 6. Asistente Dermatológico IA (Arquitectura RAG)
-export interface ConsultaIAResponse {
+// 6. Asistente Dermatológico IA (Arquitectura RAG - HU-11 y HU-12)
+export interface ConversacionIADto {
   conversacionId: number;
+  usuarioId: number;
+  pregunta: string;
   respuesta: string;
-  productosRecomendados?: ProductoDto[];
-  serviciosRecomendados?: ServicioDto[];
+  fecha: string;
+  esAclaracionMedicaOExterna: boolean;
+  productosRelacionados: ProductoDto[];
+  serviciosRelacionados: ServicioDto[];
+}
+
+export interface RecomendacionPersonalizadaDto {
+  usuarioId: number;
+  clienteNombre: string;
+  tipoPiel: string;
+  alergiasRegistradas?: string;
+  observacionDiagnostico: string;
+  historialComprasResumen: string[];
+  tratamientosPreviosResumen: string[];
+  productosRecomendados: ProductoDto[];
+  rutinaSugerida: string;
+  fechaGeneracion: string;
+}
+
+export interface DiagnosticoPielDto {
+  diagnosticoId: number;
+  usuarioId: number;
+  tipoPielId: number;
+  tipoPielNombre: string;
+  resultado: string;
+  alergias?: string;
+  fecha: string;
 }
 
 export const chatIAApi = {
-  consultar: (mensaje: string, tipoPiel?: string): Promise<ConsultaIAResponse> => {
-    return request<ConsultaIAResponse>('/diagnosticoia/consultar-asistente', {
+  consultar: (pregunta: string, usuarioId?: number): Promise<ConversacionIADto> => {
+    return request<ConversacionIADto>('/diagnosticoia/consultar-asistente', {
       method: 'POST',
-      body: JSON.stringify({ mensaje, tipoPiel }),
+      body: JSON.stringify({ pregunta, usuarioId }),
+    });
+  },
+
+  getHistorial: (limite: number = 50): Promise<ConversacionIADto[]> => {
+    return request<ConversacionIADto[]>(`/diagnosticoia/conversaciones?limite=${limite}`);
+  },
+
+  getRecomendacion: (): Promise<RecomendacionPersonalizadaDto> => {
+    return request<RecomendacionPersonalizadaDto>('/diagnosticoia/recomendacion');
+  },
+
+  registrarDiagnostico: (tipoPiel: string, resultado: string, alergias?: string, usuarioId?: number): Promise<DiagnosticoPielDto> => {
+    return request<DiagnosticoPielDto>('/diagnosticoia/diagnostico', {
+      method: 'POST',
+      body: JSON.stringify({ tipoPiel, resultado, alergias, usuarioId }),
     });
   },
 };
+
+// 7. Módulo de Pagos y Pasarelas (Mercado Pago y Efectivo)
+export interface PreferenciaPagoDto {
+  pagoId: number;
+  referenciaExterna: string;
+  initPointUrl: string;
+}
+
+export interface PagoPresencialResultadoDto {
+  pagoId: number;
+  turnoId?: number;
+  ordenId?: number;
+  monto: number;
+  mensaje: string;
+  qrToken?: string;
+}
+
+export const pagosApi = {
+  procesar: (data: { turnoId?: number; ordenId?: number; proveedor?: number }): Promise<PreferenciaPagoDto> => {
+    return request<PreferenciaPagoDto>('/pagos/procesar', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  registrarPresencial: (data: {
+    turnoId?: number;
+    ordenId?: number;
+    metodoPago?: number;
+    monto?: number;
+    notasComprobante?: string;
+    acreditarEstampitaDirectamente?: boolean;
+  }): Promise<PagoPresencialResultadoDto> => {
+    return request<PagoPresencialResultadoDto>('/pagos/presencial', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  generarQrToken: (pagoId: number): Promise<{ qrToken: string; expiraEnMinutos: number }> => {
+    return request<{ qrToken: string; expiraEnMinutos: number }>(`/pagos/${pagoId}/qr`, {
+      method: 'POST',
+    });
+  },
+};
+
