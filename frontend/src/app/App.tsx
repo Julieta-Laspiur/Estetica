@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { Turnos } from './components/Turnos';
@@ -15,9 +15,10 @@ import { ProductosCliente } from './components/cliente/ProductosCliente';
 import { TarjetaLealtad } from './components/cliente/TarjetaLealtad';
 import { ChatIA } from './components/cliente/ChatIA';
 import { Carrito } from './components/cliente/Carrito';
+import { ListaDeseos, type WishlistItem } from './components/cliente/ListaDeseos';
 import { AuthPage } from './components/cliente/AuthPage';
 import { authApi, type AuthUser } from '../services/api';
-import { User, LogOut, Calendar, QrCode, ShoppingCart, Shield, Scissors } from 'lucide-react';
+import { User, LogOut, Calendar, QrCode, ShoppingCart, Shield, Scissors, Heart } from 'lucide-react';
 
 interface ProductoCarrito {
   id: string;
@@ -37,7 +38,58 @@ export default function App() {
   const [activeSection, setActiveSection] = useState('inicio');
   const [servicioParaReserva, setServicioParaReserva] = useState<string | null>(null);
   const [carritoItems, setCarritoItems] = useState<ProductoCarrito[]>([]);
-  const [wishlistItems] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('estetica_wishlist');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('estetica_wishlist', JSON.stringify(wishlistItems));
+    } catch {}
+  }, [wishlistItems]);
+
+  const handleToggleWishlist = (productId: string, customItem?: Partial<WishlistItem>) => {
+    setWishlistItems(prev => {
+      const exists = prev.some(item => item.id === productId);
+      if (exists) {
+        return prev.filter(item => item.id !== productId);
+      }
+      return [...prev, {
+        id: productId,
+        nombre: customItem?.nombre || 'Producto',
+        marca: customItem?.marca || 'Estética',
+        precio: customItem?.precio || 0,
+        imagenUrl: customItem?.imagenUrl,
+        descripcion: customItem?.descripcion,
+      }];
+    });
+  };
+
+  const handleRemoveFromWishlist = (productId: string) => {
+    setWishlistItems(prev => prev.filter(item => item.id !== productId));
+  };
+
+  const handleClearWishlist = () => {
+    setWishlistItems([]);
+  };
+
+  const handleAddAllWishlistToCart = () => {
+    wishlistItems.forEach(item => {
+      handleAddToCart(item.id, {
+        nombre: item.nombre,
+        marca: item.marca,
+        precio: item.precio,
+        imagen: item.imagenUrl || '🧴'
+      });
+    });
+    alert('¡Todos los productos de tu lista de deseos fueron agregados al carrito!');
+  };
 
   const handleSelectServiceFromCatalog = (serviceId: string) => {
     if (serviceId === 'chat') {
@@ -48,6 +100,11 @@ export default function App() {
     setActiveSection('reservar');
   };
 
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    setActiveSection('productos');
+  };
+
   const handleLogout = () => {
     authApi.logout();
     setCurrentUser(null);
@@ -56,29 +113,39 @@ export default function App() {
     setServicioParaReserva(null);
   };
 
-  const handleAddToCart = (productId: string) => {
-    const productos = [
-      { id: '1', nombre: 'Crema Hidratante Premium', marca: 'La Roche-Posay', precio: 2500, imagen: '🧴' },
-      { id: '2', nombre: 'Sérum Vitamina C', marca: 'Vichy', precio: 3200, imagen: '💧' },
-      { id: '3', nombre: 'Protector Solar FPS 50+', marca: 'Eucerin', precio: 1800, imagen: '☀️' },
-      { id: '4', nombre: 'Aceite Esencial Lavanda', marca: 'doTERRA', precio: 1500, imagen: '🌿' },
-      { id: '5', nombre: 'Exfoliante Corporal', marca: 'The Body Shop', precio: 2100, imagen: '🧂' },
-      { id: '6', nombre: 'Máscara Facial Purificante', marca: 'Natura', precio: 1900, imagen: '🎭' },
-    ];
-
-    const producto = productos.find(p => p.id === productId);
-    if (!producto) return;
-
+  const handleAddToCart = (productId: string, customItem?: { nombre: string; marca: string; precio: number; imagen?: string }, quantity = 1) => {
     setCarritoItems(prev => {
       const existingItem = prev.find(item => item.id === productId);
       if (existingItem) {
         return prev.map(item =>
           item.id === productId
-            ? { ...item, cantidad: item.cantidad + 1 }
+            ? { ...item, cantidad: item.cantidad + quantity }
             : item
         );
       }
-      return [...prev, { ...producto, cantidad: 1 }];
+      if (customItem) {
+        return [...prev, {
+          id: productId,
+          nombre: customItem.nombre,
+          marca: customItem.marca,
+          precio: customItem.precio,
+          cantidad: quantity,
+          imagen: customItem.imagen || '🧴'
+        }];
+      }
+      const productos = [
+        { id: '1', nombre: 'Crema Hidratante Premium', marca: 'La Roche-Posay', precio: 2500, imagen: '🧴' },
+        { id: '2', nombre: 'Sérum Vitamina C', marca: 'Vichy', precio: 3200, imagen: '💧' },
+        { id: '3', nombre: 'Protector Solar FPS 50+', marca: 'Eucerin', precio: 1800, imagen: '☀️' },
+        { id: '4', nombre: 'Aceite Esencial Lavanda', marca: 'doTERRA', precio: 1500, imagen: '🌿' },
+        { id: '5', nombre: 'Exfoliante Corporal', marca: 'The Body Shop', precio: 2100, imagen: '🧂' },
+        { id: '6', nombre: 'Máscara Facial Purificante', marca: 'Natura', precio: 1900, imagen: '🎭' },
+      ];
+
+      const producto = productos.find(p => p.id === productId);
+      if (!producto) return prev;
+
+      return [...prev, { ...producto, cantidad: quantity }];
     });
   };
 
@@ -135,16 +202,38 @@ export default function App() {
   const renderClienteSection = () => {
     switch (activeSection) {
       case 'inicio':
-        return <InicioCliente onNavigate={setActiveSection} />;
+        return (
+          <InicioCliente
+            onNavigate={setActiveSection}
+            onSelectService={handleSelectServiceFromCatalog}
+            wishlistIds={wishlistItems.map(item => item.id)}
+            onToggleWishlist={handleToggleWishlist}
+            onAddToCart={handleAddToCart}
+          />
+        );
 
       case 'servicios':
         return <ServiciosCliente onSelectService={handleSelectServiceFromCatalog} />;
 
       case 'reservar':
-        return <ReservarTurno initialServicioId={servicioParaReserva} />;
+        return (
+          <ReservarTurno
+            initialServicioId={servicioParaReserva}
+            currentUser={currentUser}
+            onNavigate={setActiveSection}
+          />
+        );
 
       case 'productos':
-        return <ProductosCliente onAddToCart={handleAddToCart} />;
+        return (
+          <ProductosCliente
+            onAddToCart={handleAddToCart}
+            wishlistIds={wishlistItems.map(item => item.id)}
+            onToggleWishlist={handleToggleWishlist}
+            searchQuery={searchQuery}
+            onClearSearch={() => setSearchQuery('')}
+          />
+        );
 
       case 'lealtad':
         // El Administrador no usa tarjeta de lealtad como cliente
@@ -170,10 +259,18 @@ export default function App() {
             </div>
           );
         }
-        return <TarjetaLealtad />;
+        return <TarjetaLealtad currentUser={currentUser} />;
 
       case 'chat':
-        return <ChatIA />;
+        return (
+          <ChatIA
+            currentUser={currentUser}
+            onAddToCart={handleAddToCart}
+            onSelectService={handleSelectServiceFromCatalog}
+            wishlistIds={wishlistItems.map(item => item.id)}
+            onToggleWishlist={handleToggleWishlist}
+          />
+        );
 
       case 'carrito':
         // El Administrador no tiene carrito de compras personal
@@ -205,6 +302,7 @@ export default function App() {
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={handleRemoveItem}
             onCheckout={handleCheckout}
+            onNavigate={setActiveSection}
           />
         );
 
@@ -311,12 +409,21 @@ export default function App() {
                   </button>
 
                   <button
+                    onClick={() => setActiveSection('wishlist')}
+                    className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
+                  >
+                    <Heart className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
+                    <h4 className="font-semibold text-sm text-[#2A2825]">Lista de Deseos</h4>
+                    <p className="text-xs text-[#8A7F74] mt-0.5">{wishlistItems.length} favoritos guardados</p>
+                  </button>
+
+                  <button
                     onClick={() => setActiveSection('carrito')}
                     className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
                   >
                     <ShoppingCart className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
                     <h4 className="font-semibold text-sm text-[#2A2825]">Mi Carrito</h4>
-                    <p className="text-xs text-[#8A7F74] mt-0.5">{carritoItems.length} productos guardados</p>
+                    <p className="text-xs text-[#8A7F74] mt-0.5">{carritoItems.length} productos en carrito</p>
                   </button>
                 </div>
               )}
@@ -326,18 +433,14 @@ export default function App() {
 
       case 'wishlist':
         return (
-          <div className="max-w-4xl mx-auto py-8 px-4">
-            <h2 className="text-2xl font-semibold mb-4">Lista de Deseos</h2>
-            <div className="bg-white rounded-xl shadow-md border border-border p-6 text-center py-16">
-              <p className="text-muted-foreground">Tu lista de deseos está vacía. ¡Explorá nuestros productos!</p>
-              <button
-                onClick={() => setActiveSection('productos')}
-                className="mt-4 px-6 py-2 bg-[#3C3530] text-white rounded-lg hover:bg-[#2A2825] transition-colors text-sm"
-              >
-                Ver Productos
-              </button>
-            </div>
-          </div>
+          <ListaDeseos
+            items={wishlistItems}
+            onRemoveItem={handleRemoveFromWishlist}
+            onAddToCart={(id, custom) => handleAddToCart(id, custom)}
+            onClearWishlist={handleClearWishlist}
+            onAddAllToCart={handleAddAllWishlistToCart}
+            onNavigate={setActiveSection}
+          />
         );
 
       default:
@@ -402,6 +505,7 @@ export default function App() {
         wishlistCount={wishlistItems.length}
         currentUser={currentUser}
         onLogout={handleLogout}
+        onSearch={handleSearch}
         onSwitchToAdmin={
           currentUser?.rol === 'Administrador'
             ? () => {
