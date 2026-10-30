@@ -10,6 +10,7 @@ interface NavbarClienteProps {
     currentUser?: AuthUser | null;
     onLogout?: () => void;
     onSwitchToAdmin?: () => void;
+    onSearch?: (query: string) => void;
 }
 
 export function NavbarCliente({
@@ -19,16 +20,37 @@ export function NavbarCliente({
     wishlistCount = 0,
     currentUser,
     onLogout,
-    onSwitchToAdmin
+    onSwitchToAdmin,
+    onSearch
 }: NavbarClienteProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
     const [scrolled, setScrolled] = useState(false);
+    const [compactSearchOpen, setCompactSearchOpen] = useState(false);
 
     const isAdmin = currentUser?.rol === 'Administrador';
 
     useEffect(() => {
-        const onScroll = () => setScrolled(window.scrollY > 60);
+        let ticking = false;
+        const onScroll = () => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    const scrollY = window.scrollY;
+                    setScrolled(prev => {
+                        // Histeresis amplia para prevenir que la disminución de altura
+                        // de la navbar provoque un bucle de parpadeo y congelamiento (jitter):
+                        if (!prev && scrollY > 115) return true;
+                        if (prev && scrollY < 25) {
+                            setCompactSearchOpen(false);
+                            return false;
+                        }
+                        return prev;
+                    });
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        };
         window.addEventListener('scroll', onScroll, { passive: true });
         return () => window.removeEventListener('scroll', onScroll);
     }, []);
@@ -49,9 +71,13 @@ export function NavbarCliente({
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        if (searchValue.trim()) {
+        if (onSearch) {
+            onSearch(searchValue.trim());
+        } else {
             onSectionChange('productos');
         }
+        setCompactSearchOpen(false);
+        setMenuOpen(false);
     };
 
     const iconBtn = "relative p-2 hover:bg-[#F7F4F0] rounded-lg transition-colors text-[#3C3530] hover:text-[#7A3B3B]";
@@ -108,8 +134,12 @@ export function NavbarCliente({
             {/* Carrito y Lista de Deseos: SOLO para Clientes e Invitados, NO para Administradores */}
             {!isAdmin && (
                 <>
-                    <button onClick={() => onSectionChange('wishlist')} className={iconBtn} title="Lista de deseos">
-                        <Heart className="w-5 h-5" />
+                    <button
+                        onClick={() => onSectionChange('wishlist')}
+                        className={`${iconBtn} ${activeSection === 'wishlist' ? 'text-[#7A3B3B] bg-[#EDE8E1]' : ''}`}
+                        title="Lista de deseos"
+                    >
+                        <Heart className={`w-5 h-5 ${activeSection === 'wishlist' ? 'fill-current' : ''}`} />
                         {wishlistCount > 0 && (
                             <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#7A3B3B] text-white text-[10px] rounded-full flex items-center justify-center font-medium">
                                 {wishlistCount}
@@ -158,14 +188,17 @@ export function NavbarCliente({
             }}
         >
             {scrolled ? (
-                /* ── Compact single-row (scrolled) ── */
+                /* ── Compact single-row (scrolled / chiquito) ── */
                 <div className="border-b border-[#DDD5C8]">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex items-center h-[52px] gap-4">
+                        <div className="flex items-center h-[52px] gap-3">
 
                             {/* Logo */}
                             <button
-                                onClick={() => onSectionChange('inicio')}
+                                onClick={() => {
+                                    onSectionChange('inicio');
+                                    setCompactSearchOpen(false);
+                                }}
                                 className="shrink-0 group"
                             >
                                 <span className="font-bold tracking-[0.18em] uppercase text-base leading-none group-hover:opacity-80 transition-opacity">
@@ -174,27 +207,68 @@ export function NavbarCliente({
                                 </span>
                             </button>
 
-                            {/* Nav links center */}
-                            <div className="hidden md:flex flex-1 items-center justify-center gap-0 h-full">
-                                {menuItems.map((item) => (
+                            {/* Búsqueda en el chiquito: Input expandido */}
+                            {compactSearchOpen ? (
+                                <form onSubmit={handleSearch} className="flex-1 max-w-md mx-auto relative animate-in fade-in duration-200">
+                                    <input
+                                        type="text"
+                                        value={searchValue}
+                                        onChange={(e) => setSearchValue(e.target.value)}
+                                        placeholder="Buscar en el catálogo..."
+                                        className="w-full pl-9 pr-9 py-1.5 rounded-full border border-[#7A3B3B] bg-[#FAF8F5] text-xs sm:text-sm text-[#2A2825] placeholder-[#8A7F74] focus:outline-none focus:ring-1 focus:ring-[#7A3B3B]"
+                                        autoFocus
+                                    />
                                     <button
-                                        key={item.id}
-                                        onClick={() => onSectionChange(item.id)}
-                                        className={`relative px-4 h-full text-xs font-semibold tracking-widest uppercase transition-colors ${activeSection === item.id
-                                            ? 'text-[#7A3B3B]'
-                                            : 'text-[#5C534A] hover:text-[#7A3B3B]'
-                                            }`}
+                                        type="submit"
+                                        className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A3B3B]"
+                                        title="Buscar"
                                     >
-                                        {item.label}
-                                        {activeSection === item.id && (
-                                            <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-[#7A3B3B] rounded-full" />
-                                        )}
+                                        <Search className="w-3.5 h-3.5" />
                                     </button>
-                                ))}
-                            </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCompactSearchOpen(false)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A7F74] hover:text-[#2A2825]"
+                                        title="Cerrar búsqueda"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                </form>
+                            ) : (
+                                /* Nav links center */
+                                <div className="hidden md:flex flex-1 items-center justify-center gap-0 h-full">
+                                    {menuItems.map((item) => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => onSectionChange(item.id)}
+                                            className={`relative px-4 h-full text-xs font-semibold tracking-widest uppercase transition-colors ${activeSection === item.id
+                                                ? 'text-[#7A3B3B]'
+                                                : 'text-[#5C534A] hover:text-[#7A3B3B]'
+                                                }`}
+                                        >
+                                            {item.label}
+                                            {activeSection === item.id && (
+                                                <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-[#7A3B3B] rounded-full" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
 
-                            {/* Icons */}
-                            <div className="ml-auto">{iconGroup}</div>
+                            {/* Icons (incluye botón lupa de búsqueda en el chiquito) */}
+                            <div className="ml-auto flex items-center gap-1">
+                                {!compactSearchOpen && (
+                                    <button
+                                        onClick={() => setCompactSearchOpen(true)}
+                                        className={iconBtn}
+                                        title="Buscar productos o servicios"
+                                        aria-label="Buscar"
+                                    >
+                                        <Search className="w-5 h-5" />
+                                    </button>
+                                )}
+                                {iconGroup}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -298,6 +372,25 @@ export function NavbarCliente({
                                 {item.label}
                             </button>
                         ))}
+                        {!isAdmin && (
+                            <button
+                                onClick={() => { onSectionChange('wishlist'); setMenuOpen(false); }}
+                                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${activeSection === 'wishlist'
+                                    ? 'bg-[#F7F4F0] text-[#7A3B3B]'
+                                    : 'text-[#5C534A] hover:bg-[#F7F4F0]'
+                                    }`}
+                            >
+                                <span className="flex items-center gap-3">
+                                    <Heart className="w-4 h-4 text-[#7A3B3B]" />
+                                    Lista de Deseos
+                                </span>
+                                {wishlistCount > 0 && (
+                                    <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-[#7A3B3B] text-white">
+                                        {wishlistCount}
+                                    </span>
+                                )}
+                            </button>
+                        )}
                         <div className="mt-3 pt-3 border-t border-[#EDE8E1] flex flex-col gap-2">
                             {currentUser ? (
                                 <>
