@@ -87,7 +87,7 @@ export const TIPOS_TARJETAS_PREDETERMINADOS: TipoTarjetaMembresia[] = [
     valorPremio: 100,
     validezDias: 45,
     colorTema: 'rose',
-    icono: '💅',
+    icono: 'sparkles',
     activa: true,
     fechaCreacion: '2026-01-15',
   },
@@ -102,7 +102,7 @@ export const TIPOS_TARJETAS_PREDETERMINADOS: TipoTarjetaMembresia[] = [
     valorPremio: 30,
     validezDias: 60,
     colorTema: 'wine',
-    icono: '✨',
+    icono: 'award',
     activa: true,
     fechaCreacion: '2026-01-15',
   },
@@ -117,7 +117,7 @@ export const TIPOS_TARJETAS_PREDETERMINADOS: TipoTarjetaMembresia[] = [
     valorPremio: 100,
     validezDias: 60,
     colorTema: 'emerald',
-    icono: '🌿',
+    icono: 'flower',
     activa: true,
     fechaCreacion: '2026-02-01',
   },
@@ -132,7 +132,7 @@ export const TIPOS_TARJETAS_PREDETERMINADOS: TipoTarjetaMembresia[] = [
     valorPremio: 25000,
     validezDias: 90,
     colorTema: 'dark',
-    icono: '👑',
+    icono: 'shield',
     activa: true,
     fechaCreacion: '2026-01-01',
   },
@@ -240,7 +240,16 @@ export const lealtadService = {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map((t: TipoTarjetaMembresia) => {
+            let icono = t.icono || 'sparkles';
+            if (['💅', '✨', '🌿', '👑', '💆‍♀️', '🌸', '🧴', '💎'].includes(icono)) {
+              if (t.categoria === 'Uñas' || icono === '💅') icono = 'sparkles';
+              else if (t.categoria === 'Facial' || icono === '✨') icono = 'award';
+              else if (t.categoria === 'Masajes' || icono === '🌿') icono = 'flower';
+              else icono = 'shield';
+            }
+            return { ...t, icono };
+          });
         }
       }
     } catch (e) {
@@ -263,6 +272,14 @@ export const lealtadService = {
     const id = tipo.id || `card-${Date.now()}`;
     const existenteIdx = tipos.findIndex(t => t.id === id);
 
+    let icono = tipo.icono || 'sparkles';
+    if (['💅', '✨', '🌿', '👑', '💆‍♀️', '🌸', '🧴', '💎'].includes(icono)) {
+      if (tipo.categoria === 'Uñas' || icono === '💅') icono = 'sparkles';
+      else if (tipo.categoria === 'Facial' || icono === '✨') icono = 'award';
+      else if (tipo.categoria === 'Masajes' || icono === '🌿') icono = 'flower';
+      else icono = 'shield';
+    }
+
     const tarjetaGuardada: TipoTarjetaMembresia = {
       id,
       nombre: tipo.nombre?.trim() || 'Nueva Membresía',
@@ -274,7 +291,7 @@ export const lealtadService = {
       valorPremio: tipo.valorPremio || 20,
       validezDias: tipo.validezDias || 45,
       colorTema: tipo.colorTema || 'wine',
-      icono: tipo.icono || '✨',
+      icono,
       activa: tipo.activa ?? true,
       fechaCreacion: tipo.fechaCreacion || new Date().toISOString().split('T')[0],
     };

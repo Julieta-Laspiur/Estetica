@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { QrCode, Gift, Award, Clock, CheckCircle2, Trophy, ShieldCheck, Layers, Heart } from 'lucide-react';
+import { QrCode, Gift, Award, Clock, CheckCircle2, Trophy, ShieldCheck, Layers, Heart, Sparkles } from 'lucide-react';
 import type { AuthUser } from '../../../services/api';
 import {
   lealtadService,
@@ -178,7 +178,7 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
             <Heart className="w-6 h-6 text-red-500 fill-red-500 animate-pulse" />
           </div>
           <div>
-            <p className="font-extrabold text-sm text-[#2A2825]">¡Nuevo Corazón Acreditado! ❤️</p>
+            <p className="font-extrabold text-sm text-[#2A2825]">¡Nuevo Corazón Acreditado!</p>
             <p className="text-xs text-[#8A7F74]">
               {mensajeCelebracion || 'Recepción acaba de sellar tu tarjeta digital de fidelidad.'}
             </p>
@@ -305,8 +305,16 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
                   {/* Detalle visual superior de la tarjeta */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div className="flex items-center gap-4">
-                      <div className={`w-14 h-14 rounded-2xl ${estilo.lightBg} border ${estilo.borderStyle} flex items-center justify-center text-2xl shadow-2xs`}>
-                        {tarjeta.icono}
+                      <div className={`w-14 h-14 rounded-2xl ${estilo.lightBg} border ${estilo.borderStyle} flex items-center justify-center shadow-2xs`}>
+                        {tarjeta.categoria === 'Masajes' ? (
+                          <Layers className="w-6 h-6 text-[#4A8068]" />
+                        ) : tarjeta.categoria === 'Facial' ? (
+                          <Award className="w-6 h-6 text-[#7A3B3B]" />
+                        ) : tarjeta.categoria === 'Todas' ? (
+                          <ShieldCheck className="w-6 h-6 text-[#4A423A]" />
+                        ) : (
+                          <Sparkles className="w-6 h-6 text-[#A04355]" />
+                        )}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 mb-1">

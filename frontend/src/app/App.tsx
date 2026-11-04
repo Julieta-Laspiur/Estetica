@@ -21,10 +21,11 @@ import { ChatIA } from './components/cliente/ChatIA';
 import { Carrito } from './components/cliente/Carrito';
 import { ListaDeseos, type WishlistItem } from './components/cliente/ListaDeseos';
 import { AuthPage } from './components/cliente/AuthPage';
+import { PerfilCliente } from './components/cliente/PerfilCliente';
 import { PanelProfesional } from './components/profesional/PanelProfesional';
 import { authApi, pagosApi, type AuthUser } from '../services/api';
 import { configuracionService } from '../services/configuracionService';
-import { User, LogOut, Calendar, QrCode, ShoppingCart, Shield, Scissors, Heart } from 'lucide-react';
+import { User, Shield } from 'lucide-react';
 
 interface ProductoCarrito {
   id: string;
@@ -47,6 +48,11 @@ export default function App() {
   const [servicioParaReserva, setServicioParaReserva] = useState<string | null>(null);
   const [carritoItems, setCarritoItems] = useState<ProductoCarrito[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const handleUpdateUser = (updatedUser: AuthUser) => {
+    setCurrentUser(updatedUser);
+  };
+
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>(() => {
     try {
       const saved = localStorage.getItem('estetica_wishlist');
@@ -436,137 +442,12 @@ export default function App() {
         }
 
         return (
-          <div className="max-w-3xl mx-auto py-10 px-4">
-            <div className="bg-white rounded-2xl shadow-sm border border-[#EDE8E1] overflow-hidden mb-6">
-              {/* Header card */}
-              <div className="p-6 sm:p-8 bg-gradient-to-r from-[#2A2825] to-[#3C3530] text-white flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                <div className="w-20 h-20 rounded-full bg-[#7A3B3B] text-white flex items-center justify-center text-2xl font-bold shadow-md">
-                  {currentUser.nombre.charAt(0)}{currentUser.apellido ? currentUser.apellido.charAt(0) : ''}
-                </div>
-                <div className="flex-1 text-center sm:text-left">
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 mb-1">
-                    <h2 className="text-2xl font-bold">{currentUser.nombre} {currentUser.apellido}</h2>
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 text-white tracking-wide">
-                      {currentUser.rol}
-                    </span>
-                  </div>
-                  <p className="text-white/80 text-sm">{currentUser.email}</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors border border-white/20"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Cerrar sesión
-                </button>
-              </div>
-
-              {/* Quick shortcuts adaptados según el ROL del usuario */}
-              {currentUser.rol === 'Profesional' ? (
-                /* Accesos directos para Profesional */
-                <div className="p-6">
-                  <div className="mb-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-[#7A3B3B]">Herramientas del Profesional</p>
-                    <p className="text-xs text-[#8A7F74]">Ingresá a tu panel de agenda, turnos, fichas clínicas y perfil</p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button
-                      onClick={() => setVistaActual('profesional')}
-                      className="p-4 rounded-xl border border-[#7A3B3B] bg-[#7A3B3B]/5 hover:bg-[#7A3B3B]/10 transition-all text-left group"
-                    >
-                      <User className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                      <h4 className="font-semibold text-sm text-[#2A2825]">Abrir Panel del Profesional</h4>
-                      <p className="text-xs text-[#8A7F74] mt-0.5">Mis turnos, agenda, clientes y ficha de perfil</p>
-                    </button>
-                  </div>
-                </div>
-              ) : currentUser.rol === 'Administrador' ? (
-                /* Accesos de gestión para Administrador */
-                <div className="p-6">
-                  <div className="mb-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-[#7A3B3B]">Accesos Rápidos de Gestión</p>
-                    <p className="text-xs text-[#8A7F74]">Atajos a los módulos operativos del centro</p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button
-                      onClick={() => {
-                        setVistaActual('admin');
-                        setActiveSection('calendario');
-                      }}
-                      className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                    >
-                      <Calendar className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                      <h4 className="font-semibold text-sm text-[#2A2825]">Agenda & Citas</h4>
-                      <p className="text-xs text-[#8A7F74] mt-0.5">Control de turnos, horarios y cabinas</p>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setVistaActual('admin');
-                        setActiveSection('servicios');
-                      }}
-                      className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                    >
-                      <Scissors className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                      <h4 className="font-semibold text-sm text-[#2A2825]">Servicios & Tratamientos</h4>
-                      <p className="text-xs text-[#8A7F74] mt-0.5">Catálogo, precios y duraciones</p>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setVistaActual('admin');
-                        setActiveSection('lealtad');
-                      }}
-                      className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                    >
-                      <QrCode className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                      <h4 className="font-semibold text-sm text-[#2A2825]">Programa Lealtad & QRs</h4>
-                      <p className="text-xs text-[#8A7F74] mt-0.5">Acreditar estampitas y cupones</p>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Accesos de Cliente (Turnos, Tarjeta de Lealtad y Carrito) */
-                <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <button
-                    onClick={() => setActiveSection('reservar')}
-                    className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                  >
-                    <Calendar className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                    <h4 className="font-semibold text-sm text-[#2A2825]">Mis Turnos</h4>
-                    <p className="text-xs text-[#8A7F74] mt-0.5">Reservá o gestioná citas</p>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveSection('lealtad')}
-                    className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                  >
-                    <QrCode className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                    <h4 className="font-semibold text-sm text-[#2A2825]">Tarjeta Lealtad</h4>
-                    <p className="text-xs text-[#8A7F74] mt-0.5">Ver sellos y recompensas</p>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveSection('wishlist')}
-                    className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                  >
-                    <Heart className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                    <h4 className="font-semibold text-sm text-[#2A2825]">Lista de Deseos</h4>
-                    <p className="text-xs text-[#8A7F74] mt-0.5">{wishlistItems.length} favoritos guardados</p>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveSection('carrito')}
-                    className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
-                  >
-                    <ShoppingCart className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
-                    <h4 className="font-semibold text-sm text-[#2A2825]">Mi Carrito</h4>
-                    <p className="text-xs text-[#8A7F74] mt-0.5">{carritoItems.length} productos en carrito</p>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          <PerfilCliente
+            currentUser={currentUser}
+            onUpdateUser={handleUpdateUser}
+            onNavigate={setActiveSection}
+            onLogout={handleLogout}
+          />
         );
 
       case 'wishlist':

@@ -115,8 +115,12 @@ export function NavbarCliente({
                             }`}
                         title="Ver mi perfil"
                     >
-                        <span className="w-5 h-5 rounded-full bg-[#3C3530] text-white flex items-center justify-center text-[10px] font-bold uppercase">
-                            {currentUser.nombre.charAt(0)}
+                        <span className="w-5 h-5 rounded-full bg-[#3C3530] text-white flex items-center justify-center text-[10px] font-bold uppercase overflow-hidden shrink-0">
+                            {currentUser.fotoUrl ? (
+                                <img src={currentUser.fotoUrl} alt={currentUser.nombre} className="w-full h-full object-cover" />
+                            ) : (
+                                currentUser.nombre.charAt(0)
+                            )}
                         </span>
                         <span className="hidden sm:inline font-semibold max-w-[100px] truncate">
                             {currentUser.nombre}
@@ -476,8 +480,12 @@ export function NavbarCliente({
                                 <>
                                     <div className="flex items-center justify-between p-3 bg-[#F7F4F0] rounded-xl">
                                         <div className="flex items-center gap-2.5">
-                                            <span className="w-8 h-8 rounded-full bg-[#3C3530] text-white flex items-center justify-center text-xs font-bold uppercase">
-                                                {currentUser.nombre.charAt(0)}
+                                            <span className="w-8 h-8 rounded-full bg-[#3C3530] text-white flex items-center justify-center text-xs font-bold uppercase overflow-hidden shrink-0">
+                                                {currentUser.fotoUrl ? (
+                                                    <img src={currentUser.fotoUrl} alt={currentUser.nombre} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    currentUser.nombre.charAt(0)
+                                                )}
                                             </span>
                                             <div>
                                                 <div className="flex items-center gap-1.5">

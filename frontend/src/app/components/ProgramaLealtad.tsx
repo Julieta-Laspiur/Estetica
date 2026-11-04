@@ -707,8 +707,16 @@ export function ProgramaLealtad() {
                       {/* Cabecera de la tarjeta */}
                       <div className="flex items-start justify-between gap-3 mb-4">
                         <div className="flex items-center gap-3">
-                          <span className={`text-2xl p-2.5 rounded-2xl ${estilo.lightBg} border ${estilo.borderStyle} shadow-2xs`}>
-                            {tarjeta.icono}
+                          <span className={`p-2.5 rounded-2xl ${estilo.lightBg} border ${estilo.borderStyle} shadow-2xs flex items-center justify-center`}>
+                            {tarjeta.categoria === 'Masajes' ? (
+                              <Layers className="w-5 h-5 text-[#4A8068]" />
+                            ) : tarjeta.categoria === 'Facial' ? (
+                              <Award className="w-5 h-5 text-[#7A3B3B]" />
+                            ) : tarjeta.categoria === 'Todas' ? (
+                              <ShieldCheck className="w-5 h-5 text-[#4A423A]" />
+                            ) : (
+                              <Sparkles className="w-5 h-5 text-[#A04355]" />
+                            )}
                           </span>
                           <div>
                             <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${estilo.badgeColor}`}>
@@ -1214,31 +1222,31 @@ export function ProgramaLealtad() {
                       const cat = e.target.value as CategoriaTarjeta;
                       setFormCategoria(cat);
                       if (cat === 'Uñas') {
-                        setFormIcono('💅');
+                        setFormIcono('sparkles');
                         setFormColorTema('rose');
                         if (!tarjetaEnEdicion) setFormEstampitas(5);
                       } else if (cat === 'Facial') {
-                        setFormIcono('✨');
+                        setFormIcono('award');
                         setFormColorTema('wine');
                         if (!tarjetaEnEdicion) setFormEstampitas(8);
                       } else if (cat === 'Masajes') {
-                        setFormIcono('🌿');
+                        setFormIcono('flower');
                         setFormColorTema('emerald');
                         if (!tarjetaEnEdicion) setFormEstampitas(6);
                       } else if (cat === 'Todas') {
-                        setFormIcono('👑');
+                        setFormIcono('shield');
                         setFormColorTema('dark');
                         if (!tarjetaEnEdicion) setFormEstampitas(10);
                       }
                     }}
                     className="w-full px-4 py-2.5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs font-semibold text-[#2A2825]"
                   >
-                    <option value="Uñas">💅 Uñas / Manicuría & Pedicuría</option>
-                    <option value="Facial">✨ Facial & Dermoestética</option>
-                    <option value="Masajes">🌿 Masajes & Spa Corporal</option>
-                    <option value="Corporal">🧴 Tratamientos Corporales</option>
-                    <option value="Pestañas/Cejas">👁️ Pestañas & Cejas</option>
-                    <option value="Todas">👑 Club VIP / Todas las especialidades</option>
+                    <option value="Uñas">Uñas / Manicuría & Pedicuría</option>
+                    <option value="Facial">Facial & Dermoestética</option>
+                    <option value="Masajes">Masajes & Spa Corporal</option>
+                    <option value="Corporal">Tratamientos Corporales</option>
+                    <option value="Pestañas/Cejas">Pestañas & Cejas</option>
+                    <option value="Todas">Club VIP / Todas las especialidades</option>
                   </select>
                 </div>
 
@@ -1311,9 +1319,9 @@ export function ProgramaLealtad() {
                     onChange={(e) => setFormTipoPremio(e.target.value as TipoPremioTarjeta)}
                     className="w-full px-4 py-2.5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs font-semibold text-[#2A2825]"
                   >
-                    <option value="servicio_gratis">🎁 Servicio 100% Bonificado</option>
-                    <option value="porcentaje">🏷️ Descuento Porcentual (% OFF)</option>
-                    <option value="monto_fijo">💵 Monto Fijo en Crédito ($ ARS)</option>
+                    <option value="servicio_gratis">Servicio 100% Bonificado</option>
+                    <option value="porcentaje">Descuento Porcentual (% OFF)</option>
+                    <option value="monto_fijo">Monto Fijo en Crédito ($ ARS)</option>
                   </select>
                 </div>
 
@@ -1347,24 +1355,36 @@ export function ProgramaLealtad() {
                   />
                 </div>
 
-                {/* Ícono Emoji */}
+                {/* Ícono Visual Vectorial */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-[#3C3530] uppercase tracking-wider">
-                    Ícono Visual
+                    Ícono de la Membresía
                   </label>
                   <div className="flex gap-2">
-                    {['💅', '✨', '🌿', '👑', '💆‍♀️', '🌸', '🧴', '💎'].map(emoji => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() => setFormIcono(emoji)}
-                        className={`w-9 h-9 rounded-xl border text-base flex items-center justify-center transition-all ${
-                          formIcono === emoji ? 'bg-[#7A3B3B] text-white scale-110 shadow-xs' : 'bg-[#FAF8F5] border-[#EDE8E1]'
-                        }`}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
+                    {[
+                      { id: 'sparkles', label: 'Destello', icon: Sparkles },
+                      { id: 'award', label: 'Premio', icon: Award },
+                      { id: 'flower', label: 'Spa', icon: Layers },
+                      { id: 'shield', label: 'VIP', icon: ShieldCheck },
+                      { id: 'heart', label: 'Corazón', icon: Heart },
+                    ].map(item => {
+                      const IconComp = item.icon;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setFormIcono(item.id)}
+                          className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all ${
+                            formIcono === item.id
+                              ? 'bg-[#7A3B3B] text-white scale-110 shadow-xs'
+                              : 'bg-[#FAF8F5] border-[#EDE8E1] text-[#5A524A] hover:bg-[#EDE8E1]'
+                          }`}
+                          title={item.label}
+                        >
+                          <IconComp className="w-4 h-4" />
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1412,8 +1432,16 @@ export function ProgramaLealtad() {
                   <div className={`bg-white rounded-2xl p-4 sm:p-5 border ${getCardBorderStyle(formColorTema).borderStyle} shadow-2xs`}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2.5">
-                        <span className={`text-xl p-2 rounded-xl ${getCardBorderStyle(formColorTema).lightBg} border ${getCardBorderStyle(formColorTema).borderStyle}`}>
-                          {formIcono}
+                        <span className={`p-2 rounded-xl ${getCardBorderStyle(formColorTema).lightBg} border ${getCardBorderStyle(formColorTema).borderStyle} flex items-center justify-center`}>
+                          {formCategoria === 'Masajes' ? (
+                            <Layers className="w-5 h-5 text-[#4A8068]" />
+                          ) : formCategoria === 'Facial' ? (
+                            <Award className="w-5 h-5 text-[#7A3B3B]" />
+                          ) : formCategoria === 'Todas' ? (
+                            <ShieldCheck className="w-5 h-5 text-[#4A423A]" />
+                          ) : (
+                            <Sparkles className="w-5 h-5 text-[#A04355]" />
+                          )}
                         </span>
                         <div>
                           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${getCardBorderStyle(formColorTema).badgeColor}`}>
@@ -1438,7 +1466,10 @@ export function ProgramaLealtad() {
                     </div>
 
                     <div className="text-[11px] text-[#5A524A] flex items-center justify-between pt-1">
-                      <span className="font-semibold truncate">🎁 {formRecompensa || 'Premio a configurar'}</span>
+                      <span className="font-semibold truncate flex items-center gap-1.5">
+                        <Gift className="w-3.5 h-3.5 text-amber-700" />
+                        <span>{formRecompensa || 'Premio a configurar'}</span>
+                      </span>
                       <span className="text-[10px] text-[#8A7F74] shrink-0 font-mono">{formValidezDias} días vigencia</span>
                     </div>
                   </div>

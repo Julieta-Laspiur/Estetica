@@ -47,6 +47,10 @@ export interface AuthUser {
   apellido: string;
   email: string;
   rol: 'Cliente' | 'Profesional' | 'Administrador' | 'Recepcionista';
+  telefono?: string;
+  fotoUrl?: string;
+  direccion?: string;
+  fechaNacimiento?: string;
 }
 
 export interface AuthResponse {
@@ -117,6 +121,14 @@ export const authApi = {
     } catch {
       return null;
     }
+  },
+
+  updateCurrentUser: (usuario: Partial<AuthUser>): AuthUser | null => {
+    const current = authApi.getCurrentUser();
+    if (!current) return null;
+    const updated = { ...current, ...usuario };
+    localStorage.setItem('estetica_user', JSON.stringify(updated));
+    return updated;
   },
 
   isAuthenticated: (): boolean => {
@@ -521,6 +533,13 @@ export const usuariosApi = {
 
   getPerfil: (id: number): Promise<any> => {
     return request<any>(`/usuarios/perfil/${id}`);
+  },
+
+  actualizarPerfil: (data: { usuarioId: number; nombre: string; apellido: string; telefono?: string }): Promise<any> => {
+    return request<any>('/usuarios/perfil', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 
   resetPassword: (id: number, nuevaPassword: string): Promise<{ message: string }> => {
