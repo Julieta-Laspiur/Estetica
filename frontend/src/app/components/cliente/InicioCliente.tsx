@@ -1,7 +1,12 @@
-import { Calendar, Gift, Sparkles, Clock, Star, ChevronLeft, ChevronRight, Flower2, Zap, Package, Droplets, Sun, Scissors, ArrowRight, Heart, Eye } from 'lucide-react';
+import { Calendar, Gift, Sparkles, Clock, Star, ChevronLeft, ChevronRight, Flower2, Zap, Package, Droplets, Sun, Scissors, ArrowRight, Heart, Eye, MapPin, Phone, MessageSquare, Mail, Shield } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { serviciosApi, productosApi } from '../../../services/api';
 import { DetalleProductoModal, type ProductoModalData } from './DetalleProductoModal';
+import {
+    configuracionService,
+    EVENTO_CONFIG_ACTUALIZADA,
+    type ConfiguracionGeneral
+} from '../../../services/configuracionService';
 
 interface InicioClienteProps {
     onNavigate: (section: string) => void;
@@ -11,35 +16,7 @@ interface InicioClienteProps {
     onAddToCart?: (productId: string, itemData?: { nombre: string; marca: string; precio: number; imagen?: string }, quantity?: number) => void;
 }
 
-const bannerSlides = [
-    {
-        id: 1,
-        image: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYWNpYWwlMjB0cmVhdG1lbnQlMjBzcGElMjBwcm9tb3Rpb258ZW58MXx8fHwxNzgyMTU4MjM2fDA&ixlib=rb-4.1.0&q=80&w=1080',
-        tag: 'Promoción Especial',
-        title: '30% OFF en Faciales Hidratantes',
-        subtitle: 'Durante todo el mes de julio. Reservá tu turno y aprovechá.',
-        cta: 'Reservar Ahora',
-        ctaTarget: 'reservar',
-    },
-    {
-        id: 2,
-        image: 'https://images.unsplash.com/photo-1778451510207-24f1e204f465?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwzfHxiZWF1dHklMjBzcGElMjBza2luY2FyZSUyMHByb2R1Y3RzJTIwZWxlZ2FudHxlbnwxfHx8fDE3ODIxNTgyMzJ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-        tag: 'Nuevos Productos',
-        title: 'Línea Premium de Skincare',
-        subtitle: 'Cremas, sérums y tratamientos de las mejores marcas internacionales.',
-        cta: 'Ver Productos',
-        ctaTarget: 'productos',
-    },
-    {
-        id: 3,
-        image: 'https://images.unsplash.com/photo-1779117691346-5de09d89a73f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw1fHxiZWF1dHklMjBzcGElMjBza2luY2FyZSUyMHByb2R1Y3RzJTIwZWxlZ2FudHxlbnwxfHx8fDE3ODIxNTgyMzJ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-        tag: 'Programa de Lealtad',
-        title: 'Acumulá Estampillas y Ganá',
-        subtitle: 'Por cada tratamiento sumás estampillas. Llegá a 10 y recibí un servicio gratis.',
-        cta: 'Mi Tarjeta',
-        ctaTarget: 'lealtad',
-    },
-];
+
 
 function getServiceIcon(nombre: string) {
     const n = nombre.toLowerCase();
@@ -147,6 +124,19 @@ export function InicioCliente({ onNavigate, onSelectService, wishlistIds = [], o
     const [servicios, setServicios] = useState(SERVICIOS_DEFAULT);
     const [productos, setProductos] = useState(PRODUCTOS_DEFAULT);
     const [selectedProducto, setSelectedProducto] = useState<ProductoModalData | null>(null);
+    const [config, setConfig] = useState<ConfiguracionGeneral>(() => configuracionService.get());
+
+    useEffect(() => {
+        const handler = (e: any) => {
+            if (e.detail) {
+                setConfig(e.detail);
+            } else {
+                setConfig(configuracionService.get());
+            }
+        };
+        window.addEventListener(EVENTO_CONFIG_ACTUALIZADA, handler);
+        return () => window.removeEventListener(EVENTO_CONFIG_ACTUALIZADA, handler);
+    }, []);
 
     useEffect(() => {
         serviciosApi.getActivos()
@@ -187,12 +177,51 @@ export function InicioCliente({ onNavigate, onSelectService, wishlistIds = [], o
             .catch(() => {});
     }, []);
 
+    const bannerHeroConfig = config.bannerHero || {
+        imagenUrl: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080&q=80',
+        tag: 'Promoción Especial',
+        titulo: '30% OFF en Faciales Hidratantes',
+        subtitulo: 'Durante todo este mes. Reservá tu turno y aprovechá el cuidado exclusivo de tu piel.',
+        cta: 'Reservar Ahora',
+        ctaTarget: 'reservar',
+    };
+
+    const slides = [
+        {
+            id: 1,
+            image: bannerHeroConfig.imagenUrl || 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080&q=80',
+            tag: bannerHeroConfig.tag || 'Promoción Especial',
+            title: bannerHeroConfig.titulo || config.nombreCentro,
+            subtitle: bannerHeroConfig.subtitulo || config.slogan,
+            cta: bannerHeroConfig.cta || 'Reservar Ahora',
+            ctaTarget: bannerHeroConfig.ctaTarget || 'reservar',
+        },
+        {
+            id: 2,
+            image: 'https://images.unsplash.com/photo-1778451510207-24f1e204f465?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080&q=80',
+            tag: 'Nuevos Productos',
+            title: 'Línea Premium de Skincare',
+            subtitle: 'Cremas, sérums y tratamientos de las mejores marcas internacionales.',
+            cta: 'Ver Productos',
+            ctaTarget: 'productos',
+        },
+        {
+            id: 3,
+            image: 'https://images.unsplash.com/photo-1779117691346-5de09d89a73f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080&q=80',
+            tag: 'Programa de Lealtad',
+            title: 'Acumulá Estampillas y Ganá',
+            subtitle: `Por cada tratamiento sumás sellos. ¡Completá ${config.estampitasParaRecompensa || 6} estampitas y recibí un premio!`,
+            cta: 'Mi Tarjeta',
+            ctaTarget: 'lealtad',
+        },
+    ];
+
     const nextSlide = useCallback(() => {
-        setCurrentSlide(prev => (prev + 1) % bannerSlides.length);
-    }, []);
+        setCurrentSlide(prev => (prev + 1) % slides.length);
+    }, [slides.length]);
 
     const prevSlide = () => {
-        setCurrentSlide(prev => (prev - 1 + bannerSlides.length) % bannerSlides.length);
+        setCurrentSlide(prev => (prev - 1 + slides.length) % slides.length);
     };
 
     useEffect(() => {
@@ -201,7 +230,7 @@ export function InicioCliente({ onNavigate, onSelectService, wishlistIds = [], o
         return () => clearInterval(interval);
     }, [isPaused, nextSlide]);
 
-    const slide = bannerSlides[currentSlide];
+    const slide = slides[currentSlide] || slides[0];
 
     return (
         <div className="min-h-screen bg-[#F7F4F0]">
@@ -214,7 +243,7 @@ export function InicioCliente({ onNavigate, onSelectService, wishlistIds = [], o
                 onMouseLeave={() => setIsPaused(false)}
             >
                 {/* Slides */}
-                {bannerSlides.map((s, idx) => (
+                {slides.map((s, idx) => (
                     <div
                         key={s.id}
                         className="absolute inset-0 transition-opacity duration-700"
@@ -269,7 +298,7 @@ export function InicioCliente({ onNavigate, onSelectService, wishlistIds = [], o
 
                 {/* Dots */}
                 <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2">
-                    {bannerSlides.map((_, idx) => (
+                    {slides.map((_, idx) => (
                         <button
                             key={idx}
                             onClick={() => setCurrentSlide(idx)}
@@ -601,6 +630,97 @@ export function InicioCliente({ onNavigate, onSelectService, wishlistIds = [], o
                     </button>
                 </div>
             </div>
+
+            {/* Pie de Página / Footer Informativo Sincronizado en Vivo */}
+            <footer className="bg-[#2A2825] text-[#EDE8E1] pt-14 pb-10 border-t border-[#3C3530]">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pb-12 border-b border-white/10 text-xs">
+                        {/* Columna 1: Identidad */}
+                        <div className="space-y-3">
+                            <h3 className="font-bold text-base text-white tracking-wider uppercase">
+                                {config.nombreCentro}
+                            </h3>
+                            <p className="text-white/70 leading-relaxed">
+                                {config.slogan}
+                            </p>
+                            <div className="pt-2 flex items-center gap-3">
+                                {config.instagram && (
+                                    <span className="text-[11px] font-semibold text-[#EDE8E1] bg-white/10 px-2.5 py-1 rounded-full">
+                                        Instagram: {config.instagram}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Columna 2: Ubicación & Contacto */}
+                        <div className="space-y-2.5">
+                            <h4 className="font-bold text-sm text-white uppercase tracking-wider">Contacto & Ubicación</h4>
+                            <p className="flex items-start gap-2 text-white/80">
+                                <MapPin className="w-4 h-4 text-[#7A3B3B] shrink-0 mt-0.5" />
+                                <span>{config.direccion}, {config.ciudad}</span>
+                            </p>
+                            <p className="flex items-center gap-2 text-white/80">
+                                <Phone className="w-4 h-4 text-[#7A3B3B] shrink-0" />
+                                <span>{config.telefono}</span>
+                            </p>
+                            <p className="flex items-center gap-2 text-white/80">
+                                <Mail className="w-4 h-4 text-[#7A3B3B] shrink-0" />
+                                <span>{config.email}</span>
+                            </p>
+                            <a
+                                href={`https://wa.me/${config.whatsapp.replace(/[^0-9]/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 mt-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-colors text-[11px]"
+                            >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>WhatsApp: {config.whatsapp}</span>
+                            </a>
+                        </div>
+
+                        {/* Columna 3: Horarios de Atención */}
+                        <div className="space-y-2.5">
+                            <h4 className="font-bold text-sm text-white uppercase tracking-wider">Horarios de Atención</h4>
+                            <div className="space-y-1.5 text-white/80">
+                                <p className="flex items-center gap-2">
+                                    <Clock className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                                    <span>Lunes a Viernes: <strong>{config.horarioSemana}</strong></span>
+                                </p>
+                                <p className="flex items-center gap-2">
+                                    <Clock className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                                    <span>Sábados: <strong>{config.horarioSabados}</strong></span>
+                                </p>
+                                <p className="flex items-center gap-2 text-white/60">
+                                    <Clock className="w-3.5 h-3.5 text-white/40" />
+                                    <span>Domingos: {config.atiendeDomingos ? config.horarioDomingos : 'Cerrado'}</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Columna 4: Políticas & Garantías */}
+                        <div className="space-y-2.5">
+                            <h4 className="font-bold text-sm text-white uppercase tracking-wider">Políticas de Turnos</h4>
+                            <p className="text-white/70 leading-relaxed">
+                                {config.politicaCancelacionTexto}
+                            </p>
+                            <div className="pt-2 flex items-center gap-2 text-emerald-400 font-semibold text-[11px]">
+                                <Shield className="w-3.5 h-3.5" />
+                                <span>Atención personalizada y segura</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-white/50">
+                        <p>© {new Date().getFullYear()} {config.nombreCentro}. Todos los derechos reservados.</p>
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => onNavigate('servicios')} className="hover:text-white transition-colors">Servicios</button>
+                            <button onClick={() => onNavigate('productos')} className="hover:text-white transition-colors">Tienda</button>
+                            <button onClick={() => onNavigate('reservar')} className="hover:text-white transition-colors">Reservas</button>
+                            <button onClick={() => onNavigate('lealtad')} className="hover:text-white transition-colors">Lealtad</button>
+                        </div>
+                    </div>
+                </div>
+            </footer>
 
             {/* Modal de Detalle de Producto */}
             <DetalleProductoModal
