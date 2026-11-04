@@ -24,6 +24,16 @@ public class GestionarProfesionalCommandHandler : IRequestHandler<GestionarProfe
             throw new NotFoundException("Usuario", request.UsuarioId);
         }
 
+        if (!string.IsNullOrWhiteSpace(request.Nombre))
+            usuario.Nombre = request.Nombre.Trim();
+        if (!string.IsNullOrWhiteSpace(request.Apellido))
+            usuario.Apellido = request.Apellido.Trim();
+        if (request.Telefono != null)
+            usuario.Telefono = request.Telefono.Trim();
+
+        usuario.Activo = request.Activo;
+        _unitOfWork.Usuarios.Update(usuario);
+
         var profesional = await _unitOfWork.Profesionales.GetByUsuarioIdAsync(request.UsuarioId, cancellationToken);
 
         if (profesional == null)
@@ -53,9 +63,12 @@ public class GestionarProfesionalCommandHandler : IRequestHandler<GestionarProfe
             ProfesionalId = profesional.ProfesionalId,
             UsuarioId = usuario.UsuarioId,
             NombreCompleto = $"{usuario.Nombre} {usuario.Apellido}".Trim(),
+            Nombre = usuario.Nombre,
+            Apellido = usuario.Apellido,
             Email = usuario.Email,
+            Telefono = usuario.Telefono,
             Especialidad = profesional.Especialidad,
-            Activo = profesional.Activo
+            Activo = profesional.Activo && usuario.Activo
         };
     }
 }

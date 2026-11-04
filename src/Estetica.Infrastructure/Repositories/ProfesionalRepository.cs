@@ -35,4 +35,15 @@ public class ProfesionalRepository : Repository<Profesional>, IProfesionalReposi
             .Include(p => p.HistorialesTratamiento)
             .FirstOrDefaultAsync(p => p.ProfesionalId == profesionalId, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Profesional>> GetAllWithUsuarioAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Include(p => p.Usuario)
+            .Include(p => p.Turnos)
+            .OrderBy(p => p.Usuario.Nombre)
+            .ToListAsync(cancellationToken);
+    }
 }
+

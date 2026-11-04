@@ -65,6 +65,28 @@ public class UsuariosController : ControllerBase
     }
 
     /// <summary>
+    /// Listar todos los profesionales registrados con sus especialidades y métricas.
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [HttpGet("profesionales")]
+    public async Task<ActionResult<IReadOnlyList<ProfesionalDto>>> GetProfesionales()
+    {
+        var profesionales = await _mediator.Send(new Application.UseCases.Usuarios.Queries.GetProfesionales.GetProfesionalesQuery());
+        return Ok(profesionales);
+    }
+
+    /// <summary>
+    /// Dar de alta un nuevo profesional con cuenta de acceso y especialidad (Solo Administrador).
+    /// </summary>
+    [Authorize(Roles = "Administrador")]
+    [HttpPost("crear-profesional")]
+    public async Task<ActionResult<ProfesionalDto>> CrearProfesional([FromBody] Application.UseCases.Usuarios.Commands.CrearProfesional.CrearProfesionalCommand command)
+    {
+        var profesional = await _mediator.Send(command);
+        return Ok(profesional);
+    }
+
+    /// <summary>
     /// HU-02: Listar usuarios que se encuentran bloqueados por reiterados intentos fallidos (Solo Administrador).
     /// </summary>
     [Authorize(Roles = "Administrador")]
