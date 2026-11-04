@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { CajaPagos } from './components/CajaPagos';
@@ -19,33 +19,18 @@ import { ProductosCliente } from './components/cliente/ProductosCliente';
 import { TarjetaLealtad } from './components/cliente/TarjetaLealtad';
 import { ChatIA } from './components/cliente/ChatIA';
 import { Carrito } from './components/cliente/Carrito';
-import { ListaDeseos, type WishlistItem } from './components/cliente/ListaDeseos';
+import { ListaDeseos } from './components/cliente/ListaDeseos';
 import { AuthPage } from './components/cliente/AuthPage';
 import { PerfilCliente } from './components/cliente/PerfilCliente';
 import { PanelProfesional } from './components/profesional/PanelProfesional';
 import { authApi, pagosApi, type AuthUser } from '../services/api';
 import { configuracionService } from '../services/configuracionService';
+import {
+  clienteStorageService,
+  type ProductoCarrito,
+  type WishlistItem,
+} from '../services/clienteStorageService';
 import { User, Shield } from 'lucide-react';
-
-interface ProductoCarrito {
-  id: string;
-  nombre: string;
-  marca: string;
-  precio: number;
-  cantidad: number;
-  imagen: string;
-}
-
-export const getUserStorageKey = (prefix: string, user: AuthUser | null | undefined): string => {
-  if (user?.usuarioId && user.usuarioId > 0) {
-    return `${prefix}_user_${user.usuarioId}`;
-  }
-  if (user?.email) {
-    const safeEmail = user.email.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
-    return `${prefix}_email_${safeEmail}`;
-  }
-  return `${prefix}_guest`;
-};
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authApi.getCurrentUser());
@@ -58,86 +43,23 @@ export default function App() {
   const [activeSection, setActiveSection] = useState('inicio');
   const [servicioParaReserva, setServicioParaReserva] = useState<string | null>(null);
 
-  // Clave de almacenamiento aislada por cliente
-  const activeUserStorageKey = useMemo(() => {
-    return getUserStorageKey('user', currentUser);
-  }, [currentUser?.usuarioId, currentUser?.email]);
+  // Cargar lista de deseos del cliente activo (no expira, no se borra al cerrar sesión)
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>(() =>
+    clienteStorageService.cargarWishlist(currentUser)
+  );
 
-  // Cargar lista de deseos del cliente activo
-  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>(() => {
-    const initialUser = authApi.getCurrentUser();
-    const key = getUserStorageKey('estetica_wishlist', initialUser);
-    try {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Cargar carrito del cliente activo
-  const [carritoItems, setCarritoItems] = useState<ProductoCarrito[]>(() => {
-    const initialUser = authApi.getCurrentUser();
-    const key = getUserStorageKey('estetica_cart', initialUser);
-    try {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Cargar carrito del cliente activo (vigencia: 10 días de inactividad según HU-08 de proyecto.md)
+  const [carritoItems, setCarritoItems] = useState<ProductoCarrito[]>(() =>
+    clienteStorageService.cargarCarrito(currentUser)
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Ref para sincronizar carga sin sobreescribir datos al cambiar de usuario
-  const loadedUserKeyRef = useRef<string>(activeUserStorageKey);
-
-  // Sincronizar wishlist y carrito cuando cambia el cliente activo (login / logout / switch)
+  // Sincronizar estado cuando cambia la cuenta autenticada (login, switch o logout)
   useEffect(() => {
-    if (loadedUserKeyRef.current !== activeUserStorageKey) {
-      loadedUserKeyRef.current = activeUserStorageKey;
-
-      try {
-        const wKey = getUserStorageKey('estetica_wishlist', currentUser);
-        const savedW = localStorage.getItem(wKey);
-        setWishlistItems(savedW ? JSON.parse(savedW) : []);
-      } catch {
-        setWishlistItems([]);
-      }
-
-      try {
-        const cKey = getUserStorageKey('estetica_cart', currentUser);
-        const savedC = localStorage.getItem(cKey);
-        setCarritoItems(savedC ? JSON.parse(savedC) : []);
-      } catch {
-        setCarritoItems([]);
-      }
-    }
-  }, [activeUserStorageKey, currentUser]);
-
-  // Persistir lista de deseos exclusivamente para el cliente activo
-  useEffect(() => {
-    if (loadedUserKeyRef.current === activeUserStorageKey) {
-      try {
-        const wKey = getUserStorageKey('estetica_wishlist', currentUser);
-        localStorage.setItem(wKey, JSON.stringify(wishlistItems));
-      } catch (e) {
-        console.warn('Error al persistir wishlist:', e);
-      }
-    }
-  }, [wishlistItems, activeUserStorageKey, currentUser]);
-
-  // Persistir carrito exclusivamente para el cliente activo
-  useEffect(() => {
-    if (loadedUserKeyRef.current === activeUserStorageKey) {
-      try {
-        const cKey = getUserStorageKey('estetica_cart', currentUser);
-        localStorage.setItem(cKey, JSON.stringify(carritoItems));
-      } catch (e) {
-        console.warn('Error al persistir carrito:', e);
-      }
-    }
-  }, [carritoItems, activeUserStorageKey, currentUser]);
+    setWishlistItems(clienteStorageService.cargarWishlist(currentUser));
+    setCarritoItems(clienteStorageService.cargarCarrito(currentUser));
+  }, [currentUser?.usuarioId, currentUser?.email]);
 
   const handleUpdateUser = (updatedUser: AuthUser) => {
     setCurrentUser(updatedUser);
@@ -195,26 +117,35 @@ export default function App() {
 
   const handleToggleWishlist = (productId: string, customItem?: Partial<WishlistItem>) => {
     setWishlistItems(prev => {
+      let nuevos: WishlistItem[];
       const exists = prev.some(item => item.id === productId);
       if (exists) {
-        return prev.filter(item => item.id !== productId);
+        nuevos = prev.filter(item => item.id !== productId);
+      } else {
+        nuevos = [...prev, {
+          id: productId,
+          nombre: customItem?.nombre || 'Producto',
+          marca: customItem?.marca || 'Estética',
+          precio: customItem?.precio || 0,
+          imagenUrl: customItem?.imagenUrl,
+          descripcion: customItem?.descripcion,
+        }];
       }
-      return [...prev, {
-        id: productId,
-        nombre: customItem?.nombre || 'Producto',
-        marca: customItem?.marca || 'Estética',
-        precio: customItem?.precio || 0,
-        imagenUrl: customItem?.imagenUrl,
-        descripcion: customItem?.descripcion,
-      }];
+      clienteStorageService.guardarWishlist(nuevos, currentUser);
+      return nuevos;
     });
   };
 
   const handleRemoveFromWishlist = (productId: string) => {
-    setWishlistItems(prev => prev.filter(item => item.id !== productId));
+    setWishlistItems(prev => {
+      const nuevos = prev.filter(item => item.id !== productId);
+      clienteStorageService.guardarWishlist(nuevos, currentUser);
+      return nuevos;
+    });
   };
 
   const handleClearWishlist = () => {
+    clienteStorageService.guardarWishlist([], currentUser);
     setWishlistItems([]);
   };
 
@@ -247,8 +178,9 @@ export default function App() {
   const handleLogout = () => {
     authApi.logout();
     setCurrentUser(null);
-    setWishlistItems([]);
-    setCarritoItems([]);
+    // Preservar de forma permanente los datos del usuario desconectado y cargar la vista limpia de invitado
+    setWishlistItems(clienteStorageService.cargarWishlist(null));
+    setCarritoItems(clienteStorageService.cargarCarrito(null));
     setVistaActual('cliente');
     setActiveSection('inicio');
     setServicioParaReserva(null);
@@ -256,16 +188,16 @@ export default function App() {
 
   const handleAddToCart = (productId: string, customItem?: { nombre: string; marca: string; precio: number; imagen?: string }, quantity = 1) => {
     setCarritoItems(prev => {
+      let nuevos: ProductoCarrito[];
       const existingItem = prev.find(item => item.id === productId);
       if (existingItem) {
-        return prev.map(item =>
+        nuevos = prev.map(item =>
           item.id === productId
             ? { ...item, cantidad: item.cantidad + quantity }
             : item
         );
-      }
-      if (customItem) {
-        return [...prev, {
+      } else if (customItem) {
+        nuevos = [...prev, {
           id: productId,
           nombre: customItem.nombre,
           marca: customItem.marca,
@@ -273,20 +205,23 @@ export default function App() {
           cantidad: quantity,
           imagen: customItem.imagen || '🧴'
         }];
+      } else {
+        const productos = [
+          { id: '1', nombre: 'Crema Hidratante Premium', marca: 'La Roche-Posay', precio: 2500, imagen: '🧴' },
+          { id: '2', nombre: 'Sérum Vitamina C', marca: 'Vichy', precio: 3200, imagen: '💧' },
+          { id: '3', nombre: 'Protector Solar FPS 50+', marca: 'Eucerin', precio: 1800, imagen: '☀️' },
+          { id: '4', nombre: 'Aceite Esencial Lavanda', marca: 'doTERRA', precio: 1500, imagen: '🌿' },
+          { id: '5', nombre: 'Exfoliante Corporal', marca: 'The Body Shop', precio: 2100, imagen: '🧂' },
+          { id: '6', nombre: 'Máscara Facial Purificante', marca: 'Natura', precio: 1900, imagen: '🎭' },
+        ];
+
+        const producto = productos.find(p => p.id === productId);
+        nuevos = producto ? [...prev, { ...producto, cantidad: quantity }] : prev;
       }
-      const productos = [
-        { id: '1', nombre: 'Crema Hidratante Premium', marca: 'La Roche-Posay', precio: 2500, imagen: '🧴' },
-        { id: '2', nombre: 'Sérum Vitamina C', marca: 'Vichy', precio: 3200, imagen: '💧' },
-        { id: '3', nombre: 'Protector Solar FPS 50+', marca: 'Eucerin', precio: 1800, imagen: '☀️' },
-        { id: '4', nombre: 'Aceite Esencial Lavanda', marca: 'doTERRA', precio: 1500, imagen: '🌿' },
-        { id: '5', nombre: 'Exfoliante Corporal', marca: 'The Body Shop', precio: 2100, imagen: '🧂' },
-        { id: '6', nombre: 'Máscara Facial Purificante', marca: 'Natura', precio: 1900, imagen: '🎭' },
-      ];
 
-      const producto = productos.find(p => p.id === productId);
-      if (!producto) return prev;
-
-      return [...prev, { ...producto, cantidad: quantity }];
+      // Guardar con vigencia de 10 días de inactividad según HU-08
+      clienteStorageService.guardarCarrito(nuevos, currentUser);
+      return nuevos;
     });
   };
 
@@ -295,15 +230,21 @@ export default function App() {
       handleRemoveItem(productId);
       return;
     }
-    setCarritoItems(prev =>
-      prev.map(item =>
+    setCarritoItems(prev => {
+      const nuevos = prev.map(item =>
         item.id === productId ? { ...item, cantidad: newQuantity } : item
-      )
-    );
+      );
+      clienteStorageService.guardarCarrito(nuevos, currentUser);
+      return nuevos;
+    });
   };
 
   const handleRemoveItem = (productId: string) => {
-    setCarritoItems(prev => prev.filter(item => item.id !== productId));
+    setCarritoItems(prev => {
+      const nuevos = prev.filter(item => item.id !== productId);
+      clienteStorageService.guardarCarrito(nuevos, currentUser);
+      return nuevos;
+    });
   };
 
   const handleCheckout = async () => {
@@ -358,6 +299,7 @@ export default function App() {
       window.open(initPoint, '_blank');
 
       alert(`¡Orden registrada como pendiente de pago!\n\nSe ha abierto la pasarela de Mercado Pago para abonar $${totalOrden.toLocaleString('es-AR')} ARS.\nTu pedido se confirmará automáticamente en cuanto Mercado Pago acredite la transacción.`);
+      clienteStorageService.limpiarCarrito(currentUser);
       setCarritoItems([]);
       setActiveSection('inicio');
     }
@@ -553,6 +495,10 @@ export default function App() {
       <AuthPage
         onLogin={(user) => {
           setCurrentUser(user);
+          // Fusionar elecciones de invitado a la cuenta del cliente y restaurar sus productos guardados
+          const { carrito, wishlist } = clienteStorageService.fusionarDatosInvitadoAlIniciarSesion(user);
+          setCarritoItems(carrito);
+          setWishlistItems(wishlist);
           if (user.rol === 'Administrador') {
             setVistaActual('admin');
             setActiveSection('dashboard');
