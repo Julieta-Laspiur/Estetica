@@ -23,9 +23,6 @@ export function Clientes() {
   const [selectedCliente, setSelectedCliente] = useState<UsuarioDetalleDto | null>(null);
   const [estampitasCliente, setEstampitasCliente] = useState<number | null>(null);
   const [loadingEstampitas, setLoadingEstampitas] = useState(false);
-  const [estampitasToAdd, setEstampitasToAdd] = useState(1);
-  const [motivoEstampitas, setMotivoEstampitas] = useState('Atención en centro estético');
-  const [savingEstampitas, setSavingEstampitas] = useState(false);
 
   // Modal Resetear Contraseña
   const [resetModalOpen, setResetModalOpen] = useState(false);
@@ -146,23 +143,6 @@ export function Clientes() {
       setEstampitasCliente(0);
     } finally {
       setLoadingEstampitas(false);
-    }
-  };
-
-  const handleSumarEstampitas = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCliente) return;
-    setSavingEstampitas(true);
-    try {
-      await fidelizacionApi.acumularEstampitas(selectedCliente.usuarioId, estampitasToAdd, motivoEstampitas);
-      const tarjeta = await fidelizacionApi.getTarjetaPorUsuario(selectedCliente.usuarioId);
-      setEstampitasCliente(tarjeta?.estampitasActuales ?? 0);
-      alert(`¡Se acreditaron ${estampitasToAdd} estampitas exitosamente a ${selectedCliente.nombre}!`);
-      setSelectedCliente(null);
-    } catch (err: any) {
-      alert(`Error al sumar estampitas: ${err.message}`);
-    } finally {
-      setSavingEstampitas(false);
     }
   };
 
@@ -553,59 +533,43 @@ export function Clientes() {
                 <p className="text-xs">Consultando tarjeta digital...</p>
               </div>
             ) : (
-              <form onSubmit={handleSumarEstampitas} className="space-y-4">
-                <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl p-4 text-center">
-                  <p className="text-xs text-[#8A7F74]">Estampitas Actuales</p>
-                  <p className="text-3xl font-bold text-[#7A3B3B] mt-1">{estampitasCliente ?? 0} / 10</p>
-                  <div className="w-full bg-[#EDE8E1] h-2 rounded-full overflow-hidden mt-3">
+              <div className="space-y-4">
+                <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-4 text-center">
+                  <p className="text-xs text-[#8A7F74]">Tarjeta Virtual de Fidelización</p>
+                  <p className="text-3xl font-extrabold text-[#7A3B3B] mt-1">{estampitasCliente ?? 0} / 10</p>
+                  <p className="text-[11px] text-[#8A7F74] mt-0.5">
+                    {10 - (estampitasCliente ?? 0) === 0
+                      ? '¡Cuponera completa! Premio disponible.'
+                      : `Faltan ${10 - (estampitasCliente ?? 0)} estampitas para el premio`}
+                  </p>
+                  <div className="w-full bg-[#EDE8E1] h-2.5 rounded-full overflow-hidden mt-3">
                     <div
-                      className="bg-[#7A3B3B] h-full transition-all duration-300"
+                      className="bg-[#7A3B3B] h-full transition-all duration-500 rounded-full"
                       style={{ width: `${Math.min(((estampitasCliente ?? 0) / 10) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Acreditar Estampitas</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={estampitasToAdd}
-                    onChange={(e) => setEstampitasToAdd(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
-                  />
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-[#3C3530] leading-relaxed">
+                  <p className="font-semibold text-[#2A2825] mb-1 flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-[#7A3B3B]" />
+                    Seguridad en Acreditaciones
+                  </p>
+                  <p className="text-[11px] text-[#8A7F74]">
+                    Por protocolo de transparencia, no se permite la acreditación manual directa. Las estampitas se generan únicamente a través del <strong>código QR habilitado por el profesional en el turno completado</strong> y son validadas por el Administrador.
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Motivo / Concepto</label>
-                  <input
-                    type="text"
-                    value={motivoEstampitas}
-                    onChange={(e) => setMotivoEstampitas(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
-                    placeholder="Ej. Servicio realizado o compra"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EDE8E1]">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EDE8E1]">
                   <button
                     type="button"
                     onClick={() => setSelectedCliente(null)}
-                    className="px-4 py-2 border border-[#EDE8E1] text-[#8A7F74] hover:bg-[#FAF8F5] rounded-xl text-xs font-semibold"
+                    className="w-full py-2.5 bg-[#3C3530] hover:bg-[#2A2825] text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
                   >
-                    Cerrar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={savingEstampitas}
-                    className="px-4 py-2 bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                  >
-                    {savingEstampitas ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
-                    Sumar Estampitas
+                    Entendido / Cerrar
                   </button>
                 </div>
-              </form>
+              </div>
             )}
           </div>
         </div>

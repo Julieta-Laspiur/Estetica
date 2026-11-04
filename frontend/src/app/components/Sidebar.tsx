@@ -1,5 +1,8 @@
-import { LayoutDashboard, Calendar, Users, Scissors, ShoppingBag, Gift, Settings, Store, LogOut, Shield } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LayoutDashboard, Calendar, Users, UserCheck, Scissors, ShoppingBag, Gift, Settings, Store, LogOut, Shield, Wallet } from 'lucide-react';
 import type { AuthUser } from '../../services/api';
+import { configuracionService, EVENTO_CONFIG_ACTUALIZADA, type ConfiguracionGeneral } from '../../services/configuracionService';
+import { lealtadService, EVENTO_QR_SOLICITUD_CREADA, EVENTO_ESTAMPITA_ACREDITADA } from '../../services/lealtadService';
 
 interface SidebarProps {
   activeSection: string;
@@ -16,25 +19,76 @@ export function Sidebar({
   onSwitchToCliente,
   onLogout
 }: SidebarProps) {
+  const [siteConfig, setSiteConfig] = useState<ConfiguracionGeneral>(() => configuracionService.get());
+  const [qrsPendientes, setQrsPendientes] = useState<number>(() => lealtadService.getPendientes().length);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e.detail) {
+        setSiteConfig(e.detail);
+      } else {
+        setSiteConfig(configuracionService.get());
+      }
+    };
+    window.addEventListener(EVENTO_CONFIG_ACTUALIZADA, handler);
+    return () => window.removeEventListener(EVENTO_CONFIG_ACTUALIZADA, handler);
+  }, []);
+
+  // Escuchar solicitudes de QR en tiempo real para alertar al admin
+  useEffect(() => {
+    const actualizarPendientes = () => {
+      setQrsPendientes(lealtadService.getPendientes().length);
+    };
+
+    window.addEventListener(EVENTO_QR_SOLICITUD_CREADA, actualizarPendientes);
+    window.addEventListener(EVENTO_ESTAMPITA_ACREDITADA, actualizarPendientes);
+    window.addEventListener('estetica_qr_solicitud_actualizada', actualizarPendientes);
+
+    return () => {
+      window.removeEventListener(EVENTO_QR_SOLICITUD_CREADA, actualizarPendientes);
+      window.removeEventListener(EVENTO_ESTAMPITA_ACREDITADA, actualizarPendientes);
+      window.removeEventListener('estetica_qr_solicitud_actualizada', actualizarPendientes);
+    };
+  }, []);
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'caja', label: 'Caja y Pagos', icon: Wallet },
     { id: 'calendario', label: 'Calendario', icon: Calendar },
     { id: 'turnos', label: 'Lista Turnos', icon: Calendar },
     { id: 'clientes', label: 'Clientes', icon: Users },
+    { id: 'profesionales', label: 'Profesionales', icon: UserCheck },
     { id: 'servicios', label: 'Servicios', icon: Scissors },
     { id: 'productos', label: 'Productos', icon: ShoppingBag },
-    { id: 'lealtad', label: 'Programa Lealtad', icon: Gift },
+    { 
+      id: 'lealtad', 
+      label: 'Programa Lealtad', 
+      icon: Gift,
+      badge: qrsPendientes > 0 ? `${qrsPendientes} QR` : undefined 
+    },
     { id: 'configuracion', label: 'Configuración', icon: Settings },
   ];
 
   return (
     <aside className="w-64 bg-card border-r border-border h-screen flex flex-col">
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-bold text-primary">Centro Estético</h1>
+      <div className="p-5 border-b border-border">
+        <div className="flex items-center gap-2.5">
+          {(siteConfig.logoRedondoUrl || siteConfig.logoUrl) ? (
+            <img
+              src={siteConfig.logoRedondoUrl || siteConfig.logoUrl}
+              alt="Logo"
+              className="w-8 h-8 rounded-full object-cover bg-white shadow-2xs border border-border"
+            />
+          ) : (
+            <Shield className="w-5 h-5 text-primary shrink-0" />
+          )}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-sm font-bold text-primary truncate leading-tight">
+              {siteConfig.nombreCentro}
+            </h1>
+            <p className="text-[10px] text-muted-foreground mt-0.5 font-medium tracking-wide">Panel Administrativo</p>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5 font-medium tracking-wide">Panel Administrativo</p>
       </div>
 
       <nav className="flex-1 p-4 overflow-y-auto">
@@ -47,13 +101,20 @@ export function Sidebar({
               <li key={item.id}>
                 <button
                   onClick={() => onSectionChange(item.id)}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
                     ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
                     : 'text-foreground hover:bg-accent hover:text-accent-foreground'
                     }`}
                 >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.label}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#7A3B3B] text-white shadow-xs shrink-0 animate-pulse">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               </li>
             );

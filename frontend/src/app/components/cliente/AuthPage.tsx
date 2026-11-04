@@ -116,12 +116,14 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
             onLogin(res.usuario);
         } catch (err: unknown) {
             // Si el backend no tiene ese usuario o falla la red, fallback a mock user para no bloquear
+            const isPro = email.includes('pro') || email.includes('maria');
+            const isAdmin = email.includes('admin');
             const fallbackUser: AuthUser = {
-                usuarioId: email.includes('admin') ? 1 : 2,
-                nombre: email.includes('admin') ? 'Administrador' : 'Cliente',
-                apellido: 'Demo',
+                usuarioId: isAdmin ? 1 : isPro ? 3 : 2,
+                nombre: isAdmin ? 'Administrador' : isPro ? 'María' : 'Cliente',
+                apellido: isAdmin ? 'Demo' : isPro ? 'González' : 'Demo',
                 email: email,
-                rol: email.includes('admin') ? 'Administrador' : 'Cliente',
+                rol: isAdmin ? 'Administrador' : isPro ? 'Profesional' : 'Cliente',
             };
             localStorage.setItem('estetica_token', 'demo-token-' + Date.now());
             localStorage.setItem('estetica_user', JSON.stringify(fallbackUser));
@@ -481,7 +483,7 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                         <p className="text-[11px] text-[#8A7F74] mb-3 leading-relaxed">
                             Podés probar el sistema instantáneamente con cualquiera de las siguientes cuentas preconfiguradas:
                         </p>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <button
                                 type="button"
                                 disabled={loading}
@@ -489,6 +491,14 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                                 className="py-2 px-3 rounded-lg bg-white border border-[#DDD5C8] text-xs font-medium text-[#3C3530] hover:border-[#7A3B3B] hover:text-[#7A3B3B] transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
                             >
                                 <span>👤 Cliente Demo</span>
+                            </button>
+                            <button
+                                type="button"
+                                disabled={loading}
+                                onClick={() => handleDemoLogin('maria.gonzalez@estetica.com', 'Pro123!')}
+                                className="py-2 px-3 rounded-lg bg-[#7A3B3B] text-white text-xs font-medium hover:bg-[#5C2B2B] transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                            >
+                                <span>✨ Profesional (María)</span>
                             </button>
                             <button
                                 type="button"

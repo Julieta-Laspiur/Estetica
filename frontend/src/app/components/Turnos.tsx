@@ -14,16 +14,24 @@ import {
   CreditCard,
   Banknote,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  QrCode,
+  Sparkles,
+  Copy,
+  Check,
+  Smartphone
 } from 'lucide-react';
 import {
   turnosApi,
   serviciosApi,
   usuariosApi,
+  fidelizacionApi,
   type TurnoDto,
   type ServicioDto,
   type UsuarioDetalleDto,
-  type CabinaDto
+  type CabinaDto,
+  type QrFidelizacionDto,
+  type ResultadoEscaneoQrDto
 } from '../../services/api';
 
 export function Turnos() {
@@ -34,6 +42,16 @@ export function Turnos() {
   const [selectedDate, setSelectedDate] = useState<string>(''); // Vacio = todos
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+
+  // Modal QR Estampita de Fidelización
+  const [turnoParaQr, setTurnoParaQr] = useState<TurnoDto | null>(null);
+  const [qrData, setQrData] = useState<QrFidelizacionDto | null>(null);
+  const [generatingQr, setGeneratingQr] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [segundosRestantes, setSegundosRestantes] = useState<number>(300);
+  const [copiadoToken, setCopiadoToken] = useState(false);
+  const [escaneandoAdmin, setEscaneandoAdmin] = useState(false);
+  const [resultadoEscaneo, setResultadoEscaneo] = useState<ResultadoEscaneoQrDto | null>(null);
 
   // Modal Cancelar Turno con motivo
   const [turnoACancelar, setTurnoACancelar] = useState<TurnoDto | null>(null);
@@ -122,6 +140,68 @@ export function Turnos() {
     cargarTurnos();
     cargarDatosAuxiliares();
   }, []);
+
+  // Temporizador para el código QR dinámico (5 minutos de vigencia)
+  useEffect(() => {
+    if (!turnoParaQr || !qrData || resultadoEscaneo) return;
+
+    const timer = setInterval(() => {
+      setSegundosRestantes((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [turnoParaQr, qrData, resultadoEscaneo]);
+
+  const handleAbrirQrEstampita = async (turno: TurnoDto) => {
+    setTurnoParaQr(turno);
+    setGeneratingQr(true);
+    setQrError(null);
+    setResultadoEscaneo(null);
+    setCopiadoToken(false);
+    try {
+      const data = await fidelizacionApi.generarQrTurno(turno.turnoId);
+      setQrData(data);
+      setSegundosRestantes(Math.max(10, Math.floor(data.segundosRestantes || 300)));
+      // Actualizar estado del turno a Completado en la vista
+      setTurnos((prev) =>
+        prev.map((t) => (t.turnoId === turno.turnoId ? { ...t, estado: 'Completado' } : t))
+      );
+    } catch (err: any) {
+      setQrError(err.message || 'Error al generar código QR para este turno.');
+    } finally {
+      setGeneratingQr(false);
+    }
+  };
+
+  const handleEscanearQrAdmin = async () => {
+    if (!qrData?.token) return;
+    setEscaneandoAdmin(true);
+    setQrError(null);
+    try {
+      const res = await fidelizacionApi.escanearQr(qrData.token);
+      setResultadoEscaneo(res);
+      await cargarTurnos();
+    } catch (err: any) {
+      setQrError(`Fallo al escanear: ${err.message}`);
+    } finally {
+      setEscaneandoAdmin(false);
+    }
+  };
+
+  const handleCopiarToken = async () => {
+    if (!qrData?.token) return;
+    try {
+      await navigator.clipboard.writeText(qrData.token);
+      setCopiadoToken(true);
+      setTimeout(() => setCopiadoToken(false), 2500);
+    } catch {}
+  };
 
   const handleConfirmar = async (turnoId: number) => {
     setActionLoadingId(turnoId);
@@ -586,6 +666,19 @@ export function Turnos() {
                               </button>
                             )}
 
+                            {/* Botón Sumar Estampita: El profesional finaliza la atención y habilita el QR */}
+                            {(normEstado === 'confirmado' || normEstado === 'completado') && (
+                              <button
+                                onClick={() => handleAbrirQrEstampita(turno)}
+                                disabled={isLoadingAction}
+                                className="px-3 py-1.5 rounded-xl bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                                title="Atención finalizada: generar código QR dinámico para que el administrador lo escanee con su celular"
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                                <span>Sumar Estampita</span>
+                              </button>
+                            )}
+
                             {/* Botón Cancelar (HU-05) */}
                             {normEstado !== 'cancelado' && normEstado !== 'completado' && (
                               <button
@@ -801,6 +894,221 @@ export function Turnos() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL QR ESTAMPITA TRAS ATENCIÓN DEL PROFESIONAL */}
+      {turnoParaQr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl border border-[#EDE8E1] w-full max-w-md p-6 sm:p-7 overflow-hidden text-center">
+            {/* Header del Modal */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#EDE8E1] mb-4">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-[#7A3B3B]">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#2A2825]">Estampita de Fidelización</h3>
+                  <p className="text-[11px] text-[#8A7F74]">
+                    Turno #{turnoParaQr.turnoId} • {turnoParaQr.clienteNombreCompleto}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setTurnoParaQr(null);
+                  setQrData(null);
+                  setResultadoEscaneo(null);
+                }}
+                className="p-1.5 rounded-xl text-[#8A7F74] hover:bg-[#FAF8F5] transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Estado 1: Cargando generación del QR */}
+            {generatingQr && (
+              <div className="py-12 space-y-3">
+                <Loader2 className="w-10 h-10 animate-spin text-[#7A3B3B] mx-auto" />
+                <p className="text-xs font-semibold text-[#3C3530]">Habilitando código QR para este turno...</p>
+                <p className="text-[11px] text-[#8A7F74]">Verificando finalización de la atención médica/estética</p>
+              </div>
+            )}
+
+            {/* Estado 2: Error al generar */}
+            {qrError && !generatingQr && (
+              <div className="py-6 space-y-4">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-left">
+                  <div className="flex items-start gap-2 text-red-800">
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold">No se pudo habilitar el QR</p>
+                      <p className="text-xs text-red-700 mt-1">{qrError}</p>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleAbrirQrEstampita(turnoParaQr)}
+                  className="px-4 py-2 bg-[#7A3B3B] text-white rounded-xl text-xs font-semibold shadow-sm hover:bg-[#5C2B2B]"
+                >
+                  Reintentar
+                </button>
+              </div>
+            )}
+
+            {/* Estado 3: Éxito tras escanear el QR */}
+            {resultadoEscaneo && (
+              <div className="py-4 space-y-4 animate-in zoom-in-95">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
+                  <CheckCircle2 className="w-9 h-9" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-[#2A2825]">¡Estampita Acreditada!</h4>
+                  <p className="text-xs text-[#8A7F74] mt-1">
+                    {resultadoEscaneo.mensaje}
+                  </p>
+                </div>
+
+                <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-4">
+                  <p className="text-xs text-[#8A7F74] mb-1">Progreso actual de {resultadoEscaneo.clienteNombre || turnoParaQr.clienteNombreCompleto}:</p>
+                  <p className="text-3xl font-extrabold text-[#7A3B3B]">
+                    {resultadoEscaneo.estampitasActuales} <span className="text-sm font-medium text-[#8A7F74]">/ 10 sellos</span>
+                  </p>
+                  <div className="w-full bg-[#EDE8E1] h-2.5 rounded-full overflow-hidden mt-3">
+                    <div
+                      className="bg-[#7A3B3B] h-full transition-all duration-500 rounded-full"
+                      style={{ width: `${Math.min((resultadoEscaneo.estampitasActuales / 10) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {resultadoEscaneo.cicloCompletado && resultadoEscaneo.cuponGenerado && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-left">
+                    <div className="flex items-center gap-2 text-amber-900 font-bold text-xs mb-1">
+                      <Sparkles className="w-4 h-4 text-amber-600" />
+                      <span>¡Premio de Fidelización Desbloqueado!</span>
+                    </div>
+                    <p className="text-xs text-amber-800">
+                      Cupón generado: <strong className="font-mono bg-white px-2 py-0.5 rounded border border-amber-300">{resultadoEscaneo.cuponGenerado.codigo}</strong> ({resultadoEscaneo.cuponGenerado.descuento}% de descuento para su próxima visita).
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    setTurnoParaQr(null);
+                    setQrData(null);
+                    setResultadoEscaneo(null);
+                  }}
+                  className="w-full py-2.5 bg-[#3C3530] hover:bg-[#2A2825] text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
+                >
+                  Finalizar y Cerrar
+                </button>
+              </div>
+            )}
+
+            {/* Estado 4: Código QR generado y listo para escanear */}
+            {!generatingQr && !qrError && !resultadoEscaneo && qrData && (
+              <div className="space-y-4">
+                {/* Cuadro visual del QR */}
+                <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-4 flex flex-col items-center justify-center">
+                  <div className="p-3 bg-white rounded-2xl shadow-sm border border-[#EDE8E1]">
+                    <img
+                      src={qrData.qrImageDataUri}
+                      alt="Código QR de fidelización"
+                      className="w-52 h-52 object-contain"
+                    />
+                  </div>
+
+                  {/* Contador de tiempo */}
+                  <div className="mt-3">
+                    {segundosRestantes > 0 ? (
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-wide ${
+                          segundosRestantes > 60
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-red-50 text-red-700 border border-red-200 animate-pulse'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>
+                          Expira en {Math.floor(segundosRestantes / 60)}:
+                          {String(segundosRestantes % 60).padStart(2, '0')} min
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Código QR expirado</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Explicación del flujo solicitado por el usuario */}
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-left text-[11px] text-[#3C3530] leading-relaxed flex items-start gap-2.5">
+                  <Smartphone className="w-4 h-4 text-[#7A3B3B] shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-[#2A2825]">Flujo de seguridad:</strong> El profesional terminó de atender y habilitó este QR. Ahora el <strong>administrador debe escanearlo con su celular</strong> (o con el botón inferior) para que recién allí se sume la estampita al cliente.
+                  </div>
+                </div>
+
+                {/* Botón de acción para que el administrador escanee/acredite */}
+                <div className="space-y-2 pt-1">
+                  <button
+                    onClick={handleEscanearQrAdmin}
+                    disabled={escaneandoAdmin || segundosRestantes === 0}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {escaneandoAdmin ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Acreditando estampita...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Escanear y Acreditar Estampita Ahora</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopiarToken}
+                      className="flex-1 py-2 bg-white border border-[#EDE8E1] hover:bg-[#FAF8F5] text-[#3C3530] rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                      title="Copiar token para probar en la sección de Validar QR"
+                    >
+                      {copiadoToken ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-green-600" />
+                          <span className="text-green-700 font-bold">¡Token Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copiar Token</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTurnoParaQr(null);
+                        setQrData(null);
+                        setResultadoEscaneo(null);
+                      }}
+                      className="px-4 py-2 border border-[#EDE8E1] text-[#8A7F74] hover:bg-[#FAF8F5] rounded-xl text-xs font-semibold"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

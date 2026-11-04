@@ -106,6 +106,57 @@ public static class DbSeeder
                 await context.SaveChangesAsync();
             }
 
+            // Profesionales adicionales para pruebas de gestión
+            if (!await context.Usuarios.AnyAsync(u => u.Email == "marcos.benitez@estetica.com"))
+            {
+                var marcosUser = new Usuario
+                {
+                    Nombre = "Lic. Marcos",
+                    Apellido = "Benítez",
+                    Email = "marcos.benitez@estetica.com",
+                    Telefono = "+5491133445566",
+                    Rol = RolUsuario.Profesional,
+                    PasswordHash = passwordHasher.Hash("Pro123!"),
+                    Activo = true,
+                    FechaRegistro = DateTime.UtcNow.AddDays(-30)
+                };
+                await context.Usuarios.AddAsync(marcosUser);
+                await context.SaveChangesAsync();
+
+                await context.Profesionales.AddAsync(new Profesional
+                {
+                    UsuarioId = marcosUser.UsuarioId,
+                    Especialidad = "Cosmiatría y Peeling Químico",
+                    Activo = true
+                });
+                await context.SaveChangesAsync();
+            }
+
+            if (!await context.Usuarios.AnyAsync(u => u.Email == "luciana.herrera@estetica.com"))
+            {
+                var lucianaUser = new Usuario
+                {
+                    Nombre = "Dra. Luciana",
+                    Apellido = "Herrera",
+                    Email = "luciana.herrera@estetica.com",
+                    Telefono = "+5491144556677",
+                    Rol = RolUsuario.Profesional,
+                    PasswordHash = passwordHasher.Hash("Pro123!"),
+                    Activo = true,
+                    FechaRegistro = DateTime.UtcNow.AddDays(-20)
+                };
+                await context.Usuarios.AddAsync(lucianaUser);
+                await context.SaveChangesAsync();
+
+                await context.Profesionales.AddAsync(new Profesional
+                {
+                    UsuarioId = lucianaUser.UsuarioId,
+                    Especialidad = "Aparatología, Lifting y Rejuvenecimiento",
+                    Activo = true
+                });
+                await context.SaveChangesAsync();
+            }
+
             Usuario? clienteUser = await context.Usuarios.FirstOrDefaultAsync(u => u.Email == "cliente@estetica.com");
             if (clienteUser == null)
             {
@@ -509,6 +560,161 @@ public static class DbSeeder
                     t4.TurnoServicios.Add(new TurnoServicio { ServicioId = serviciosList[Math.Min(3, serviciosList.Count - 1)].ServicioId, Turno = t4 });
 
                     await context.Turnos.AddRangeAsync(t1, t2, t3, t4);
+                    await context.SaveChangesAsync();
+                }
+            }
+
+            // 8. Clientes registrados este mes actual para métricas de nuevos registros
+            var clientesMesActual = new[]
+            {
+                new { Nombre = "Camila", Apellido = "Torres", Email = "camila.torres@email.com", Tel = "+5491167890123" },
+                new { Nombre = "Lucía", Apellido = "Méndez", Email = "lucia.mendez@email.com", Tel = "+5491178901234" }
+            };
+
+            foreach (var cl in clientesMesActual)
+            {
+                if (!await context.Usuarios.AnyAsync(u => u.Email == cl.Email))
+                {
+                    var u = new Usuario
+                    {
+                        Nombre = cl.Nombre,
+                        Apellido = cl.Apellido,
+                        Email = cl.Email,
+                        Telefono = cl.Tel,
+                        Rol = RolUsuario.Cliente,
+                        PasswordHash = passwordHasher.Hash("Cliente123!"),
+                        Activo = true,
+                        FechaRegistro = DateTime.UtcNow.AddDays(-1)
+                    };
+                    await context.Usuarios.AddAsync(u);
+                    await context.SaveChangesAsync();
+
+                    await context.Fidelizaciones.AddAsync(new Fidelizacion
+                    {
+                        UsuarioId = u.UsuarioId,
+                        EstampitasActuales = 1,
+                        UltimaActualizacion = DateTime.UtcNow
+                    });
+                    await context.SaveChangesAsync();
+                }
+            }
+
+            // 9. Órdenes de compra iniciales (Productos vendidos para desglose de ingresos)
+            if (!await context.OrdenesCompra.AnyAsync())
+            {
+                var clientesList = await context.Usuarios.Where(u => u.Rol == RolUsuario.Cliente).ToListAsync();
+                var productosList = await context.Productos.Where(p => p.Activo).ToListAsync();
+
+                if (clientesList.Count > 0 && productosList.Count >= 2)
+                {
+                    var c1 = clientesList[0];
+                    var c2 = clientesList.Count > 1 ? clientesList[1] : c1;
+
+                    var p1 = productosList[0];
+                    var p2 = productosList[1];
+                    var p3 = productosList.Count > 2 ? productosList[2] : p1;
+
+                    var orden1 = new OrdenCompra
+                    {
+                        UsuarioId = c1.UsuarioId,
+                        Fecha = DateTime.UtcNow.AddDays(-2),
+                        Estado = EstadoOrden.Pagada,
+                        Total = p1.Precio * 2,
+                    };
+                    orden1.Detalles.Add(new DetalleOrden
+                    {
+                        OrdenCompra = orden1,
+                        ProductoId = p1.ProductoId,
+                        Cantidad = 2,
+                        PrecioUnitario = p1.Precio
+                    });
+
+                    var orden2 = new OrdenCompra
+                    {
+                        UsuarioId = c2.UsuarioId,
+                        Fecha = DateTime.UtcNow.AddHours(-6),
+                        Estado = EstadoOrden.Pagada,
+                        Total = p2.Precio,
+                    };
+                    orden2.Detalles.Add(new DetalleOrden
+                    {
+                        OrdenCompra = orden2,
+                        ProductoId = p2.ProductoId,
+                        Cantidad = 1,
+                        PrecioUnitario = p2.Precio
+                    });
+
+                    var orden3 = new OrdenCompra
+                    {
+                        UsuarioId = c1.UsuarioId,
+                        Fecha = DateTime.UtcNow.AddDays(-4),
+                        Estado = EstadoOrden.Entregada,
+                        Total = p3.Precio,
+                    };
+                    orden3.Detalles.Add(new DetalleOrden
+                    {
+                        OrdenCompra = orden3,
+                        ProductoId = p3.ProductoId,
+                        Cantidad = 1,
+                        PrecioUnitario = p3.Precio
+                    });
+
+                    await context.OrdenesCompra.AddRangeAsync(orden1, orden2, orden3);
+                    await context.SaveChangesAsync();
+                }
+            }
+
+            // 10. Notificaciones y monitor centralizado de eventos para el Administrador
+            if (!await context.Notificaciones.AnyAsync())
+            {
+                var admin = await context.Usuarios.FirstOrDefaultAsync(u => u.Rol == RolUsuario.Administrador);
+                if (admin != null)
+                {
+                    var notificacionesIniciales = new List<Notificacion>
+                    {
+                        new Notificacion
+                        {
+                            UsuarioId = admin.UsuarioId,
+                            Mensaje = "Pago de seña acreditado: $4.500 recibido vía Mercado Pago para el turno de Valentina Gómez.",
+                            Tipo = TipoNotificacion.AlertaPago,
+                            Leida = false,
+                            Fecha = DateTime.UtcNow.AddMinutes(-20)
+                        },
+                        new Notificacion
+                        {
+                            UsuarioId = admin.UsuarioId,
+                            Mensaje = "Alerta de inventario: 'Sérum Ácido Hialurónico Puro' cuenta con 3 unidades restantes (umbral mínimo: 5).",
+                            Tipo = TipoNotificacion.AlertaStock,
+                            Leida = false,
+                            Fecha = DateTime.UtcNow.AddHours(-2)
+                        },
+                        new Notificacion
+                        {
+                            UsuarioId = admin.UsuarioId,
+                            Mensaje = "Turno completado: Atendido por Dra. Camila Rossi y estampita QR acreditada exitosamente.",
+                            Tipo = TipoNotificacion.ConfirmacionTurno,
+                            Leida = false,
+                            Fecha = DateTime.UtcNow.AddHours(-4)
+                        },
+                        new Notificacion
+                        {
+                            UsuarioId = admin.UsuarioId,
+                            Mensaje = "Orden de compra #1002 de cosméticos abonada y lista para retiro en mostrador.",
+                            Tipo = TipoNotificacion.ActualizacionOrden,
+                            Leida = true,
+                            Fecha = DateTime.UtcNow.AddDays(-1)
+                        },
+                        new Notificacion
+                        {
+                            UsuarioId = admin.UsuarioId,
+                            Mensaje = "Auditoría del sistema y respaldo de datos completado exitosamente sin advertencias.",
+                            Tipo = TipoNotificacion.Sistema,
+                            Leida = true,
+                            Fecha = DateTime.UtcNow.AddDays(-2)
+                        }
+                    };
+
+                    await context.Notificaciones.AddRangeAsync(notificacionesIniciales);
                     await context.SaveChangesAsync();
                 }
             }
