@@ -7,7 +7,9 @@ public record RagConsultaContexto(
     string? Alergias,
     string? DiagnosticoResultado,
     IReadOnlyList<RagProductoItem> ProductosEnStock,
-    IReadOnlyList<RagServicioItem> ServiciosActivos
+    IReadOnlyList<RagServicioItem> ServiciosActivos,
+    string? ApiKeyOverride = null,
+    string? ModeloOverride = null
 );
 
 public record RagProductoItem(
@@ -39,8 +41,17 @@ public record RagResultadoGeneracion(
     bool EsAclaracionMedicaOExterna
 );
 
+public record GeminiTestResultDto(
+    bool Conectado,
+    string Mensaje,
+    long LatenciaMs,
+    string Modelo,
+    bool GuardrailsActivos
+);
+
 public interface IIAService
 {
     Task<string> ConsultarAsistenteAsync(string pregunta, string? contextoCliente = null, CancellationToken cancellationToken = default);
     Task<RagResultadoGeneracion> GenerarRespuestaRagAsync(RagConsultaContexto contexto, CancellationToken cancellationToken = default);
+    Task<GeminiTestResultDto> TestConexionGeminiAsync(string? apiKey = null, string? model = null, CancellationToken cancellationToken = default);
 }

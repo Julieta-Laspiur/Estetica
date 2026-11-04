@@ -18,6 +18,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Registro de Repositorios, Servicios de Infraestructura y Casos de Uso (MediatR)
+builder.Services.AddHttpClient();
 builder.Services.AddInfrastructureRepositories();
 builder.Services.AddApplicationServices();
 

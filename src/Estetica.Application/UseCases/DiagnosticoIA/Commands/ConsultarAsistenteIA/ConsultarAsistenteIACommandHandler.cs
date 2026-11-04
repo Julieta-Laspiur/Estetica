@@ -72,7 +72,9 @@ public class ConsultarAsistenteIACommandHandler : IRequestHandler<ConsultarAsist
             Alergias: ultimoDiagnostico?.Alergias,
             DiagnosticoResultado: ultimoDiagnostico?.Resultado,
             ProductosEnStock: productosEnStock,
-            ServiciosActivos: serviciosActivos
+            ServiciosActivos: serviciosActivos,
+            ApiKeyOverride: request.ApiKey,
+            ModeloOverride: request.Modelo
         );
 
         // 5. Inferencia RAG con guardrails médicos y de marcas ajenas (HU-12)

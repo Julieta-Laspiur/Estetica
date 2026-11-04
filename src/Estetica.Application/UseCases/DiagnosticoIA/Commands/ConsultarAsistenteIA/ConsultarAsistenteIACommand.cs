@@ -5,5 +5,7 @@ namespace Estetica.Application.UseCases.DiagnosticoIA.Commands.ConsultarAsistent
 
 public record ConsultarAsistenteIACommand(
     int? UsuarioId,
-    string Pregunta
+    string Pregunta,
+    string? ApiKey = null,
+    string? Modelo = null
 ) : IRequest<ConversacionIADto>;

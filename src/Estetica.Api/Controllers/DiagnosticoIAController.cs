@@ -18,11 +18,16 @@ public class DiagnosticoIAController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IIAService _iaService;
 
-    public DiagnosticoIAController(IMediator mediator, ICurrentUserService currentUserService)
+    public DiagnosticoIAController(
+        IMediator mediator,
+        ICurrentUserService currentUserService,
+        IIAService iaService)
     {
         _mediator = mediator;
         _currentUserService = currentUserService;
+        _iaService = iaService;
     }
 
     /// <summary>
@@ -41,7 +46,7 @@ public class DiagnosticoIAController : ControllerBase
     }
 
     /// <summary>
-    /// HU-12: Enviar una consulta al Chatbot Inteligente 24/7 (Arquitectura RAG).
+    /// HU-12: Enviar una consulta al Chatbot Inteligente 24/7 (Arquitectura RAG acoplada a Gemini / Fallback local).
     /// El asistente evalúa el tipo de piel, catálogo de tratamientos, stock real disponible y guardrails médicos.
     /// </summary>
     [AllowAnonymous]
@@ -52,9 +57,36 @@ public class DiagnosticoIAController : ControllerBase
             ? request.UsuarioId.Value
             : _currentUserService.UsuarioId;
 
-        var command = new ConsultarAsistenteIACommand(usuarioId, request.Pregunta);
+        var command = new ConsultarAsistenteIACommand(usuarioId, request.Pregunta, request.ApiKey, request.Modelo);
         var conversacion = await _mediator.Send(command);
         return Ok(conversacion);
+    }
+
+    /// <summary>
+    /// HU-12: Probar conectividad en vivo con Google Gemini y validar la latencia y activación de guardrails (Solo Administrador).
+    /// </summary>
+    [Authorize(Roles = "Administrador")]
+    [HttpPost("test-gemini")]
+    public async Task<ActionResult<GeminiTestResultDto>> TestGemini([FromBody] TestGeminiRequest request)
+    {
+        var resultado = await _iaService.TestConexionGeminiAsync(request.ApiKey, request.Modelo);
+        return Ok(resultado);
+    }
+
+    /// <summary>
+    /// HU-12: Consultar estado de configuración de Gemini en el servidor.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("estado-gemini")]
+    public async Task<ActionResult<GeminiEstadoDto>> GetEstadoGemini()
+    {
+        var test = await _iaService.TestConexionGeminiAsync();
+        return Ok(new GeminiEstadoDto(
+            Configurado: test.Conectado,
+            Modelo: test.Modelo,
+            Mensaje: test.Mensaje,
+            GuardrailsActivos: true
+        ));
     }
 
     /// <summary>
@@ -100,4 +132,6 @@ public class DiagnosticoIAController : ControllerBase
 }
 
 public record RegistrarDiagnosticoRequest(TipoPielEnum TipoPiel, string Resultado, string? Alergias = null, int? UsuarioId = null);
-public record ConsultarAsistenteRequest(string Pregunta, int? UsuarioId = null);
+public record ConsultarAsistenteRequest(string Pregunta, int? UsuarioId = null, string? ApiKey = null, string? Modelo = null);
+public record TestGeminiRequest(string? ApiKey = null, string? Modelo = null);
+public record GeminiEstadoDto(bool Configurado, string Modelo, string Mensaje, bool GuardrailsActivos);

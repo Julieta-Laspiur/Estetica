@@ -87,6 +87,12 @@ export interface ConfiguracionGeneral {
   modoMantenimiento: boolean;
   mensajeMantenimiento?: string;
 
+  // 8. Inteligencia Artificial & Chatbot (Google Gemini)
+  geminiApiKey?: string;
+  geminiModel?: string;
+  geminiHabilitado?: boolean;
+  geminiTemperatura?: number;
+
   // Auditoría
   ultimaActualizacion?: string;
   actualizadoPor?: string;
@@ -185,6 +191,12 @@ export const CONFIGURACION_DEFAULT: ConfiguracionGeneral = {
   },
   modoMantenimiento: false,
   mensajeMantenimiento: 'Estamos actualizando nuestro sistema de reservas. Volvemos en unos minutos.',
+
+  // 8. Inteligencia Artificial & Chatbot (Google Gemini)
+  geminiApiKey: '',
+  geminiModel: 'gemini-1.5-flash',
+  geminiHabilitado: false,
+  geminiTemperatura: 0.3,
 
   ultimaActualizacion: new Date().toISOString(),
   actualizadoPor: 'Administrador General',

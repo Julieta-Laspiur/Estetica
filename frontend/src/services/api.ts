@@ -642,12 +642,38 @@ export interface DiagnosticoPielDto {
   fecha: string;
 }
 
+export interface GeminiTestResultDto {
+  conectado: boolean;
+  mensaje: string;
+  latenciaMs: number;
+  modelo: string;
+  guardrailsActivos: boolean;
+}
+
+export interface GeminiEstadoDto {
+  configurado: boolean;
+  modelo: string;
+  mensaje: string;
+  guardrailsActivos: boolean;
+}
+
 export const chatIAApi = {
-  consultar: (pregunta: string, usuarioId?: number): Promise<ConversacionIADto> => {
+  consultar: (pregunta: string, usuarioId?: number, apiKey?: string, modelo?: string): Promise<ConversacionIADto> => {
     return request<ConversacionIADto>('/diagnosticoia/consultar-asistente', {
       method: 'POST',
-      body: JSON.stringify({ pregunta, usuarioId }),
+      body: JSON.stringify({ pregunta, usuarioId, apiKey, modelo }),
     });
+  },
+
+  testGemini: (apiKey?: string, modelo?: string): Promise<GeminiTestResultDto> => {
+    return request<GeminiTestResultDto>('/diagnosticoia/test-gemini', {
+      method: 'POST',
+      body: JSON.stringify({ apiKey, modelo }),
+    });
+  },
+
+  getEstadoGemini: (): Promise<GeminiEstadoDto> => {
+    return request<GeminiEstadoDto>('/diagnosticoia/estado-gemini');
   },
 
   getHistorial: (limite: number = 50): Promise<ConversacionIADto[]> => {

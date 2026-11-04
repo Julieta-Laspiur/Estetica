@@ -22,6 +22,7 @@ import {
     type ServicioDto,
     type AuthUser
 } from '../../../services/api';
+import { configuracionService } from '../../../services/configuracionService';
 
 interface MessageUI {
     id: string;
@@ -217,7 +218,10 @@ Cuento con acceso en tiempo real a nuestro catálogo de servicios, inventario ve
         setIsTyping(true);
 
         try {
-            const res = await chatIAApi.consultar(textToSend, currentUser?.usuarioId);
+            const cfg = configuracionService.get();
+            const apiKeyToSend = cfg.geminiHabilitado && cfg.geminiApiKey ? cfg.geminiApiKey.trim() : undefined;
+            const modeloToSend = cfg.geminiHabilitado ? cfg.geminiModel : undefined;
+            const res = await chatIAApi.consultar(textToSend, currentUser?.usuarioId, apiKeyToSend, modeloToSend);
 
             const botMsg: MessageUI = {
                 id: `bot-${res.conversacionId || Date.now()}`,
@@ -338,12 +342,20 @@ Cuento con acceso en tiempo real a nuestro catálogo de servicios, inventario ve
             {activeTab === 'chat' && (
                 <div className="flex flex-col h-[720px] bg-white rounded-2xl shadow-sm border border-[#EDE8E1] overflow-hidden">
                     {/* Barra de estado superior */}
-                    <div className="px-5 py-3 bg-[#FAF8F5] border-b border-[#EDE8E1] flex items-center justify-between text-xs text-[#8A7F74]">
+                    <div className="px-5 py-3 bg-[#FAF8F5] border-b border-[#EDE8E1] flex flex-wrap items-center justify-between gap-2 text-xs text-[#8A7F74]">
                         <div className="flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <span className="font-medium text-[#3C3530]">Motor de Inferencia RAG Conectado</span>
+                            <span className="font-semibold text-[#3C3530]">
+                                {configuracionService.get().geminiHabilitado && configuracionService.get().geminiApiKey
+                                    ? `Google Gemini (${configuracionService.get().geminiModel || '1.5 Flash'}) Conectado`
+                                    : 'Motor de Inferencia RAG Certificado'}
+                            </span>
                             <span className="text-[#DDD5C8]">|</span>
-                            <span>Stock y Servicios en tiempo real</span>
+                            <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-medium">
+                                🛡️ Guardrails HU-12 Activos
+                            </span>
+                            <span className="text-[#DDD5C8] hidden sm:inline">|</span>
+                            <span className="hidden sm:inline">Stock y Servicios en tiempo real</span>
                         </div>
                         {currentUser ? (
                             <span className="text-[11px] font-semibold text-[#7A3B3B]">
