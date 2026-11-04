@@ -48,7 +48,8 @@ export interface NotificacionProfesional {
   mensaje: string;
   fechaHora: string;
   leida: boolean;
-  tipo: 'turno_nuevo' | 'turno_cancelado' | 'recordatorio' | 'sistema';
+  tipo: 'turno_nuevo' | 'turno_cancelado' | 'recordatorio' | 'sistema' | 'fidelizacion';
+  accionSeccion?: 'agenda' | 'turnos' | 'clientes' | 'atenciones' | 'servicios' | 'perfil';
 }
 
 const STORAGE_KEY_PERFIL = 'estetica_profesional_perfil';
@@ -323,6 +324,53 @@ export const profesionalService = {
 
   marcarTodasNotificacionesLeidas: (): NotificacionProfesional[] => {
     const list = profesionalService.getNotificaciones().map(n => ({ ...n, leida: true }));
+    try {
+      localStorage.setItem(STORAGE_KEY_NOTIFICACIONES, JSON.stringify(list));
+    } catch {}
+    return list;
+  },
+
+  marcarNotificacionLeida: (id: string, leida = true): NotificacionProfesional[] => {
+    const list = profesionalService.getNotificaciones().map(n => n.id === id ? { ...n, leida } : n);
+    try {
+      localStorage.setItem(STORAGE_KEY_NOTIFICACIONES, JSON.stringify(list));
+    } catch {}
+    return list;
+  },
+
+  eliminarNotificacion: (id: string): NotificacionProfesional[] => {
+    const list = profesionalService.getNotificaciones().filter(n => n.id !== id);
+    try {
+      localStorage.setItem(STORAGE_KEY_NOTIFICACIONES, JSON.stringify(list));
+    } catch {}
+    return list;
+  },
+
+  limpiarNotificaciones: (): NotificacionProfesional[] => {
+    try {
+      localStorage.setItem(STORAGE_KEY_NOTIFICACIONES, JSON.stringify([]));
+    } catch {}
+    return [];
+  },
+
+  agregarNotificacion: (notif: {
+    titulo: string;
+    mensaje: string;
+    tipo: 'turno_nuevo' | 'turno_cancelado' | 'recordatorio' | 'sistema' | 'fidelizacion';
+    accionSeccion?: 'agenda' | 'turnos' | 'clientes' | 'atenciones' | 'servicios' | 'perfil';
+  }): NotificacionProfesional[] => {
+    const ahora = new Date();
+    const horaStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')} hs`;
+    const nueva: NotificacionProfesional = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      titulo: notif.titulo,
+      mensaje: notif.mensaje,
+      tipo: notif.tipo,
+      fechaHora: `Hoy ${horaStr}`,
+      leida: false,
+      accionSeccion: notif.accionSeccion,
+    };
+    const list = [nueva, ...profesionalService.getNotificaciones()];
     try {
       localStorage.setItem(STORAGE_KEY_NOTIFICACIONES, JSON.stringify(list));
     } catch {}

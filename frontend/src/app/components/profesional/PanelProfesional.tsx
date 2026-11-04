@@ -27,7 +27,9 @@ import {
   Search,
   Coffee,
   CalendarDays,
-  Scissors
+  Scissors,
+  Trash2,
+  Inbox
 } from 'lucide-react';
 import {
   profesionalService,
@@ -58,7 +60,6 @@ type SeccionProfesional =
   | 'clientes'
   | 'atenciones'
   | 'servicios'
-  | 'disponibilidad'
   | 'perfil'
   | 'notificaciones';
 
@@ -87,6 +88,7 @@ export function PanelProfesional({
   const [notificaciones, setNotificaciones] = useState<NotificacionProfesional[]>(() =>
     profesionalService.getNotificaciones()
   );
+  const [filtroNotif, setFiltroNotif] = useState<'todas' | 'no_leidas' | 'turnos' | 'sistema'>('todas');
 
   // Retroalimentación visual (Toast)
   const [feedback, setFeedback] = useState<{ tipo: 'exito' | 'error'; mensaje: string } | null>(null);
@@ -167,6 +169,13 @@ export function PanelProfesional({
           setQrAcreditadoModal(true);
           mostrarFeedback(`¡El Administrador acreditó con éxito la estampita de ${e.detail.solicitud.clienteNombre}! 🎉`);
         }
+        const actNotif = profesionalService.agregarNotificacion({
+          titulo: 'Estampita Acreditada',
+          mensaje: `Recepción acreditó la estampita de fidelización para ${e.detail.solicitud.clienteNombre}.`,
+          tipo: 'fidelizacion',
+          accionSeccion: 'clientes',
+        });
+        setNotificaciones(actNotif);
       }
     };
     window.addEventListener(EVENTO_ESTAMPITA_ACREDITADA, handleAcreditacion);
@@ -413,6 +422,14 @@ export function PanelProfesional({
       localStorage.setItem('estetica_reservas_cliente', JSON.stringify(act));
       // 3. Notificar al backend
       await turnosApi.completar(turnoId).catch(() => {});
+      // 4. Agregar notificación en la bandeja del profesional
+      const actNotif = profesionalService.agregarNotificacion({
+        titulo: 'Turno Completado',
+        mensaje: `Turno de ${clienteNombre || 'paciente'} registrado como completado.`,
+        tipo: 'recordatorio',
+        accionSeccion: 'atenciones',
+      });
+      setNotificaciones(actNotif);
       mostrarFeedback(`✓ Turno de ${clienteNombre || 'paciente'} marcado como Completado.`);
     } catch {
       mostrarFeedback('Error al completar el turno.', 'error');
@@ -450,6 +467,14 @@ export function PanelProfesional({
       const act = turnosLocales.filter((t: any) => t.turnoId !== turnoId);
       localStorage.setItem('estetica_reservas_cliente', JSON.stringify(act));
       await turnosApi.cancelar(turnoId, 'Cancelado desde panel profesional').catch(() => {});
+      // Notificación del turno cancelado
+      const actNotif = profesionalService.agregarNotificacion({
+        titulo: 'Turno Cancelado',
+        mensaje: `Se canceló la cita de ${clienteNombre || 'paciente'}.`,
+        tipo: 'turno_cancelado',
+        accionSeccion: 'turnos',
+      });
+      setNotificaciones(actNotif);
       mostrarFeedback(`Turno de ${clienteNombre || 'paciente'} cancelado.`);
     } catch {
       mostrarFeedback('Error al cancelar el turno.', 'error');
@@ -472,6 +497,35 @@ export function PanelProfesional({
     const act = profesionalService.updatePerfil({ servicios: nuevosServicios });
     setPerfil(act);
     setFormEditar(prev => ({ ...prev, servicios: nuevosServicios }));
+  };
+
+  const handleToggleLeidaNotificacion = (id: string, leidaActual: boolean) => {
+    const act = profesionalService.marcarNotificacionLeida(id, !leidaActual);
+    setNotificaciones(act);
+    mostrarFeedback(!leidaActual ? 'Notificación marcada como leída.' : 'Notificación marcada como no leída.');
+  };
+
+  const handleEliminarNotificacion = (id: string) => {
+    const act = profesionalService.eliminarNotificacion(id);
+    setNotificaciones(act);
+    mostrarFeedback('Notificación eliminada.');
+  };
+
+  const handleLimpiarTodasNotificaciones = () => {
+    if (!window.confirm('¿Confirmás que querés vaciar toda la bandeja de notificaciones?')) return;
+    const act = profesionalService.limpiarNotificaciones();
+    setNotificaciones(act);
+    mostrarFeedback('Bandeja de notificaciones vaciada.');
+  };
+
+  const handleAbrirNotificacion = (notif: NotificacionProfesional) => {
+    if (!notif.leida) {
+      const act = profesionalService.marcarNotificacionLeida(notif.id, true);
+      setNotificaciones(act);
+    }
+    if (notif.accionSeccion) {
+      setSeccionActiva(notif.accionSeccion as SeccionProfesional);
+    }
   };
 
   const modificarFechaAgenda = (dias: number) => {
@@ -585,6 +639,13 @@ export function PanelProfesional({
       servicio: perfil.servicios[0] || 'Limpieza Facial Profunda',
       precio: 4500,
     });
+    const actNotif = profesionalService.agregarNotificacion({
+      titulo: 'Nuevo Turno Asignado',
+      mensaje: `Cita asignada a ${nuevoTurno.clienteNombreCompleto} para las ${horaSeleccionadaNuevoTurno} hs.`,
+      tipo: 'turno_nuevo',
+      accionSeccion: 'agenda',
+    });
+    setNotificaciones(actNotif);
     mostrarFeedback(`¡Turno asignado a ${nuevoTurno.clienteNombreCompleto} para las ${horaSeleccionadaNuevoTurno} hs!`);
   };
 
@@ -603,7 +664,6 @@ export function PanelProfesional({
     { id: 'servicios', label: 'Servicios', icon: Scissors },
     { id: 'turnos', label: 'Turnos', icon: ClipboardList },
     { id: 'atenciones', label: 'Atenciones', icon: Film },
-    { id: 'disponibilidad', label: 'Disponibilidad', icon: Clock },
     { id: 'perfil', label: 'Mi Perfil', icon: User },
     { id: 'notificaciones', label: 'Notificaciones', icon: Bell, badge: notificaciones.filter(n => !n.leida).length || undefined },
   ];
@@ -1638,7 +1698,7 @@ export function PanelProfesional({
         )}
 
         {/* ── 6. VISTA: SERVICIOS & DISPONIBILIDAD ── */}
-        {(seccionActiva === 'servicios' || seccionActiva === 'disponibilidad') && (
+        {seccionActiva === 'servicios' && (
           <div className="space-y-6 animate-in fade-in duration-200">
             <div className="bg-white border border-[#EAE2D5] rounded-2xl p-6 shadow-2xs space-y-6">
               <div>
@@ -1938,49 +1998,212 @@ export function PanelProfesional({
           </div>
         )}
 
-        {/* ── 8. VISTA: NOTIFICACIONES ── */}
+        {/* ── 8. VISTA: NOTIFICACIONES TOTALMENTE FUNCIONAL ── */}
         {seccionActiva === 'notificaciones' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="bg-white border border-[#EAE2D5] rounded-2xl p-5 shadow-2xs flex items-center justify-between">
+            {/* Cabecera de notificaciones con controles */}
+            <div className="bg-white border border-[#EAE2D5] rounded-2xl p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-base font-bold text-[#2A2825]">Bandeja de Notificaciones</h3>
-                <p className="text-xs text-[#8A7F74]">Avisos de citas, cancelaciones y mantenimiento de cabina</p>
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-base font-bold text-[#2A2825]">Bandeja de Notificaciones</h3>
+                  {notificaciones.filter(n => !n.leida).length > 0 && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-[#7A3B3B] text-white">
+                      {notificaciones.filter(n => !n.leida).length} nueva(s)
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#8A7F74]">
+                  Avisos de citas, cancelaciones, fidelización y estado de cabina en tiempo real
+                </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const act = profesionalService.marcarTodasNotificacionesLeidas();
-                  setNotificaciones(act);
-                  mostrarFeedback('Notificaciones marcadas como leídas.');
-                }}
-                className="text-xs font-bold text-[#7A3B3B] hover:underline"
-              >
-                Marcar todas leídas
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={notificaciones.filter(n => !n.leida).length === 0}
+                  onClick={() => {
+                    const act = profesionalService.marcarTodasNotificacionesLeidas();
+                    setNotificaciones(act);
+                    mostrarFeedback('Todas las notificaciones fueron marcadas como leídas.');
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-white border border-[#DDD5C8] hover:bg-[#FAF8F5] text-xs font-bold text-[#3C3530] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Marcar todas leídas</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={notificaciones.length === 0}
+                  onClick={handleLimpiarTodasNotificaciones}
+                  className="px-3 py-2 rounded-xl bg-white border border-rose-200 hover:bg-rose-50 text-xs font-bold text-rose-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs flex items-center gap-1.5"
+                  title="Vaciar toda la bandeja"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Vaciar bandeja</span>
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {notificaciones.map((n) => (
-                <div
-                  key={n.id}
-                  className={`p-4 sm:p-5 rounded-2xl border transition-colors flex items-start gap-4 ${
-                    n.leida
-                      ? 'bg-white border-[#EDE8E1] text-[#5A524A]'
-                      : 'bg-[#FAF8F5] border-[#DDD5C8] text-[#2A2825] shadow-xs'
+            {/* Pestañas de filtrado de notificaciones */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'todas', label: 'Todas', count: notificaciones.length },
+                { id: 'no_leidas', label: 'No leídas', count: notificaciones.filter(n => !n.leida).length },
+                { id: 'turnos', label: 'Citas & Turnos', count: notificaciones.filter(n => n.tipo === 'turno_nuevo' || n.tipo === 'turno_cancelado' || n.tipo === 'recordatorio').length },
+                { id: 'sistema', label: 'Fidelización & Sistema', count: notificaciones.filter(n => n.tipo === 'sistema' || n.tipo === 'fidelizacion').length },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setFiltroNotif(tab.id as any)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    filtroNotif === tab.id
+                      ? 'bg-[#7A3B3B] text-white shadow-2xs'
+                      : 'bg-white text-[#5A524A] border border-[#EDE8E1] hover:bg-[#FAF8F5]'
                   }`}
                 >
-                  <Bell className="w-5 h-5 text-[#7A3B3B] shrink-0 mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs sm:text-sm font-bold text-[#2A2825]">{n.titulo}</h4>
-                      <span className="text-[11px] text-[#8A7F74] font-medium">{n.fechaHora}</span>
-                    </div>
-                    <p className="text-xs text-[#5A524A]">{n.mensaje}</p>
-                  </div>
-                </div>
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    filtroNotif === tab.id ? 'bg-white/20 text-white' : 'bg-[#FAF8F5] text-[#8A7F74]'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
               ))}
             </div>
+
+            {/* Lista interactiva de notificaciones */}
+            {(() => {
+              const filtradas = notificaciones.filter(n => {
+                if (filtroNotif === 'no_leidas') return !n.leida;
+                if (filtroNotif === 'turnos') return n.tipo === 'turno_nuevo' || n.tipo === 'turno_cancelado' || n.tipo === 'recordatorio';
+                if (filtroNotif === 'sistema') return n.tipo === 'sistema' || n.tipo === 'fidelizacion';
+                return true;
+              });
+
+              if (filtradas.length === 0) {
+                return (
+                  <div className="bg-white border border-[#EAE2D5] rounded-2xl p-12 text-center shadow-2xs space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-[#FAF8F5] border border-[#DDD5C8] flex items-center justify-center mx-auto text-[#8A7F74]">
+                      <Inbox className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-bold text-[#2A2825]">No tenés notificaciones en esta sección</h4>
+                    <p className="text-xs text-[#8A7F74] max-w-sm mx-auto">
+                      Las notificaciones se generan automáticamente al confirmar citas, completar atenciones o acreditar estampitas de fidelización.
+                    </p>
+                    {filtroNotif !== 'todas' && (
+                      <button
+                        type="button"
+                        onClick={() => setFiltroNotif('todas')}
+                        className="text-xs font-bold text-[#7A3B3B] hover:underline pt-2 block mx-auto"
+                      >
+                        Ver todas las notificaciones →
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {filtradas.map((n) => {
+                    const isTurnoNuevo = n.tipo === 'turno_nuevo';
+                    const isTurnoCancelado = n.tipo === 'turno_cancelado';
+                    const isRecordatorio = n.tipo === 'recordatorio';
+                    const isFidelizacion = n.tipo === 'fidelizacion';
+
+                    return (
+                      <div
+                        key={n.id}
+                        className={`p-4 sm:p-5 rounded-2xl border transition-all flex items-start gap-4 shadow-2xs ${
+                          n.leida
+                            ? 'bg-white border-[#EDE8E1] text-[#5A524A] hover:border-[#DDD5C8]'
+                            : 'bg-[#FAF7F2] border-[#C28A5B]/40 text-[#2A2825] ring-1 ring-[#C28A5B]/20'
+                        }`}
+                      >
+                        {/* Ícono según el tipo */}
+                        <div className={`p-2.5 rounded-xl shrink-0 ${
+                          isTurnoNuevo
+                            ? 'bg-blue-50 text-blue-700'
+                            : isTurnoCancelado
+                              ? 'bg-rose-50 text-rose-700'
+                              : isRecordatorio
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : isFidelizacion
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : 'bg-[#FAF8F5] text-[#7A3B3B]'
+                        }`}>
+                          {isTurnoNuevo && <Calendar className="w-4 h-4" />}
+                          {isTurnoCancelado && <AlertCircle className="w-4 h-4" />}
+                          {isRecordatorio && <CheckCircle2 className="w-4 h-4" />}
+                          {isFidelizacion && <Sparkles className="w-4 h-4" />}
+                          {!isTurnoNuevo && !isTurnoCancelado && !isRecordatorio && !isFidelizacion && (
+                            <Bell className="w-4 h-4" />
+                          )}
+                        </div>
+
+                        {/* Contenido de la notificación */}
+                        <div className="flex-1 space-y-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <div className="flex items-center gap-2">
+                              {!n.leida && (
+                                <span className="w-2 h-2 rounded-full bg-[#7A3B3B] shrink-0" title="No leída" />
+                              )}
+                              <h4 className="text-xs sm:text-sm font-extrabold text-[#2A2825]">
+                                {n.titulo}
+                              </h4>
+                            </div>
+                            <span className="text-[11px] text-[#8A7F74] font-medium shrink-0">
+                              {n.fechaHora}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-[#5A524A] leading-relaxed">
+                            {n.mensaje}
+                          </p>
+
+                          {/* Enlace de acción rápida según tipo */}
+                          {n.accionSeccion && (
+                            <div className="pt-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirNotificacion(n)}
+                                className="text-xs font-bold text-[#7A3B3B] hover:text-[#5C2B2B] hover:underline inline-flex items-center gap-1"
+                              >
+                                <span>Ver en {n.accionSeccion === 'agenda' ? 'Agenda' : n.accionSeccion === 'turnos' ? 'Lista de Turnos' : n.accionSeccion === 'clientes' ? 'Mis Clientes' : 'Atenciones'}</span>
+                                <ChevronRight className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Botones de acción individuales */}
+                        <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleLeidaNotificacion(n.id, n.leida)}
+                            className="p-1.5 rounded-lg border border-[#EDE8E1] hover:bg-[#FAF8F5] text-[#8A7F74] transition-colors"
+                            title={n.leida ? 'Marcar como no leída' : 'Marcar como leída'}
+                          >
+                            <Check className={`w-3.5 h-3.5 ${n.leida ? 'text-[#8A7F74]' : 'text-emerald-600 stroke-[3]'}`} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarNotificacion(n.id)}
+                            className="p-1.5 rounded-lg border border-[#EDE8E1] hover:bg-rose-50 hover:border-rose-200 text-[#8A7F74] hover:text-rose-600 transition-colors"
+                            title="Eliminar esta notificación"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
       </main>
