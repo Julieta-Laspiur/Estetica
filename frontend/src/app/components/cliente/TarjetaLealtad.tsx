@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { QrCode, Gift, Award, Clock, CheckCircle2, Trophy, Sparkles, ShieldCheck, Crown } from 'lucide-react';
+import { QrCode, Gift, Award, Clock, CheckCircle2, Trophy, Sparkles, ShieldCheck, Layers } from 'lucide-react';
 import type { AuthUser } from '../../../services/api';
 import {
   lealtadService,
   type TarjetaClienteLocal,
-  EVENTO_ESTAMPITA_ACREDITADA
+  type TipoTarjetaMembresia,
+  type ColorTemaTarjeta,
+  EVENTO_ESTAMPITA_ACREDITADA,
+  EVENTO_TIPOS_TARJETAS_ACTUALIZADOS
 } from '../../../services/lealtadService';
 
 interface TarjetaLealtadProps {
@@ -18,61 +21,112 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
   const [tarjetaCliente, setTarjetaCliente] = useState<TarjetaClienteLocal>(() =>
     lealtadService.getTarjetaCliente(currentUser?.usuarioId || 101, clienteNombre)
   );
+  const [tiposTarjetas, setTiposTarjetas] = useState<TipoTarjetaMembresia[]>(() =>
+    lealtadService.getTiposTarjetas().filter(t => t.activa)
+  );
   const [nuevaEstampitaCelebracion, setNuevaEstampitaCelebracion] = useState(false);
+  const [mensajeCelebracion, setMensajeCelebracion] = useState<string | null>(null);
 
   useEffect(() => {
-    const handler = () => {
+    const handler = (e: any) => {
       const actual = lealtadService.getTarjetaCliente(currentUser?.usuarioId || 101, clienteNombre);
       setTarjetaCliente(actual);
       setNuevaEstampitaCelebracion(true);
+      if (e?.detail?.tipoTarjeta?.nombre) {
+        setMensajeCelebracion(`¡Sumaste 1 sello en ${e.detail.tipoTarjeta.nombre}!`);
+      } else {
+        setMensajeCelebracion('¡Recepción acaba de acreditarte una estampita digital!');
+      }
       setTimeout(() => setNuevaEstampitaCelebracion(false), 8000);
     };
 
+    const handleTipos = () => {
+      setTiposTarjetas(lealtadService.getTiposTarjetas().filter(t => t.activa));
+    };
+
     window.addEventListener(EVENTO_ESTAMPITA_ACREDITADA, handler);
-    return () => window.removeEventListener(EVENTO_ESTAMPITA_ACREDITADA, handler);
+    window.addEventListener(EVENTO_TIPOS_TARJETAS_ACTUALIZADOS, handleTipos);
+
+    return () => {
+      window.removeEventListener(EVENTO_ESTAMPITA_ACREDITADA, handler);
+      window.removeEventListener(EVENTO_TIPOS_TARJETAS_ACTUALIZADOS, handleTipos);
+    };
   }, [currentUser, clienteNombre]);
 
-  const tarjetas = [
-    {
-      id: '1',
-      nombre: 'Tarjeta Facial & Skincare',
-      categoria: 'Cuidado Cutáneo',
-      icono: Sparkles,
-      estampillasActuales: tarjetaCliente.estampitasActuales,
-      estampillasRequeridas: tarjetaCliente.estampitasRequeridas || 10,
-      recompensa: '1 Limpieza Facial Profunda Gratis',
-      variante: 'wine' as const,
-      bgGradient: 'bg-gradient-to-br from-[#7A3B3B] via-[#652E2E] to-[#451B1B]',
-      borderStyle: 'border-[#9E5555]/30',
-      badgeColor: 'bg-[#522020] text-[#F3E7C4] border border-[#F3E7C4]/30',
-      accentText: 'text-[#F5EAD4]',
-    },
-    {
-      id: '2',
-      nombre: 'Tarjeta VIP Tratamientos Corporales',
-      categoria: 'Membresía Exclusiva',
-      icono: Crown,
-      estampillasActuales: 4,
-      estampillasRequeridas: 10,
-      recompensa: '1 Sesión Masaje Descontracturante & Spa',
-      variante: 'dark' as const,
-      bgGradient: 'bg-gradient-to-br from-[#3C3530] via-[#2A2420] to-[#1A1614]',
-      borderStyle: 'border-[#5A4F46]/50',
-      badgeColor: 'bg-[#25201C] text-[#E5C378] border border-[#E5C378]/30',
-      accentText: 'text-[#E5C378]',
+  // Helpers de estilos para cada tema de tarjeta
+  const getCardStyle = (tema: ColorTemaTarjeta) => {
+    switch (tema) {
+      case 'rose':
+        return {
+          bgGradient: 'bg-gradient-to-br from-[#A04355] via-[#852C3E] to-[#5C1B28]',
+          borderStyle: 'border-pink-300/30',
+          badgeColor: 'bg-[#6E2232] text-[#FCDDEC] border border-pink-300/30',
+          accentText: 'text-[#FCDDEC]',
+        };
+      case 'wine':
+        return {
+          bgGradient: 'bg-gradient-to-br from-[#7A3B3B] via-[#652E2E] to-[#451B1B]',
+          borderStyle: 'border-[#9E5555]/30',
+          badgeColor: 'bg-[#522020] text-[#F3E7C4] border border-[#F3E7C4]/30',
+          accentText: 'text-[#F5EAD4]',
+        };
+      case 'emerald':
+        return {
+          bgGradient: 'bg-gradient-to-br from-[#2D5A46] via-[#204434] to-[#142B20]',
+          borderStyle: 'border-emerald-300/30',
+          badgeColor: 'bg-[#193629] text-[#D1F2D9] border border-emerald-300/30',
+          accentText: 'text-[#D1F2D9]',
+        };
+      case 'dark':
+        return {
+          bgGradient: 'bg-gradient-to-br from-[#3C3530] via-[#2A2420] to-[#1A1614]',
+          borderStyle: 'border-[#5A4F46]/50',
+          badgeColor: 'bg-[#25201C] text-[#E5C378] border border-[#E5C378]/30',
+          accentText: 'text-[#E5C378]',
+        };
+      case 'gold':
+        return {
+          bgGradient: 'bg-gradient-to-br from-[#B38E46] via-[#8C6D2E] to-[#5E471B]',
+          borderStyle: 'border-amber-300/30',
+          badgeColor: 'bg-[#523F18] text-[#FFF0C8] border border-amber-300/30',
+          accentText: 'text-[#FFF0C8]',
+        };
+      case 'violet':
+        return {
+          bgGradient: 'bg-gradient-to-br from-[#694273] via-[#512D5C] to-[#361A3D]',
+          borderStyle: 'border-purple-300/30',
+          badgeColor: 'bg-[#401E49] text-[#F0D5F7] border border-purple-300/30',
+          accentText: 'text-[#F0D5F7]',
+        };
+      default:
+        return {
+          bgGradient: 'bg-gradient-to-br from-[#7A3B3B] to-[#451B1B]',
+          borderStyle: 'border-[#9E5555]/30',
+          badgeColor: 'bg-[#522020] text-[#F3E7C4] border border-[#F3E7C4]/30',
+          accentText: 'text-[#F5EAD4]',
+        };
     }
-  ];
+  };
 
+  // Historial ilustrativo de canjes
   const historialRecompensas = [
-    { fecha: '2026-04-15', recompensa: '1 Facial Hidratante Profundo', canjeado: true },
-    { fecha: '2026-03-20', recompensa: '1 Masaje Relajante de Espalda', canjeado: true },
-    { fecha: '2026-05-10', recompensa: 'Servicio Dermoestético Premium', canjeado: false }
+    { fecha: '2026-04-15', servicio: 'Esmaltado Semipermanente Gratis', tarjeta: 'Membresía Uñas', canjeado: true },
+    { fecha: '2026-03-20', servicio: 'Limpieza Facial Profunda (30% OFF)', tarjeta: 'Membresía Facial', canjeado: true },
+    { fecha: '2026-05-10', servicio: 'Sesión Masaje Descontracturante Bonificado', tarjeta: 'Membresía Spa', canjeado: false }
   ];
 
-  const totalEstampillas = tarjetas.reduce((acc, t) => acc + t.estampillasActuales, 0);
+  // Cálculo de estampillas totales acumuladas en todas las tarjetas
+  const totalEstampillas = tiposTarjetas.reduce((acc, tipo) => {
+    const progreso = tarjetaCliente.progresosPorTipo?.[tipo.id]?.estampitasActuales;
+    if (progreso !== undefined) return acc + progreso;
+    if (tipo.id === 'card-unas') return acc + 4;
+    if (tipo.id === 'card-facial') return acc + tarjetaCliente.estampitasActuales;
+    return acc + 1;
+  }, 0);
+
   const recompensasCanjeadas = historialRecompensas.filter(r => r.canjeado).length;
 
-  const renderEstampillas = (actual: number, total: number, variante: 'wine' | 'dark') => {
+  const renderEstampillas = (actual: number, total: number, icono: string) => {
     return (
       <div className="flex flex-wrap gap-2 sm:gap-2.5">
         {Array.from({ length: total }).map((_, idx) => {
@@ -87,13 +141,9 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
               }`}
             >
               {isStamped ? (
-                variante === 'wine' ? (
-                  <Sparkles className="w-5 h-5 text-[#7A3B3B]" />
-                ) : (
-                  <Crown className="w-5 h-5 text-[#C5A059]" />
-                )
+                <span className="text-lg sm:text-xl">{icono || '✓'}</span>
               ) : (
-                <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
+                <span className="text-xs font-mono font-bold text-white/40">{idx + 1}</span>
               )}
             </div>
           );
@@ -113,7 +163,7 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
           <div>
             <p className="font-extrabold text-sm text-white">¡Nueva Estampita Acreditada! 🎉</p>
             <p className="text-xs text-[#F5EAD4]">
-              Recepción acaba de sellar tu tarjeta digital. Ya tienes {tarjetaCliente.estampitasActuales} de {tarjetaCliente.estampitasRequeridas} sellos.
+              {mensajeCelebracion || 'Recepción acaba de sellar tu tarjeta digital de fidelidad.'}
             </p>
           </div>
         </div>
@@ -125,13 +175,13 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#EDE8E1] text-[#7A3B3B] mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Club de Fidelidad & Recompensas</span>
+              <span>Club de Fidelidad & Membresías Exclusivas</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#2A2825]">
-              Mi Tarjeta de Fidelidad
+              Mis Tarjetas de Membresía
             </h1>
             <p className="text-sm text-[#8A7F74] mt-1">
-              Acumulá estampillas en cada sesión y disfrutá de tratamientos gratuitos y beneficios exclusivos.
+              Acumulá estampillas adaptadas a cada servicio (5 sellos en Uñas, 8 en Faciales, etc.) y disfrutá de premios directos.
             </p>
           </div>
 
@@ -170,14 +220,14 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
           <div className="bg-gradient-to-br from-[#3C3530] to-[#25201C] text-white rounded-3xl p-6 shadow-md border border-[#4F4640] relative overflow-hidden group">
             <div className="relative z-10 flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-[#E5C378] border border-white/20">
-                <Trophy className="w-7 h-7" />
+                <Layers className="w-7 h-7" />
               </div>
               <div>
                 <p className="text-3xl sm:text-4xl font-extrabold text-white leading-none">
-                  {tarjetas.length}
+                  {tiposTarjetas.length}
                 </p>
                 <p className="text-xs uppercase tracking-wider text-[#E5C378] font-semibold mt-1.5">
-                  Tarjetas Activas
+                  Membresías Disponibles
                 </p>
               </div>
             </div>
@@ -194,43 +244,62 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
                 {recompensasCanjeadas}
               </p>
               <p className="text-xs uppercase tracking-wider text-[#8A7F74] font-semibold mt-1.5">
-                Recompensas Canjeadas
+                Premios Desbloqueados
               </p>
             </div>
           </div>
         </div>
 
-        {/* Sección: Mis Tarjetas */}
+        {/* Sección: Mis Tarjetas Dinámicas */}
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl sm:text-2xl font-bold text-[#2A2825]">
-              Tus Tarjetas en Curso
-            </h2>
-            <span className="text-xs text-[#8A7F74] font-medium">
-              Mostrá tu QR en cada cita para sellar
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#2A2825]">
+                Tus Tarjetas en Curso por Especialidad
+              </h2>
+              <p className="text-xs text-[#8A7F74]">
+                Cada categoría suma sellos en su tarjeta correspondiente con su meta individual de visitas
+              </p>
+            </div>
+            <span className="text-xs text-[#7A3B3B] font-bold bg-[#FAF8F5] px-3 py-1.5 rounded-full border border-[#EDE8E1] self-start sm:self-auto">
+              Mostrá tu pase en recepción para sellar
             </span>
           </div>
 
           <div className="space-y-6">
-            {tarjetas.map((tarjeta) => {
-              const porcentaje = (tarjeta.estampillasActuales / tarjeta.estampillasRequeridas) * 100;
-              const isComplete = porcentaje >= 100;
-              const IconComp = tarjeta.icono;
+            {tiposTarjetas.map((tarjeta) => {
+              const estilo = getCardStyle(tarjeta.colorTema);
+
+              // Obtener progreso específico de esta tarjeta para el cliente
+              const progresoLocal = tarjetaCliente.progresosPorTipo?.[tarjeta.id];
+              const estampitas = progresoLocal
+                ? progresoLocal.estampitasActuales
+                : tarjeta.id === 'card-unas'
+                ? 4 // 4 de 5 para Carla
+                : tarjeta.id === 'card-facial'
+                ? Math.min(tarjeta.estampitasRequeridas, tarjetaCliente.estampitasActuales || 6)
+                : tarjeta.id === 'card-masajes'
+                ? 2
+                : 3;
+
+              const porcentaje = Math.min(100, Math.round((estampitas / tarjeta.estampitasRequeridas) * 100));
+              const isComplete = estampitas >= tarjeta.estampitasRequeridas;
+              const faltan = Math.max(0, tarjeta.estampitasRequeridas - estampitas);
 
               return (
                 <div
                   key={tarjeta.id}
-                  className={`${tarjeta.bgGradient} text-white rounded-3xl p-6 sm:p-8 shadow-xl border ${tarjeta.borderStyle} relative overflow-hidden transition-all duration-300 hover:shadow-2xl`}
+                  className={`${estilo.bgGradient} text-white rounded-3xl p-6 sm:p-8 shadow-xl border ${estilo.borderStyle} relative overflow-hidden transition-all duration-300 hover:shadow-2xl`}
                 >
                   {/* Detalle visual superior de la tarjeta */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-white border border-white/20 shadow-inner">
-                        <IconComp className="w-7 h-7" />
+                      <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-2xl border border-white/20 shadow-inner">
+                        {tarjeta.icono}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${tarjeta.badgeColor}`}>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${estilo.badgeColor}`}>
                             {tarjeta.categoria}
                           </span>
                         </div>
@@ -238,19 +307,19 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
                           {tarjeta.nombre}
                         </h3>
                         <p className="text-xs text-white/80 mt-0.5">
-                          {tarjeta.estampillasActuales} de {tarjeta.estampillasRequeridas} estampillas completadas
+                          {estampitas} de {tarjeta.estampitasRequeridas} estampillas completadas
                         </p>
                       </div>
                     </div>
 
                     {isComplete ? (
                       <div className="bg-white text-[#7A3B3B] px-4 py-2 rounded-full font-bold text-xs flex items-center gap-1.5 shadow-md self-start sm:self-auto">
-                        <Gift className="w-4 h-4" />
-                        <span>¡Tarjeta Lista para Canjear!</span>
+                        <Gift className="w-4 h-4 text-emerald-600" />
+                        <span>¡Tarjeta Completa! Lista para Canjear</span>
                       </div>
                     ) : (
                       <div className="bg-white/10 backdrop-blur-xs px-3.5 py-1.5 rounded-full text-xs font-medium text-white/90 border border-white/20 self-start sm:self-auto">
-                        Faltan {tarjeta.estampillasRequeridas - tarjeta.estampillasActuales} para el premio
+                        Faltan {faltan} sello{faltan === 1 ? '' : 's'} para el premio
                       </div>
                     )}
                   </div>
@@ -260,35 +329,35 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
                     <div className="w-full bg-white/20 rounded-full h-2.5 overflow-hidden">
                       <div
                         className="bg-gradient-to-r from-white/90 to-white h-full rounded-full transition-all duration-700 shadow-xs"
-                        style={{ width: `${Math.min(porcentaje, 100)}%` }}
+                        style={{ width: `${porcentaje}%` }}
                       />
                     </div>
                     <div className="flex justify-between items-center text-xs text-white/85 mt-2.5">
-                      <span>Progreso: {Math.round(porcentaje)}%</span>
-                      <span className={tarjeta.accentText}>
+                      <span>Progreso: {porcentaje}%</span>
+                      <span className={estilo.accentText}>
                         {isComplete
                           ? '¡Meta alcanzada!'
-                          : `${tarjeta.estampillasActuales}/${tarjeta.estampillasRequeridas} visitas`}
+                          : `${estampitas}/${tarjeta.estampitasRequeridas} visitas en ${tarjeta.categoria}`}
                       </span>
                     </div>
                   </div>
 
-                  {/* Grilla de estampillas */}
+                  {/* Grilla de estampillas DINÁMICAS (5 para uñas, 8 para facial, etc.) */}
                   <div className="mb-6">
                     <p className="text-xs font-semibold uppercase tracking-wider text-white/70 mb-3">
-                      Estampillas acumuladas:
+                      Estampillas acumuladas ({tarjeta.estampitasRequeridas} requeridas):
                     </p>
-                    {renderEstampillas(tarjeta.estampillasActuales, tarjeta.estampillasRequeridas, tarjeta.variante)}
+                    {renderEstampillas(estampitas, tarjeta.estampitasRequeridas, tarjeta.icono)}
                   </div>
 
                   {/* Bloque Recompensa */}
                   <div className="pt-5 border-t border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
-                        Premio al completar
+                        Premio al completar {tarjeta.estampitasRequeridas} sellos:
                       </p>
-                      <p className={`text-base sm:text-lg font-bold ${tarjeta.accentText}`}>
-                        {tarjeta.recompensa}
+                      <p className={`text-base sm:text-lg font-bold ${estilo.accentText}`}>
+                        {tarjeta.recompensaTitulo}
                       </p>
                     </div>
 
@@ -304,7 +373,7 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
           </div>
         </div>
 
-        {/* Sección: Código QR del Cliente */}
+        {/* Sección: Pase Digital / Código QR del Cliente */}
         <div className="bg-white rounded-3xl border border-[#EDE8E1] p-6 sm:p-8 shadow-xs">
           <div className="max-w-md mx-auto text-center space-y-4">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#EDE8E1] text-[#3C3530]">
@@ -349,72 +418,38 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
                 key={idx}
                 className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#FAF8F5] px-2 rounded-xl transition-colors"
               >
-                <div className="flex items-center gap-3.5">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    item.canjeado ? 'bg-emerald-50 text-emerald-700' : 'bg-[#FAF8F5] text-[#7A3B3B]'
-                  }`}>
-                    {item.canjeado ? (
-                      <CheckCircle2 className="w-5 h-5" />
-                    ) : (
-                      <Clock className="w-5 h-5" />
-                    )}
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                    <Trophy className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="font-bold text-sm text-[#2A2825]">{item.recompensa}</p>
+                    <h3 className="text-sm font-bold text-[#2A2825]">
+                      {item.servicio}
+                    </h3>
                     <p className="text-xs text-[#8A7F74]">
-                      {new Date(item.fecha).toLocaleDateString('es-AR', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
+                      {item.tarjeta} • {item.fecha}
                     </p>
                   </div>
                 </div>
 
                 <div>
-                  <span
-                    className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                      item.canjeado
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                        : 'bg-[#7A3B3B]/10 text-[#7A3B3B] border border-[#7A3B3B]/20'
-                    }`}
-                  >
-                    {item.canjeado ? 'Canjeado con Éxito' : 'Disponible para Canjear'}
-                  </span>
+                  {item.canjeado ? (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Canjeado en Cita
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      <Clock className="w-3.5 h-3.5" />
+                      Disponible para Canjear
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
-
-        {/* Guía explicativa con colores coordinados */}
-        <div className="bg-white border border-[#EDE8E1] rounded-3xl p-6 sm:p-7 shadow-xs">
-          <h3 className="font-bold text-sm sm:text-base text-[#7A3B3B] mb-3 flex items-center gap-2">
-            <Award className="w-5 h-5 text-[#7A3B3B]" />
-            ¿Cómo funciona el Programa de Fidelidad?
-          </h3>
-          <ul className="text-xs sm:text-sm text-[#5A524A] space-y-2.5">
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#7A3B3B] mt-2 flex-shrink-0" />
-              <span><strong>Sumá estampillas:</strong> Recibís 1 estampilla automáticamente por cada tratamiento o servicio completado en cabina.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#7A3B3B] mt-2 flex-shrink-0" />
-              <span><strong>Premios directos:</strong> Al llenar tu tarjeta, tu recompensa queda activa para canjear en tu próxima visita sin costo adicional.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#7A3B3B] mt-2 flex-shrink-0" />
-              <span><strong>Presentá tu pase:</strong> Mostrá tu código QR en recepción al momento de abonar tu consulta o sesión.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#7A3B3B] mt-2 flex-shrink-0" />
-              <span><strong>Sin vencimiento:</strong> Tus beneficios y estampillas acumuladas no caducan.</span>
-            </li>
-          </ul>
-        </div>
       </div>
     </div>
   );
 }
-
-export default TarjetaLealtad;

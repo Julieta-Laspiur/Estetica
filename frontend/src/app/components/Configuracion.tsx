@@ -1952,6 +1952,59 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                   <span className="text-xs text-[#5A524A]">en compras de la tienda online</span>
                 </div>
               </div>
+
+              {/* Panel de Membresías Diferenciadas */}
+              <div className="md:col-span-2 p-5 bg-white border border-[#EDE8E1] rounded-2xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EDE8E1] pb-3">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#2A2825] flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                      <span>Tarjetas de Membresía con Metas Diferenciadas por Servicio</span>
+                    </h4>
+                    <p className="text-[11px] text-[#8A7F74]">
+                      Permite que un facial y un servicio de uñas tengan metas de estampitas independientes y adaptadas a su costo.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+                  <div className="p-3 bg-rose-50/60 border border-rose-200/60 rounded-xl space-y-1">
+                    <span className="text-xs font-bold text-rose-900 flex items-center gap-1">
+                      <span>💅</span> Uñas & Manicuría
+                    </span>
+                    <span className="text-sm font-extrabold text-[#7A3B3B] block">5 Estampitas</span>
+                    <span className="text-[10px] text-rose-800/80 block">Esmaltado Semi 100% Gratis</span>
+                  </div>
+
+                  <div className="p-3 bg-red-50/60 border border-red-200/60 rounded-xl space-y-1">
+                    <span className="text-xs font-bold text-[#7A3B3B] flex items-center gap-1">
+                      <span>✨</span> Facial Dermoestética
+                    </span>
+                    <span className="text-sm font-extrabold text-[#7A3B3B] block">8 Estampitas</span>
+                    <span className="text-[10px] text-[#7A3B3B]/80 block">Limpieza Profunda (30% OFF)</span>
+                  </div>
+
+                  <div className="p-3 bg-emerald-50/60 border border-emerald-200/60 rounded-xl space-y-1">
+                    <span className="text-xs font-bold text-emerald-900 flex items-center gap-1">
+                      <span>🌿</span> Spa & Masajes
+                    </span>
+                    <span className="text-sm font-extrabold text-emerald-800 block">6 Estampitas</span>
+                    <span className="text-[10px] text-emerald-700/80 block">Sesión Masaje Descontracturante</span>
+                  </div>
+
+                  <div className="p-3 bg-stone-100 border border-stone-200 rounded-xl space-y-1">
+                    <span className="text-xs font-bold text-stone-900 flex items-center gap-1">
+                      <span>👑</span> Club VIP Platino
+                    </span>
+                    <span className="text-sm font-extrabold text-stone-800 block">10 Estampitas</span>
+                    <span className="text-[10px] text-stone-600 block">$25.000 Crédito Tienda/Servicio</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-[#8A7F74]">
+                  💡 Podés crear nuevos tipos de tarjeta, cambiar las metas de estampitas, modificar los premios y ajustar colores desde la sección <strong className="text-[#3C3530]">"Programa de Lealtad &rarr; Tipos de Membresías"</strong>.
+                </p>
+              </div>
             </div>
           </div>
         )}
