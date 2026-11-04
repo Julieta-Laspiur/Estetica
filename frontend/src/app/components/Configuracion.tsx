@@ -1597,28 +1597,8 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                 <span>Pasarelas de Pago y Métodos Aceptados</span>
               </h3>
               <p className="text-xs text-[#8A7F74] mt-0.5">
-                Configurá las opciones de pago en efectivo en mostrador y transferencias bancarias. Las pasarelas de cobro digitales (Mercado Pago) se integran directamente desde el backend por seguridad.
+                Configurá las opciones de pago en efectivo en mostrador y los datos para transferencias bancarias directas.
               </p>
-            </div>
-
-            {/* Mercado Pago Checkout - Integrado en Backend */}
-            <div className="p-5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#009EE3] text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
-                  MP
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-bold text-[#2A2825]">Mercado Pago Checkout</h4>
-                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Conectado desde el Backend
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#8A7F74] mt-0.5">
-                    Tarjetas de débito/crédito, dinero en cuenta y QR. Las credenciales privadas y tokens de acceso se procesan de forma cifrada en el servidor por seguridad.
-                  </p>
-                </div>
-              </div>
             </div>
 
             {/* Efectivo en Mostrador */}
@@ -2026,20 +2006,6 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
         )}
 
 
-        {/* Botón flotante inferior para guardar cómodamente */}
-        <div className="sticky bottom-4 z-20 bg-white/95 backdrop-blur-md border border-[#EDE8E1] p-4 rounded-2xl shadow-lg flex items-center justify-between gap-4">
-          <div className="text-xs text-[#8A7F74]">
-            Recordá presionar <strong className="text-[#2A2825]">Guardar Cambios</strong> para sincronizar el logo, nombre y banners en vivo en la página.
-          </div>
-          <button
-            type="submit"
-            disabled={guardando}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95 shrink-0"
-          >
-            <Save className="w-4 h-4" />
-            <span>{guardando ? 'Guardando...' : 'Guardar Cambios'}</span>
-          </button>
-        </div>
       </form>
     </div>
   );
