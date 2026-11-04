@@ -22,7 +22,6 @@ import {
     type ServicioDto,
     type AuthUser
 } from '../../../services/api';
-import { configuracionService } from '../../../services/configuracionService';
 
 interface MessageUI {
     id: string;
@@ -218,10 +217,7 @@ Cuento con acceso en tiempo real a nuestro catálogo de servicios, inventario ve
         setIsTyping(true);
 
         try {
-            const cfg = configuracionService.get();
-            const apiKeyToSend = cfg.geminiHabilitado && cfg.geminiApiKey ? cfg.geminiApiKey.trim() : undefined;
-            const modeloToSend = cfg.geminiHabilitado ? cfg.geminiModel : undefined;
-            const res = await chatIAApi.consultar(textToSend, currentUser?.usuarioId, apiKeyToSend, modeloToSend);
+            const res = await chatIAApi.consultar(textToSend, currentUser?.usuarioId);
 
             const botMsg: MessageUI = {
                 id: `bot-${res.conversacionId || Date.now()}`,
@@ -346,13 +342,11 @@ Cuento con acceso en tiempo real a nuestro catálogo de servicios, inventario ve
                         <div className="flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                             <span className="font-semibold text-[#3C3530]">
-                                {configuracionService.get().geminiHabilitado && configuracionService.get().geminiApiKey
-                                    ? `Google Gemini (${configuracionService.get().geminiModel || '1.5 Flash'}) Conectado`
-                                    : 'Motor de Inferencia RAG Certificado'}
+                                Asistente IA Conectado
                             </span>
                             <span className="text-[#DDD5C8]">|</span>
                             <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-medium">
-                                🛡️ Guardrails HU-12 Activos
+                                Guardrails HU-12 Activos
                             </span>
                             <span className="text-[#DDD5C8] hidden sm:inline">|</span>
                             <span className="hidden sm:inline">Stock y Servicios en tiempo real</span>

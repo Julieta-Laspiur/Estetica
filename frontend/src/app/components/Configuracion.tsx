@@ -31,14 +31,9 @@ import {
   X,
   Loader2,
   Check,
-  CircleDot,
   Type,
   Maximize2,
-  Minimize2,
-  Bot,
-  Key,
-  EyeOff,
-  Cpu
+  Minimize2
 } from 'lucide-react';
 import {
   configuracionService,
@@ -46,13 +41,13 @@ import {
   type ConfiguracionGeneral,
   obtenerClaseTipografia
 } from '../../services/configuracionService';
-import { chatIAApi, type AuthUser } from '../../services/api';
+import type { AuthUser } from '../../services/api';
 
 interface ConfiguracionProps {
   currentUser?: AuthUser | null;
 }
 
-type TabSeccion = 'identidad' | 'agenda' | 'politicas' | 'pagos' | 'tienda' | 'fidelizacion' | 'banner' | 'ia' | 'backup';
+type TabSeccion = 'identidad' | 'agenda' | 'politicas' | 'pagos' | 'tienda' | 'fidelizacion' | 'banner' | 'backup';
 
 // Tipografías de lujo para la marca y logo escrito (estilo Nàvin / belleza)
 const TIPOGRAFIAS_DISPONIBLES = [
@@ -164,41 +159,6 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
   // Conmutador de la previsualización en vivo
   const [vistaPreviaNav, setVistaPreviaNav] = useState<'normal' | 'comprimida'>('normal');
 
-  // Estados de Asistente IA (Google Gemini)
-  const [probandoGemini, setProbandoGemini] = useState(false);
-  const [resultadoTestGemini, setResultadoTestGemini] = useState<{
-    conectado: boolean;
-    mensaje: string;
-    latenciaMs?: number;
-    modelo?: string;
-    guardrailsActivos?: boolean;
-  } | null>(null);
-  const [mostrarApiKey, setMostrarApiKey] = useState(false);
-
-  const handleTestGemini = async () => {
-    setProbandoGemini(true);
-    setResultadoTestGemini(null);
-    try {
-      const res = await chatIAApi.testGemini(config.geminiApiKey, config.geminiModel);
-      setResultadoTestGemini({
-        conectado: res.conectado,
-        mensaje: res.mensaje,
-        latenciaMs: res.latenciaMs,
-        modelo: res.modelo,
-        guardrailsActivos: res.guardrailsActivos,
-      });
-      if (res.conectado) {
-        mostrarFeedback('¡Conexión con Google Gemini verificada con éxito!');
-      }
-    } catch (err: any) {
-      setResultadoTestGemini({
-        conectado: false,
-        mensaje: err.message || 'No fue posible conectar con Google Gemini. Verificá la API Key o la conexión de red.',
-      });
-    } finally {
-      setProbandoGemini(false);
-    }
-  };
 
   useEffect(() => {
     setConfig(configuracionService.get());
@@ -392,7 +352,6 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
           { id: 'pagos', label: 'Pasarelas & Cobros', icon: CreditCard },
           { id: 'tienda', label: 'Tienda & Envíos', icon: ShoppingBag },
           { id: 'fidelizacion', label: 'Fidelización (Estampitas)', icon: Gift },
-          { id: 'ia', label: 'Asistente IA (Gemini)', icon: Bot },
           { id: 'backup', label: 'Respaldo & Auditoría', icon: Database },
         ].map(tab => {
           const Icon = tab.icon;
@@ -1638,77 +1597,28 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                 <span>Pasarelas de Pago y Métodos Aceptados</span>
               </h3>
               <p className="text-xs text-[#8A7F74] mt-0.5">
-                Configurá las credenciales de Mercado Pago, transferencias bancarias y descuentos por pago en efectivo en mostrador.
+                Configurá las opciones de pago en efectivo en mostrador y transferencias bancarias. Las pasarelas de cobro digitales (Mercado Pago) se integran directamente desde el backend por seguridad.
               </p>
             </div>
 
-            {/* Mercado Pago */}
-            <div className="p-5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-3xl space-y-4">
-              <div className="flex items-center justify-between border-b border-[#EDE8E1] pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#009EE3] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                    MP
-                  </div>
-                  <div>
+            {/* Mercado Pago Checkout - Integrado en Backend */}
+            <div className="p-5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#009EE3] text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
+                  MP
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
                     <h4 className="text-sm font-bold text-[#2A2825]">Mercado Pago Checkout</h4>
-                    <p className="text-[11px] text-[#8A7F74]">Tarjetas de débito/crédito, dinero en cuenta, Débito Inmediato y QR</p>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Conectado desde el Backend
+                    </span>
                   </div>
+                  <p className="text-[11px] text-[#8A7F74] mt-0.5">
+                    Tarjetas de débito/crédito, dinero en cuenta y QR. Las credenciales privadas y tokens de acceso se procesan de forma cifrada en el servidor por seguridad.
+                  </p>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={config.mercadoPagoHabilitado}
-                    onChange={(e) => setConfig({ ...config, mercadoPagoHabilitado: e.target.checked })}
-                    className="w-4 h-4 text-[#009EE3] rounded"
-                  />
-                  <span className="text-xs font-bold text-[#3C3530]">{config.mercadoPagoHabilitado ? 'Habilitado' : 'Desactivado'}</span>
-                </label>
               </div>
-
-              {config.mercadoPagoHabilitado && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#3C3530] mb-1">
-                      Entorno de Ejecución
-                    </label>
-                    <select
-                      value={config.mercadoPagoModo}
-                      onChange={(e) => setConfig({ ...config, mercadoPagoModo: e.target.value as any })}
-                      className="w-full px-3.5 py-2.5 bg-white border border-[#EDE8E1] rounded-xl text-xs font-semibold text-[#2A2825]"
-                    >
-                      <option value="sandbox">Sandbox (Pruebas / Tarjetas de Test)</option>
-                      <option value="produccion">Producción (Cobros Reales)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[#3C3530] mb-1">
-                      Cuotas sin Interés Ofrecidas
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="12"
-                      value={config.cuotasSinInteres}
-                      onChange={(e) => setConfig({ ...config, cuotasSinInteres: parseInt(e.target.value) || 1 })}
-                      className="w-full px-3.5 py-2.5 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825]"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-[#3C3530] mb-1">
-                      Access Token (Credencial Privada)
-                    </label>
-                    <input
-                      type="password"
-                      value={config.mercadoPagoAccessToken}
-                      onChange={(e) => setConfig({ ...config, mercadoPagoAccessToken: e.target.value })}
-                      placeholder="TEST-xxxx o APP_USR-xxxx"
-                      className="w-full px-3.5 py-2 bg-white border border-[#EDE8E1] rounded-xl text-xs font-mono text-[#2A2825]"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Efectivo en Mostrador */}
@@ -2022,7 +1932,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
 
                   <div className="p-3 bg-stone-100 border border-stone-200 rounded-xl space-y-1">
                     <span className="text-xs font-bold text-stone-900 flex items-center gap-1">
-                      <span>👑</span> Club VIP Platino
+                      Club VIP Platino
                     </span>
                     <span className="text-sm font-extrabold text-stone-800 block">10 Estampitas</span>
                     <span className="text-[10px] text-stone-600 block">$25.000 Crédito Tienda/Servicio</span>
@@ -2030,7 +1940,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                 </div>
 
                 <p className="text-[11px] text-[#8A7F74]">
-                  💡 Podés crear nuevos tipos de tarjeta, cambiar las metas de estampitas, modificar los premios y ajustar colores desde la sección <strong className="text-[#3C3530]">"Programa de Lealtad &rarr; Tipos de Membresías"</strong>.
+                  Podés crear nuevos tipos de tarjeta, cambiar las metas de estampitas, modificar los premios y ajustar colores desde la sección <strong className="text-[#3C3530]">"Programa de Lealtad &rarr; Tipos de Membresías"</strong>.
                 </p>
               </div>
             </div>
@@ -2115,274 +2025,6 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
           </div>
         )}
 
-        {/* ASISTENTE INTELIGENTE GEMINI & GUARDRAILS HU-12 */}
-        {activeTab === 'ia' && (
-          <div className="bg-white border border-[#EDE8E1] rounded-3xl p-6 sm:p-8 shadow-xs space-y-7">
-            {/* Header del módulo */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EDE8E1] pb-5">
-              <div>
-                <h3 className="text-base font-bold text-[#2A2825] flex items-center gap-2">
-                  <Bot className="w-5 h-5 text-[#7A3B3B]" />
-                  <span>Configuración del Asistente IA (Google Gemini)</span>
-                </h3>
-                <p className="text-xs text-[#8A7F74] mt-0.5">
-                  Conectá el chatbot del centro con la API oficial de Google Gemini manteniendo el cumplimiento estricto de guardrails dermatológicos y RAG con stock real.
-                </p>
-              </div>
-
-              {/* Status Badge */}
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
-                    config.geminiHabilitado && config.geminiApiKey
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-amber-50 text-amber-800 border-amber-200'
-                  }`}
-                >
-                  <CircleDot className="w-3.5 h-3.5 animate-pulse" />
-                  {config.geminiHabilitado && config.geminiApiKey
-                    ? 'Motor Gemini Activo'
-                    : 'Motor RAG Local Certificado (Fallback)'}
-                </span>
-              </div>
-            </div>
-
-            {/* Switch Habilitar / Deshabilitar */}
-            <div className="p-5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <label className="text-sm font-bold text-[#2A2825] flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#7A3B3B]" />
-                  <span>Habilitar Inferencia en Vivo con Google Gemini</span>
-                </label>
-                <p className="text-xs text-[#8A7F74]">
-                  Si está activado y la API Key es válida, el chatbot utilizará Gemini para redactar respuestas empáticas y naturales dentro de los límites estrictos del catálogo y políticas.
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  checked={config.geminiHabilitado}
-                  onChange={(e) => setConfig({ ...config, geminiHabilitado: e.target.checked })}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7A3B3B]"></div>
-              </label>
-            </div>
-
-            {/* Formulario de credenciales y modelo */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* API Key */}
-              <div className="space-y-2 md:col-span-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[#3C3530] uppercase tracking-wider flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5 text-[#7A3B3B]" />
-                    <span>Google Gemini API Key</span>
-                  </label>
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-bold text-[#7A3B3B] hover:text-[#5C2B2B] flex items-center gap-1 transition-colors"
-                  >
-                    <span>Obtener API Key Gratis en Google AI Studio</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                <div className="relative">
-                  <input
-                    type={mostrarApiKey ? 'text' : 'password'}
-                    value={config.geminiApiKey}
-                    onChange={(e) => setConfig({ ...config, geminiApiKey: e.target.value })}
-                    placeholder="Ej: AIzaSy..."
-                    className="w-full px-4 py-3 rounded-2xl border border-[#EDE8E1] bg-[#FAF8F5] text-xs font-mono text-[#2A2825] focus:outline-none focus:ring-2 focus:ring-[#7A3B3B]/30 focus:border-[#7A3B3B] transition-all pr-12"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setMostrarApiKey(!mostrarApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A7F74] hover:text-[#2A2825] p-1.5 rounded-lg transition-colors"
-                    title={mostrarApiKey ? 'Ocultar clave' : 'Mostrar clave'}
-                  >
-                    {mostrarApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-[11px] text-[#8A7F74]">
-                  La clave se almacena de forma segura en las configuraciones del sistema y se utiliza exclusivamente para consultas de asesoramiento dermocosmético en el centro.
-                </p>
-              </div>
-
-              {/* Modelo */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-[#3C3530] uppercase tracking-wider flex items-center gap-1.5">
-                  <Cpu className="w-3.5 h-3.5 text-[#7A3B3B]" />
-                  <span>Modelo de Lenguaje (LLM)</span>
-                </label>
-                <select
-                  value={config.geminiModel}
-                  onChange={(e) => setConfig({ ...config, geminiModel: e.target.value })}
-                  className="w-full px-4 py-3 rounded-2xl border border-[#EDE8E1] bg-[#FAF8F5] text-xs font-semibold text-[#2A2825] focus:outline-none focus:ring-2 focus:ring-[#7A3B3B]/30 focus:border-[#7A3B3B] transition-all"
-                >
-                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recomendado - Baja latencia y gratis)</option>
-                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Razonamiento profundo para casos complejos)</option>
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (Última generación Google)</option>
-                </select>
-                <p className="text-[11px] text-[#8A7F74]">
-                  Recomendado: <strong>Gemini 1.5 Flash</strong> por tiempos de respuesta inferiores a 1.5s y amplia cuota gratuita.
-                </p>
-              </div>
-
-              {/* Temperatura */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[#3C3530] uppercase tracking-wider flex items-center gap-1.5">
-                    <Sliders className="w-3.5 h-3.5 text-[#7A3B3B]" />
-                    <span>Temperatura de Muestreo</span>
-                  </label>
-                  <span className="text-xs font-bold font-mono text-[#7A3B3B] bg-[#7A3B3B]/10 px-2 py-0.5 rounded-md">
-                    {config.geminiTemperatura?.toFixed(2) ?? '0.30'}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={config.geminiTemperatura ?? 0.3}
-                  onChange={(e) => setConfig({ ...config, geminiTemperatura: parseFloat(e.target.value) })}
-                  className="w-full accent-[#7A3B3B] cursor-pointer"
-                />
-                <div className="flex justify-between text-[10px] text-[#8A7F74]">
-                  <span>0.0 (Preciso / Sin desvíos)</span>
-                  <span>0.3 (Recomendado)</span>
-                  <span>1.0 (Muy creativo)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Botón de Test y Resultado */}
-            <div className="p-5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-3xl space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h4 className="text-sm font-bold text-[#2A2825] flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Prueba de Conectividad y Guardrails en Tiempo Real</span>
-                  </h4>
-                  <p className="text-xs text-[#8A7F74]">
-                    Envía un ping de validación con las credenciales cargadas para comprobar estado, latencia y verificación de guardrails.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTestGemini}
-                  disabled={probandoGemini}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#3C3530] hover:bg-[#2A2825] text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 shrink-0"
-                >
-                  {probandoGemini ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Verificando conexión...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>Probar Conexión con Gemini</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {resultadoTestGemini && (
-                <div
-                  className={`p-4 rounded-2xl border text-xs space-y-2 ${
-                    resultadoTestGemini.conectado
-                      ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
-                      : 'bg-rose-50/80 border-rose-200 text-rose-950'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 font-bold">
-                    {resultadoTestGemini.conectado ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                    )}
-                    <span>{resultadoTestGemini.mensaje}</span>
-                  </div>
-                  {resultadoTestGemini.conectado && (
-                    <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-emerald-800">
-                      <span>
-                        <strong>Modelo:</strong> {resultadoTestGemini.modelo || config.geminiModel}
-                      </span>
-                      <span>
-                        <strong>Latencia de Respuesta:</strong> {resultadoTestGemini.latenciaMs ?? 0} ms
-                      </span>
-                      <span>
-                        <strong>Guardrails de Seguridad:</strong> {resultadoTestGemini.guardrailsActivos ? '100% Activos' : 'Activos'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* SECCIÓN DE GUARDRAILS Y LIMITACIONES (HU-12 / RF-09 / RNF-04) */}
-            <div className="space-y-4 pt-2">
-              <div className="border-b border-[#EDE8E1] pb-2">
-                <h4 className="text-sm font-bold text-[#2A2825] flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#7A3B3B]" />
-                  <span>Blindaje de Seguridad y Limitaciones Obligatorias (HU-12 / RF-09)</span>
-                </h4>
-                <p className="text-xs text-[#8A7F74]">
-                  El sistema aplica una doble capa de protección (Prompt Injection Defense + Filtro Heurístico en C#) para garantizar el cumplimiento de las 4 normas inquebrantables:
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Regla 1 */}
-                <div className="p-4 bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl space-y-1.5">
-                  <div className="flex items-center gap-2 text-rose-800 font-bold text-xs">
-                    <span className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center text-[10px]">1</span>
-                    <span>Prohibición de Diagnósticos y Recetas Clínicas</span>
-                  </div>
-                  <p className="text-[11px] text-[#5A524A] leading-relaxed">
-                    El asistente tiene terminantemente prohibido diagnosticar patologías dermatológicas o prescribir fármacos bajo receta (antibióticos, corticoides, isotretinoína, etc.). Ante cualquier consulta médica, emite un aviso de responsabilidad y recomienda consultar a un médico dermatólogo.
-                  </p>
-                </div>
-
-                {/* Regla 2 */}
-                <div className="p-4 bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl space-y-1.5">
-                  <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
-                    <span className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center text-[10px]">2</span>
-                    <span>Prohibición de Marcas Externas y Ajenas</span>
-                  </div>
-                  <p className="text-[11px] text-[#5A524A] leading-relaxed">
-                    Prohíbe recomendar marcas comerciales externas (CeraVe, La Roche-Posay, ISDIN, Neutrogena, Cetaphil, The Ordinary, etc.). En caso de que el usuario consulte por ellas, aclara cortésmente que solo asesora sobre las líneas cosmecéuticas disponibles en el centro.
-                  </p>
-                </div>
-
-                {/* Regla 3 */}
-                <div className="p-4 bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl space-y-1.5">
-                  <div className="flex items-center gap-2 text-blue-800 font-bold text-xs">
-                    <span className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-[10px]">3</span>
-                    <span>Catálogo Real y Stock Activo (RAG)</span>
-                  </div>
-                  <p className="text-[11px] text-[#5A524A] leading-relaxed">
-                    Todas las sugerencias se nutren en tiempo real de la base de datos de productos en stock y servicios vigentes. La IA jamás inventará productos ni recomendará ítems agotados o incompatibles con el biotipo cutáneo del usuario.
-                  </p>
-                </div>
-
-                {/* Regla 4 */}
-                <div className="p-4 bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl space-y-1.5">
-                  <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
-                    <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[10px]">4</span>
-                    <span>Latencia RNF-04 y Fallback Local Automático</span>
-                  </div>
-                  <p className="text-[11px] text-[#5A524A] leading-relaxed">
-                    Si Google Gemini demora más de 4.5 segundos, la API Key no está cargada o hay interrupción de conectividad, el sistema conmuta instantáneamente al motor heurístico RAG certificado local, garantizando respuestas en menos de 5 segundos sin errores 500.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Botón flotante inferior para guardar cómodamente */}
         <div className="sticky bottom-4 z-20 bg-white/95 backdrop-blur-md border border-[#EDE8E1] p-4 rounded-2xl shadow-lg flex items-center justify-between gap-4">
