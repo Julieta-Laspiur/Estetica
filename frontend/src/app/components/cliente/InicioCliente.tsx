@@ -1,4 +1,4 @@
-import { Calendar, Gift, Sparkles, Clock, Star, ChevronLeft, ChevronRight, Flower2, Zap, Package, Droplets, Sun, Scissors, ArrowRight, Heart, Eye, MapPin, Phone, MessageSquare, Mail, Shield } from 'lucide-react';
+import { Calendar, Gift, Sparkles, Clock, ChevronLeft, ChevronRight, Flower2, Zap, Package, Droplets, Sun, Scissors, ArrowRight, Heart, Eye, MapPin, Phone, MessageSquare, Mail, Shield } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { serviciosApi, productosApi } from '../../../services/api';
 import { DetalleProductoModal, type ProductoModalData } from './DetalleProductoModal';
@@ -584,32 +584,6 @@ export function InicioCliente({ onNavigate, onSelectService, wishlistIds = [], o
                             );
                         })}
                     </div>
-                </div>
-            </div>
-
-            {/* Testimonios */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                <div className="mb-8">
-                    <p className="text-xs font-semibold tracking-widest uppercase text-[#8A7F74] mb-1">Reseñas</p>
-                    <h2 className="text-2xl font-bold text-[#2A2825]">Lo que dicen nuestras clientas</h2>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[
-                        { nombre: 'María González', comentario: 'El mejor centro estético que he visitado. Profesionales excelentes y resultados increíbles.', estrellas: 5 },
-                        { nombre: 'Ana Rodríguez', comentario: 'Me encanta el programa de lealtad y la atención personalizada. Totalmente recomendado.', estrellas: 5 },
-                        { nombre: 'Laura Fernández', comentario: 'Los productos son de primera calidad y el sistema de reservas online es muy práctico.', estrellas: 5 },
-                    ].map((t, idx) => (
-                        <div key={idx} className="bg-white rounded-xl border border-[#EDE8E1] p-6">
-                            <div className="flex items-center gap-1 mb-3">
-                                {Array.from({ length: t.estrellas }).map((_, i) => (
-                                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                                ))}
-                            </div>
-                            <p className="text-[#8A7F74] text-sm mb-4 italic leading-relaxed">"{t.comentario}"</p>
-                            <p className="font-semibold text-[#2A2825] text-sm">{t.nombre}</p>
-                        </div>
-                    ))}
                 </div>
             </div>
 

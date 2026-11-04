@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { QrCode, Gift, Award, Clock, CheckCircle2, Trophy, ShieldCheck, Layers, Heart, Sparkles } from 'lucide-react';
+import { Gift, Award, Clock, CheckCircle2, Trophy, ShieldCheck, Layers, Heart, Sparkles } from 'lucide-react';
 import type { AuthUser } from '../../../services/api';
 import {
   lealtadService,
@@ -273,7 +273,7 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
               </p>
             </div>
             <span className="text-xs text-[#7A3B3B] font-bold bg-[#FAF8F5] px-3 py-1.5 rounded-full border border-[#EDE8E1] self-start sm:self-auto">
-              Presentá tu pase en recepción para sellar
+              Sellado automático en cada cita
             </span>
           </div>
 
@@ -389,34 +389,6 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Sección: Pase Digital / Código QR del Cliente */}
-        <div className="bg-white rounded-3xl border border-[#EDE8E1] p-6 sm:p-8 shadow-xs">
-          <div className="max-w-md mx-auto text-center space-y-4">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#EDE8E1] text-[#3C3530]">
-              <QrCode className="w-3.5 h-3.5" />
-              <span>Pase Digital en Recepción</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#2A2825]">
-              Tu Pase Personal de Fidelidad
-            </h2>
-            <p className="text-xs sm:text-sm text-[#8A7F74]">
-              Presentá este código en recepción al abonar tu turno para que registremos tu corazón de manera instantánea.
-            </p>
-
-            <div className="bg-[#FAF8F5] border border-[#EDE8E1] p-6 rounded-3xl inline-block shadow-2xs">
-              <div className="w-48 h-48 bg-white rounded-2xl border border-[#EDE8E1] flex items-center justify-center p-3 shadow-inner">
-                <QrCode className="w-36 h-36 text-[#3C3530]" />
-              </div>
-            </div>
-
-            <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-3.5 text-xs text-[#5A524A] flex items-center justify-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#7A3B3B]" />
-              <span>Código de Cliente Verificado:</span>
-              <strong className="font-mono text-[#7A3B3B]">{clienteCodigo}</strong>
-            </div>
           </div>
         </div>
 
