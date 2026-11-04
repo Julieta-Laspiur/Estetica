@@ -1,6 +1,11 @@
-import { useState } from 'react';
-import { Eye, EyeOff, ArrowRight, Sparkles, Check, ArrowLeft, AlertCircle, ShieldCheck, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, EyeOff, ArrowRight, Sparkles, Check, ArrowLeft, AlertCircle, ShieldCheck, X, User, Calendar, Heart, ShoppingBag } from 'lucide-react';
 import { authApi, type AuthUser } from '../../../services/api';
+import {
+    configuracionService,
+    EVENTO_CONFIG_ACTUALIZADA,
+    type ConfiguracionGeneral
+} from '../../../services/configuracionService';
 
 interface AuthPageProps {
     onLogin: (user: AuthUser) => void;
@@ -25,6 +30,19 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
     const [showConfirm, setShowConfirm] = useState(false);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
+    const [siteConfig, setSiteConfig] = useState<ConfiguracionGeneral>(() => configuracionService.get());
+
+    useEffect(() => {
+        const handler = (e: any) => {
+            if (e.detail) {
+                setSiteConfig(e.detail);
+            } else {
+                setSiteConfig(configuracionService.get());
+            }
+        };
+        window.addEventListener(EVENTO_CONFIG_ACTUALIZADA, handler);
+        return () => window.removeEventListener(EVENTO_CONFIG_ACTUALIZADA, handler);
+    }, []);
 
     const [form, setForm] = useState({
         nombre: '',
@@ -141,8 +159,8 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
     };
 
     const field =
-        'w-full px-4 py-2.5 rounded-xl border bg-[#FDFBF8] text-[#2A2825] text-sm placeholder-[#B0A89F] focus:outline-none transition-colors';
-    const fieldOk = 'border-[#DDD5C8] focus:border-[#7A3B3B]';
+        'w-full px-4 py-2.5 rounded-xl border bg-[#FAF8F5] text-[#2A2825] text-sm placeholder-[#A89E94] focus:outline-none transition-colors';
+    const fieldOk = 'border-[#EDE8E1] focus:border-[#7A3B3B] focus:ring-1 focus:ring-[#7A3B3B]';
     const fieldErr = 'border-red-300 focus:border-red-400 bg-red-50/30';
 
     const passwordStrength = (pw: string) => {
@@ -162,8 +180,8 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
         <div className="min-h-screen bg-[#F7F4F0] flex flex-col lg:flex-row">
             {/* Left panel — decorative */}
             <div
-                className="hidden lg:flex flex-col justify-between w-[44%] relative overflow-hidden p-12 text-white"
-                style={{ background: 'linear-gradient(160deg, #2A2825 0%, #3C3530 55%, #7A3B3B 100%)' }}
+                className="hidden lg:flex flex-col justify-between w-[44%] relative overflow-hidden p-12 text-white shadow-xl"
+                style={{ background: 'linear-gradient(155deg, #7A3B3B 0%, #5C2B2B 55%, #3C3530 100%)' }}
             >
                 {/* Subtle texture overlay */}
                 <div
@@ -178,46 +196,66 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                     {onCancel && (
                         <button
                             onClick={onCancel}
-                            className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-[#D6CFC8] hover:text-white transition-colors mb-8"
+                            className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-[#F7F4F0]/80 hover:text-white transition-colors mb-8 group"
                         >
-                            <ArrowLeft className="w-3.5 h-3.5" /> Volver a la tienda
+                            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" /> Volver a la tienda
                         </button>
                     )}
-                    <div className="flex flex-col gap-1">
-                        <span className="font-bold tracking-[0.22em] uppercase text-2xl text-white leading-none">
-                            Centro<span className="text-[#C48E8E]"> Estético</span>
-                        </span>
-                        <span className="text-[10px] tracking-[0.3em] uppercase text-[#A89E94]">Tu belleza, nuestra pasión</span>
-                    </div>
+                    
+                    {/* Logo sincronizado idéntico al banner */}
+                    {(siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
+                        <div className="bg-white/95 backdrop-blur-xs p-3.5 rounded-2xl border border-white/20 inline-block shadow-sm">
+                            <img
+                                src={siteConfig.logoRectangularUrl || siteConfig.logoUrl}
+                                alt={siteConfig.nombreCentro}
+                                className="h-10 sm:h-12 max-w-[260px] object-contain"
+                            />
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-1">
+                            <span className="font-bold tracking-[0.20em] uppercase text-2xl text-white leading-none">
+                                {siteConfig.nombreCentro.split(' ')[0] || 'Centro'}
+                                <span className="text-[#E8BAC0]">{' ' + (siteConfig.nombreCentro.split(' ').slice(1).join(' ') || 'Estético')}</span>
+                            </span>
+                            <span className="text-[10px] tracking-[0.28em] uppercase text-white/70">
+                                {siteConfig.slogan || 'Tu belleza, nuestra pasión'}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="relative z-10 py-8 flex flex-col gap-8">
                     <div>
-                        <h2 className="text-xl font-serif text-white font-semibold mb-2">
+                        <h2 className="text-xl sm:text-2xl font-serif text-white font-semibold mb-2 leading-snug">
                             Tu portal exclusivo de estética & bienestar
                         </h2>
-                        <p className="text-sm text-[#D6CFC8] leading-relaxed">
+                        <p className="text-sm text-[#F7F4F0]/80 leading-relaxed">
                             Accedé a tus turnos agendados, consultorio inteligente con IA, beneficios de lealtad y catálogo de cosmética premium.
                         </p>
                     </div>
 
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-3.5">
                         {[
-                            { icon: '✦', text: 'Reservá turnos online con confirmación inmediata' },
-                            { icon: '✦', text: 'Acumulá estampitas en tu tarjeta y canjeá premios' },
-                            { icon: '✦', text: 'Consultá con el asesor inteligente de piel con IA' },
-                            { icon: '✦', text: 'Historial completo de compras y tratamientos' },
-                        ].map((item) => (
-                            <div key={item.text} className="flex items-start gap-3">
-                                <span className="text-[#C48E8E] text-xs mt-0.5 shrink-0">{item.icon}</span>
-                                <p className="text-[#D6CFC8] text-sm leading-relaxed">{item.text}</p>
-                            </div>
-                        ))}
+                            { icon: Calendar, text: 'Reservá turnos online con confirmación inmediata' },
+                            { icon: Heart, text: 'Acumulá corazones en tu membresía y canjeá premios' },
+                            { icon: Sparkles, text: 'Consultá con el asesor inteligente de piel con IA' },
+                            { icon: ShoppingBag, text: 'Historial completo de compras y tratamientos' },
+                        ].map((item) => {
+                            const IconComp = item.icon;
+                            return (
+                                <div key={item.text} className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-[#E8BAC0] border border-white/10 shadow-2xs">
+                                        <IconComp className="w-4 h-4" />
+                                    </div>
+                                    <p className="text-[#F7F4F0] text-sm leading-relaxed">{item.text}</p>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
 
-                <div className="relative z-10 border-t border-white/10 pt-6">
-                    <p className="text-[#A89E94] text-xs leading-relaxed italic">
+                <div className="relative z-10 border-t border-white/15 pt-6">
+                    <p className="text-white/60 text-xs leading-relaxed italic">
                         "El cuidado de la piel es un acto de amor propio. Aquí encontrás todo lo que necesitás."
                     </p>
                 </div>
@@ -225,7 +263,7 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
 
             {/* Right panel — form */}
             <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-10 relative">
-                <div className="w-full max-w-[460px] bg-white rounded-2xl shadow-sm border border-[#EDE8E1] p-6 sm:p-8">
+                <div className="w-full max-w-[480px] bg-white rounded-3xl shadow-sm border border-[#EDE8E1] p-6 sm:p-10">
 
                     {/* Desktop close button */}
                     {onCancel && (
@@ -240,7 +278,7 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                         </div>
                     )}
 
-                    {/* Mobile top bar */}
+                    {/* Mobile top bar con logo */}
                     <div className="flex items-center justify-between mb-6 lg:hidden">
                         {onCancel ? (
                             <button
@@ -250,21 +288,31 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                                 <ArrowLeft className="w-3.5 h-3.5" /> Volver
                             </button>
                         ) : <div />}
-                        <span className="font-bold tracking-[0.16em] uppercase text-sm text-[#2A2825]">
-                            Centro<span className="text-[#7A3B3B]"> Estético</span>
-                        </span>
+                        
+                        {(siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
+                            <img
+                                src={siteConfig.logoRectangularUrl || siteConfig.logoUrl}
+                                alt={siteConfig.nombreCentro}
+                                className="h-8 max-w-[170px] object-contain"
+                            />
+                        ) : (
+                            <span className="font-bold tracking-[0.16em] uppercase text-sm text-[#2A2825]">
+                                {siteConfig.nombreCentro.split(' ')[0] || 'Centro'}
+                                <span className="text-[#7A3B3B]">{' ' + (siteConfig.nombreCentro.split(' ').slice(1).join(' ') || 'Estético')}</span>
+                            </span>
+                        )}
                     </div>
 
                     {/* Mode switch tabs */}
-                    <div className="flex gap-1 mb-6 bg-[#EDE8E1] rounded-xl p-1">
+                    <div className="flex gap-1.5 mb-6 bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-1.5">
                         {(['login', 'registro'] as Mode[]).map((m) => (
                             <button
                                 key={m}
                                 type="button"
                                 onClick={() => switchMode(m)}
-                                className={`flex-1 py-2 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all duration-200 ${mode === m
-                                    ? 'bg-white text-[#2A2825] shadow-xs'
-                                    : 'text-[#8A7F74] hover:text-[#5C534A]'
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 ${mode === m
+                                    ? 'bg-[#7A3B3B] text-white shadow-xs'
+                                    : 'text-[#8A7F74] hover:text-[#2A2825]'
                                     }`}
                             >
                                 {m === 'login' ? 'Iniciar sesión' : 'Registrarse'}
@@ -446,7 +494,7 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#3C3530] hover:bg-[#2A2825] text-white font-semibold text-sm tracking-wide transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99] shadow-sm"
+                            className="mt-2 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white font-bold text-sm tracking-wide transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99] shadow-md hover:shadow-lg"
                         >
                             {loading ? (
                                 <span className="flex items-center gap-2">
@@ -475,10 +523,10 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                     </p>
 
                     {/* Demo Access Shortcuts */}
-                    <div className="mt-6 p-4 rounded-xl bg-[#FAF8F5] border border-[#DDD5C8]">
+                    <div className="mt-6 p-4 rounded-2xl bg-[#FAF8F5] border border-[#EDE8E1]">
                         <div className="flex items-center gap-2 mb-2">
                             <Sparkles className="w-4 h-4 text-[#7A3B3B]" />
-                            <span className="text-xs font-semibold text-[#5C534A] tracking-wider uppercase">Acceso Rápido Demo</span>
+                            <span className="text-xs font-bold text-[#3C3530] tracking-wider uppercase">Acceso Rápido Demo</span>
                         </div>
                         <p className="text-[11px] text-[#8A7F74] mb-3 leading-relaxed">
                             Podés probar el sistema instantáneamente con cualquiera de las siguientes cuentas preconfiguradas:
@@ -488,25 +536,27 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                                 type="button"
                                 disabled={loading}
                                 onClick={() => handleDemoLogin('cliente@estetica.com', 'Cliente123!')}
-                                className="py-2 px-3 rounded-lg bg-white border border-[#DDD5C8] text-xs font-medium text-[#3C3530] hover:border-[#7A3B3B] hover:text-[#7A3B3B] transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                                className="py-2.5 px-3 rounded-xl bg-white border border-[#EDE8E1] text-xs font-semibold text-[#3C3530] hover:border-[#7A3B3B] hover:text-[#7A3B3B] transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
                             >
-                                <span>👤 Cliente Demo</span>
+                                <User className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                                <span>Cliente Demo</span>
                             </button>
                             <button
                                 type="button"
                                 disabled={loading}
                                 onClick={() => handleDemoLogin('maria.gonzalez@estetica.com', 'Pro123!')}
-                                className="py-2 px-3 rounded-lg bg-[#7A3B3B] text-white text-xs font-medium hover:bg-[#5C2B2B] transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                                className="py-2.5 px-3 rounded-xl bg-[#FAF0F0] border border-[#7A3B3B]/30 text-xs font-bold text-[#7A3B3B] hover:bg-[#7A3B3B] hover:text-white transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
                             >
-                                <span>✨ Profesional (María)</span>
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>Profesional</span>
                             </button>
                             <button
                                 type="button"
                                 disabled={loading}
                                 onClick={() => handleDemoLogin('admin@estetica.com', 'Admin123!')}
-                                className="py-2 px-3 rounded-lg bg-[#3C3530] text-white text-xs font-medium hover:bg-[#2A2825] transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                                className="py-2.5 px-3 rounded-xl bg-[#3C3530] text-white text-xs font-bold hover:bg-[#2A2825] transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
                             >
-                                <ShieldCheck className="w-3.5 h-3.5 text-[#C48E8E]" />
+                                <ShieldCheck className="w-3.5 h-3.5 text-[#E8BAC0]" />
                                 <span>Admin Demo</span>
                             </button>
                         </div>
