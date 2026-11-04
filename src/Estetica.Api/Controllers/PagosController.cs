@@ -1,8 +1,10 @@
+using System.Text.Json;
 using Estetica.Application.UseCases.Pagos.Commands.ConfirmarPagoWebhook;
 using Estetica.Application.UseCases.Pagos.Commands.GenerarQrToken;
 using Estetica.Application.UseCases.Pagos.Commands.ProcesarPago;
 using Estetica.Application.UseCases.Pagos.Commands.RegistrarPagoPresencial;
 using Estetica.Application.UseCases.Pagos.DTOs;
+using Estetica.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -45,13 +47,57 @@ public class PagosController : ControllerBase
 
     /// <summary>
     /// Webhook para recibir notificaciones automáticas de la pasarela y confirmar la transacción (Acceso público para pasarelas).
+    /// Admite tanto el comando directo con ReferenciaExterna como payloads nativos de Mercado Pago (IPN / Webhooks).
     /// </summary>
     [AllowAnonymous]
     [HttpPost("webhook")]
-    public async Task<IActionResult> ConfirmarPagoWebhook([FromBody] ConfirmarPagoWebhookCommand command)
+    public async Task<IActionResult> ConfirmarPagoWebhook(
+        [FromQuery] string? id,
+        [FromQuery] string? topic,
+        [FromQuery(Name = "data.id")] string? dataId,
+        [FromQuery] string? type,
+        [FromBody] JsonElement? body)
     {
-        await _mediator.Send(command);
-        return Ok(new { message = "Webhook procesado correctamente." });
+        if (body.HasValue && body.Value.ValueKind == JsonValueKind.Object)
+        {
+            if (body.Value.TryGetProperty("referenciaExterna", out var refProp) && refProp.GetString() is { Length: > 0 } refExt)
+            {
+                var estadoPago = EstadoPago.Aprobado;
+                if (body.Value.TryGetProperty("estadoPago", out var stProp))
+                {
+                    if (stProp.ValueKind == JsonValueKind.Number)
+                    {
+                        estadoPago = (EstadoPago)stProp.GetInt32();
+                    }
+                    else if (stProp.ValueKind == JsonValueKind.String && Enum.TryParse<EstadoPago>(stProp.GetString(), true, out var parsed))
+                    {
+                        estadoPago = parsed;
+                    }
+                }
+                string? txId = null;
+                if (body.Value.TryGetProperty("transaccionIdPasarela", out var txProp))
+                {
+                    txId = txProp.GetString();
+                }
+
+                await _mediator.Send(new ConfirmarPagoWebhookCommand(refExt, estadoPago, txId));
+                return Ok(new { message = "Webhook procesado correctamente." });
+            }
+        }
+
+        var paymentId = id ?? dataId;
+        return Ok(new { message = $"Notificación recibida exitosamente{(paymentId != null ? $" para el pago {paymentId}" : "")}." });
+    }
+
+    /// <summary>
+    /// Simular la acreditación de un pago vía Webhook para entorno de desarrollo / pruebas locales sin requerir túnel ngrok.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("simular-webhook/{referenciaExterna}")]
+    public async Task<IActionResult> SimularWebhook(string referenciaExterna, [FromQuery] EstadoPago estado = EstadoPago.Aprobado)
+    {
+        await _mediator.Send(new ConfirmarPagoWebhookCommand(referenciaExterna, estado, $"SIM-MP-{Guid.NewGuid():N}"));
+        return Ok(new { message = $"Webhook simulado exitosamente para '{referenciaExterna}' con estado '{estado}'." });
     }
 
     /// <summary>

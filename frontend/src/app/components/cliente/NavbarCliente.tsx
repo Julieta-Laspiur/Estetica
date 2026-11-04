@@ -1,6 +1,11 @@
 import { ShoppingCart, User, QrCode, Calendar, ShoppingBag, MessageCircle, Menu, X, Heart, Search, LogOut, Shield, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { AuthUser } from '../../../services/api';
+import {
+    configuracionService,
+    EVENTO_CONFIG_ACTUALIZADA,
+    type ConfiguracionGeneral
+} from '../../../services/configuracionService';
 
 interface NavbarClienteProps {
     activeSection: string;
@@ -10,6 +15,7 @@ interface NavbarClienteProps {
     currentUser?: AuthUser | null;
     onLogout?: () => void;
     onSwitchToAdmin?: () => void;
+    onSwitchToProfesional?: () => void;
     onSearch?: (query: string) => void;
 }
 
@@ -21,14 +27,28 @@ export function NavbarCliente({
     currentUser,
     onLogout,
     onSwitchToAdmin,
+    onSwitchToProfesional,
     onSearch
 }: NavbarClienteProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
     const [scrolled, setScrolled] = useState(false);
     const [compactSearchOpen, setCompactSearchOpen] = useState(false);
+    const [siteConfig, setSiteConfig] = useState<ConfiguracionGeneral>(() => configuracionService.get());
 
     const isAdmin = currentUser?.rol === 'Administrador';
+
+    useEffect(() => {
+        const handler = (e: any) => {
+            if (e.detail) {
+                setSiteConfig(e.detail);
+            } else {
+                setSiteConfig(configuracionService.get());
+            }
+        };
+        window.addEventListener(EVENTO_CONFIG_ACTUALIZADA, handler);
+        return () => window.removeEventListener(EVENTO_CONFIG_ACTUALIZADA, handler);
+    }, []);
 
     useEffect(() => {
         let ticking = false;
@@ -169,6 +189,18 @@ export function NavbarCliente({
                 </button>
             )}
 
+            {/* Acceso rápido directo al Panel Profesional (exclusivo para rol Profesional, nunca para Administrador) */}
+            {!isAdmin && onSwitchToProfesional && (
+                <button
+                    onClick={onSwitchToProfesional}
+                    className="ml-1 px-3 py-1.5 bg-[#3C3530] hover:bg-[#2A2825] text-white text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 shadow-2xs"
+                    title="Abrir Panel del Profesional"
+                >
+                    <User className="w-3.5 h-3.5 text-[#C48E8E]" />
+                    <span className="hidden sm:inline">Panel Profesional</span>
+                </button>
+            )}
+
             <button
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="md:hidden p-2 hover:bg-[#EDE8E1] rounded-lg transition-colors ml-1"
@@ -187,24 +219,51 @@ export function NavbarCliente({
                 boxShadow: scrolled ? '0 2px 12px rgba(42,28,25,0.10)' : 'none',
             }}
         >
+            {/* ── Barra Promocional Superior (Sincronizada en vivo desde Configuración) ── */}
+            {!scrolled && siteConfig.bannerPromocional?.activo && (
+                <div
+                    style={{ backgroundColor: siteConfig.bannerPromocional.colorFondo || '#7A3B3B' }}
+                    className="text-white py-2 px-4 text-xs font-semibold flex items-center justify-center gap-2 sm:gap-4 text-center transition-colors shadow-2xs"
+                >
+                    <span className="truncate max-w-xl">{siteConfig.bannerPromocional.texto}</span>
+                    {siteConfig.bannerPromocional.textoBoton && (
+                        <button
+                            onClick={() => onSectionChange(siteConfig.bannerPromocional.seccionDestino || 'reservar')}
+                            className="bg-white/20 hover:bg-white/30 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider transition-colors shrink-0"
+                        >
+                            {siteConfig.bannerPromocional.textoBoton}
+                        </button>
+                    )}
+                </div>
+            )}
+
             {scrolled ? (
                 /* ── Compact single-row (scrolled / chiquito) ── */
                 <div className="border-b border-[#DDD5C8]">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex items-center h-[52px] gap-3">
 
-                            {/* Logo */}
+                            {/* Logo del costado (Foto Redonda al comprimirse el banner) */}
                             <button
                                 onClick={() => {
                                     onSectionChange('inicio');
                                     setCompactSearchOpen(false);
                                 }}
-                                className="shrink-0 group"
+                                className="shrink-0 flex items-center group focus:outline-none"
+                                title={siteConfig.nombreCentro}
+                                aria-label="Ir al inicio"
                             >
-                                <span className="font-bold tracking-[0.18em] uppercase text-base leading-none group-hover:opacity-80 transition-opacity">
-                                    <span className="text-[#2A2825]">Centro</span>
-                                    <span className="text-[#7A3B3B]"> Estético</span>
-                                </span>
+                                {(siteConfig.logoRedondoUrl || siteConfig.logoUrl) ? (
+                                    <img
+                                        src={siteConfig.logoRedondoUrl || siteConfig.logoUrl}
+                                        alt={siteConfig.nombreCentro}
+                                        className="w-9 h-9 sm:w-10 sm:h-10 object-cover rounded-full border border-[#DDD5C8] shadow-2xs group-hover:scale-105 group-hover:border-[#7A3B3B] transition-all"
+                                    />
+                                ) : (
+                                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#7A3B3B] text-white flex items-center justify-center font-bold text-xs shadow-2xs group-hover:scale-105 transition-transform">
+                                        {siteConfig.nombreCentro.charAt(0) || 'E'}
+                                    </div>
+                                )}
                             </button>
 
                             {/* Búsqueda en el chiquito: Input expandido */}
@@ -301,14 +360,35 @@ export function NavbarCliente({
                                     </form>
                                 </div>
 
-                                {/* Center: Logo */}
+                                {/* Center: Logo Rectangular de la Cabecera Superior (Foto) */}
                                 <div className="flex justify-center items-center">
-                                    <button onClick={() => onSectionChange('inicio')} className="flex flex-col items-center gap-0 group">
-                                        <span className="font-bold tracking-[0.18em] uppercase text-xl leading-none text-[#2A2825] group-hover:text-[#7A3B3B] transition-colors">
-                                            <span className="text-[#2A2825]">Centro</span>
-                                            <span className="text-[#7A3B3B]"> Estético</span>
-                                        </span>
-                                        <span className="text-[9px] tracking-[0.25em] uppercase text-[#A89E94] mt-0.5">Tu belleza, nuestra pasión</span>
+                                    <button
+                                        onClick={() => onSectionChange('inicio')}
+                                        className="flex items-center justify-center group focus:outline-none"
+                                        title={siteConfig.nombreCentro}
+                                        aria-label="Ir al inicio"
+                                    >
+                                        {(siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
+                                            <img
+                                                src={siteConfig.logoRectangularUrl || siteConfig.logoUrl}
+                                                alt={siteConfig.nombreCentro}
+                                                className="h-12 sm:h-14 max-w-[260px] sm:max-w-[340px] object-contain group-hover:opacity-90 transition-opacity"
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col text-center">
+                                                <span className="font-bold tracking-[0.16em] uppercase text-xl leading-none text-[#2A2825] group-hover:text-[#7A3B3B] transition-colors">
+                                                    <span className="text-[#2A2825]">
+                                                        {siteConfig.nombreCentro.split(' ')[0] || 'Centro'}
+                                                    </span>
+                                                    <span className="text-[#7A3B3B]">
+                                                        {' ' + (siteConfig.nombreCentro.split(' ').slice(1).join(' ') || 'Estético')}
+                                                    </span>
+                                                </span>
+                                                <span className="text-[9px] tracking-[0.25em] uppercase text-[#A89E94] mt-0.5 truncate max-w-xs">
+                                                    {siteConfig.slogan || 'Tu belleza, nuestra pasión'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </button>
                                 </div>
 

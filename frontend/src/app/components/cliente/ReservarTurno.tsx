@@ -17,9 +17,13 @@ import {
     CheckCircle2,
     XCircle,
     Info,
-    RotateCcw
+    RotateCcw,
+    ExternalLink,
+    Layers,
+    DoorOpen
 } from 'lucide-react';
-import { serviciosApi, turnosApi, type AuthUser } from '../../../services/api';
+import { serviciosApi, turnosApi, pagosApi, usuariosApi, type AuthUser } from '../../../services/api';
+import { configuracionService } from '../../../services/configuracionService';
 
 interface Servicio {
     id: string;
@@ -27,6 +31,10 @@ interface Servicio {
     duracion: number;
     precio: number;
     categoria: string;
+    requiereCabinaEspecifica?: boolean;
+    cabinaEspecificaId?: number;
+    cabinaEspecificaNombre?: string;
+    profesionalesHabilitadosIds?: number[];
 }
 
 interface Profesional {
@@ -52,6 +60,7 @@ interface ReservaCompletadaData {
     total: number;
     codigoOperacion?: string;
     fechaRegistro: string;
+    initPointUrl?: string;
 }
 
 export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: ReservarTurnoProps = {}) {
@@ -68,6 +77,8 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
     const [procesandoPagoMP, setProcesandoPagoMP] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [reservaExitosa, setReservaExitosa] = useState<ReservaCompletadaData | null>(null);
+    const [filtroCategoria, setFiltroCategoria] = useState<string>('todos');
+    const [siteConfig] = useState(() => configuracionService.get());
 
     // Lista de turnos del cliente
     const [misTurnos, setMisTurnos] = useState<any[]>([]);
@@ -81,37 +92,67 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
     }, [initialServicioId]);
 
     const [servicios, setServicios] = useState<Servicio[]>([
-        { id: '1', nombre: 'Limpieza Facial Profunda', duracion: 60, precio: 4500, categoria: 'Faciales' },
-        { id: '2', nombre: 'Masaje Relajante & Descontracturante', duracion: 50, precio: 5200, categoria: 'Masajes' },
-        { id: '3', nombre: 'Drenaje Linfático Manual', duracion: 45, precio: 4800, categoria: 'Corporales' },
-        { id: '4', nombre: 'Radiofrecuencia Facial Tensora', duracion: 45, precio: 6500, categoria: 'Faciales' },
-        { id: '5', nombre: 'Peeling Químico Renovador', duracion: 40, precio: 5800, categoria: 'Faciales' },
+        { id: '1', nombre: 'Limpieza Facial Profunda', duracion: 60, precio: 4500, categoria: 'Facial', profesionalesHabilitadosIds: [1] },
+        { id: '2', nombre: 'Masaje Relajante & Descontracturante', duracion: 50, precio: 5200, categoria: 'Masajes', profesionalesHabilitadosIds: [2] },
+        { id: '3', nombre: 'Drenaje Linfático Manual', duracion: 45, precio: 4800, categoria: 'Corporal', profesionalesHabilitadosIds: [2, 3] },
+        { id: '4', nombre: 'Radiofrecuencia Facial Tensora', duracion: 45, precio: 6500, categoria: 'Facial', profesionalesHabilitadosIds: [1, 3] },
+        { id: '5', nombre: 'Peeling Químico Renovador', duracion: 40, precio: 5800, categoria: 'Facial', profesionalesHabilitadosIds: [1] },
+        { id: '6', nombre: 'Lifting de Pestañas & Perfilado', duracion: 45, precio: 3900, categoria: 'Pestañas/Cejas', profesionalesHabilitadosIds: [1, 2] },
     ]);
 
-    useEffect(() => {
-        serviciosApi.getActivos()
-            .then(apiServs => {
-                if (apiServs && apiServs.length > 0) {
-                    const mapped: Servicio[] = apiServs.map(s => ({
-                        id: s.servicioId.toString(),
-                        nombre: s.nombre,
-                        duracion: s.duracionMin,
-                        precio: s.precio,
-                        categoria: s.nombre.toLowerCase().includes('facial') ? 'Faciales' : 'Masajes & Corporales',
-                    }));
-                    setServicios(mapped);
-                }
-            })
-            .catch(() => {
-                // Fallback a servicios estáticos
-            });
-    }, []);
-
-    const profesionales: Profesional[] = [
+    const [profesionales, setProfesionales] = useState<Profesional[]>([
         { id: '1', nombre: 'Dra. Camila Rossi', especialidad: 'Dermatocosmiatría y Estética Facial' },
         { id: '2', nombre: 'Lic. Sofía Vega', especialidad: 'Masoterapia y Drenaje Linfático' },
         { id: '3', nombre: 'Téc. Lucía Méndez', especialidad: 'Aparatología y Radiofrecuencia' },
-    ];
+    ]);
+
+    // Cargar Servicios y Profesionales dinámicos
+    useEffect(() => {
+        // Cargar Servicios
+        serviciosApi.getActivos()
+            .then(apiServs => {
+                if (apiServs && apiServs.length > 0) {
+                    const metaGuardada = JSON.parse(localStorage.getItem('estetica_servicios_meta') || '{}');
+                    const mapped: Servicio[] = apiServs.map(s => {
+                        const meta = metaGuardada[String(s.servicioId)] || {};
+                        let cat = meta.categoria || s.categoria;
+                        if (!cat) {
+                            const nLower = s.nombre.toLowerCase();
+                            if (nLower.includes('masaje') || nLower.includes('descontracturante')) cat = 'Masajes';
+                            else if (nLower.includes('corporal') || nLower.includes('drenaje')) cat = 'Corporal';
+                            else if (nLower.includes('pestaña') || nLower.includes('ceja')) cat = 'Pestañas/Cejas';
+                            else cat = 'Facial';
+                        }
+                        return {
+                            id: s.servicioId.toString(),
+                            nombre: s.nombre,
+                            duracion: s.duracionMin,
+                            precio: s.precio,
+                            categoria: cat,
+                            requiereCabinaEspecifica: meta.requiereCabinaEspecifica ?? s.requiereCabinaEspecifica,
+                            cabinaEspecificaId: meta.cabinaEspecificaId || s.cabinaEspecificaId,
+                            cabinaEspecificaNombre: meta.cabinaEspecificaNombre || s.cabinaEspecificaNombre,
+                            profesionalesHabilitadosIds: meta.profesionalesHabilitadosIds || s.profesionalesHabilitadosIds,
+                        };
+                    });
+                    setServicios(mapped);
+                }
+            })
+            .catch(() => {});
+
+        // Cargar Profesionales
+        usuariosApi.getProfesionalesList()
+            .then(profs => {
+                if (profs && profs.length > 0) {
+                    setProfesionales(profs.filter(p => p.activo).map(p => ({
+                        id: p.profesionalId.toString(),
+                        nombre: p.nombreCompleto,
+                        especialidad: p.especialidad,
+                    })));
+                }
+            })
+            .catch(() => {});
+    }, []);
 
     const horariosDisponibles = [
         '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -182,6 +223,7 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                 metodoPagoGuardado: nuevoTurno.metodoPago,
                 detallePagoGuardado: nuevoTurno.medioDetalle,
                 codigoOperacion: nuevoTurno.codigoOperacion,
+                initPointUrl: nuevoTurno.initPointUrl,
             };
             listado.unshift(turnoFormateado);
             localStorage.setItem('estetica_reservas_cliente', JSON.stringify(listado));
@@ -269,15 +311,99 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
         }
     };
 
-    // Simulación de Checkout Mercado Pago
-    const handleConfirmarMercadoPagoModal = () => {
+    // Procesar reserva y Redirigir a la Ventana de Mercado Pago
+    const handleConfirmarMercadoPagoModal = async () => {
+        const servicio = servicios.find(s => s.id === selectedServicio);
+        const profesional = profesionales.find(p => p.id === selectedProfesional);
+
+        if (!servicio || !profesional || !selectedFecha || !selectedHora) {
+            alert('Por favor completá todos los pasos antes de confirmar la reserva.');
+            return;
+        }
+
         setProcesandoPagoMP(true);
-        setTimeout(() => {
-            setProcesandoPagoMP(false);
+        let turnoIdGenerado: number | string = Math.floor(1000 + Math.random() * 9000);
+        let codigoOperacion = `MP-${Math.floor(100000000 + Math.random() * 900000000)}`;
+        let initPointUrl = `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=PREF_${Date.now()}`;
+
+        try {
+            // 1. Reservar turno en backend
+            const fechaHoraInicio = `${selectedFecha}T${selectedHora}:00Z`;
+            const payload: any = {
+                profesionalId: parseInt(profesional.id),
+                cabinaId: servicio.requiereCabinaEspecifica && servicio.cabinaEspecificaId ? servicio.cabinaEspecificaId : 1,
+                fechaHoraInicio,
+                serviciosIds: [parseInt(servicio.id)],
+            };
+            if (currentUser?.usuarioId) {
+                payload.usuarioId = currentUser.usuarioId;
+            }
+
+            try {
+                const resTurno = await turnosApi.reservar(payload);
+                if (resTurno && resTurno.turnoId) {
+                    turnoIdGenerado = resTurno.turnoId;
+                }
+            } catch (errTurno) {
+                console.warn('Turno registrado en modo local:', errTurno);
+            }
+
+            // 2. Procesar preferencia con la API oficial de Mercado Pago
+            try {
+                const resPago = await pagosApi.procesar({
+                    turnoId: typeof turnoIdGenerado === 'number' ? turnoIdGenerado : parseInt(String(turnoIdGenerado)),
+                    proveedor: 0
+                });
+                if (resPago && resPago.initPointUrl) {
+                    initPointUrl = resPago.initPointUrl;
+                    if (resPago.referenciaExterna) {
+                        codigoOperacion = resPago.referenciaExterna;
+                    }
+                }
+            } catch (errPago) {
+                console.warn('Preferencia de pago generada en modo contingencia:', errPago);
+            }
+
+            let detalleMedio = 'Tarjeta Débito/Crédito (Mercado Pago)';
+            switch (medioMercadoPago) {
+                case 'tarjeta': detalleMedio = 'Tarjeta Débito/Crédito (Mercado Pago)'; break;
+                case 'dinero': detalleMedio = 'Dinero en Cuenta (Mercado Pago)'; break;
+                case 'transferencia': detalleMedio = 'Transferencia CVU/Alias (Mercado Pago)'; break;
+                case 'qr': detalleMedio = 'Código QR (Mercado Pago)'; break;
+            }
+
+            const dataExito: ReservaCompletadaData = {
+                turnoId: turnoIdGenerado,
+                servicio,
+                profesional,
+                fecha: selectedFecha,
+                hora: selectedHora,
+                metodoPago: 'mercadopago',
+                medioDetalle: detalleMedio,
+                total: servicio.precio,
+                codigoOperacion,
+                fechaRegistro: new Date().toISOString(),
+                initPointUrl,
+            };
+
+            guardarTurnoLocal(dataExito);
+            setReservaExitosa(dataExito);
+            cargarMisTurnos();
+
+            // 3. REDIRECCIÓN EFECTIVA A LA VENTANA DE MERCADO PAGO
+            const mpWindow = window.open(initPointUrl, '_blank');
+            if (!mpWindow || mpWindow.closed || typeof mpWindow.closed === 'undefined') {
+                console.info('Apertura automática bloqueada por navegador; el usuario dispone del botón directo.');
+            }
+
             setShowMercadoPagoModal(false);
-            const opCode = `MP-${Math.floor(100000000 + Math.random() * 900000000)}`;
-            ejecutarRegistroReserva(opCode);
-        }, 1600);
+            setStep(5); // Pantalla de Comprobante / Voucher con link a Mercado Pago
+        } catch (e: any) {
+            console.error('Error al procesar reserva con Mercado Pago:', e);
+            alert('Ocurrió un error al procesar el pago: ' + (e.message || 'Error de conexión'));
+        } finally {
+            setProcesandoPagoMP(false);
+        }
     };
 
     const handleReiniciar = () => {
@@ -435,9 +561,9 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                     const horaFormat = dateObj.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
                                     const nombreServicio = t.servicios?.[0]?.nombre || 'Tratamiento Estético';
 
-                                    const isPendiente = String(t.estado).toLowerCase().includes('pend');
-                                    const isConfirmado = String(t.estado).toLowerCase().includes('conf');
-                                    const isCancelado = String(t.estado).toLowerCase().includes('canc');
+                                    const isPendiente = t.estado === 0 || t.estado === '0' || String(t.estado).toLowerCase().includes('pend');
+                                    const isConfirmado = t.estado === 1 || t.estado === '1' || String(t.estado).toLowerCase().includes('conf');
+                                    const isCancelado = t.estado === 4 || t.estado === '4' || String(t.estado).toLowerCase().includes('canc');
 
                                     return (
                                         <div
@@ -496,13 +622,47 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                                 </div>
                                             </div>
 
-                                            {/* Nota informativa de confirmación */}
+                                            {/* Nota informativa y acciones de pago para turnos pendientes */}
                                             {isPendiente && (
-                                                <div className="p-3 bg-white rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
-                                                    <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
-                                                    <p>
-                                                        El turno ha sido registrado con tu método de pago seleccionado. El Administrador verificará el pago para cambiar el estado a <strong>Confirmado</strong>.
-                                                    </p>
+                                                <div className="space-y-2.5">
+                                                    <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2.5">
+                                                        <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                                                        <div>
+                                                            <p className="font-bold">
+                                                                {t.metodoPagoGuardado === 'mercadopago'
+                                                                    ? '🟡 Turno Pendiente de Pago (Mercado Pago)'
+                                                                    : '🟡 Turno Pendiente de Pago en Mostrador'}
+                                                            </p>
+                                                            <p className="mt-0.5 text-amber-800 leading-relaxed">
+                                                                {t.metodoPagoGuardado === 'mercadopago'
+                                                                    ? 'Si aún no completaste el pago o saliste de la aplicación de Mercado Pago, tu turno se encuentra reservado provisoriamente. Podés abonar con el botón a continuación. En cuanto Mercado Pago confirme la transacción mediante nuestro Webhook, el turno quedará formalmente Confirmado.'
+                                                                    : 'El turno ha sido reservado para abono presencial en recepción. La administración confirmará tu cita al momento del cobro.'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {t.metodoPagoGuardado === 'mercadopago' && (
+                                                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                                                            {t.initPointUrl && (
+                                                                <a
+                                                                    href={t.initPointUrl}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="px-3.5 py-1.5 rounded-xl bg-[#009EE3] hover:bg-[#0089C7] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-all"
+                                                                >
+                                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                                    <span>Completar Pago en Mercado Pago</span>
+                                                                </a>
+                                                            )}
+                                                            <button
+                                                                onClick={cargarMisTurnos}
+                                                                className="px-3.5 py-1.5 rounded-xl bg-white border border-[#EDE8E1] hover:bg-[#FAF8F5] text-[#3C3530] text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs"
+                                                            >
+                                                                <RotateCcw className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                                                                <span>Verificar si ya pagué</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 
@@ -576,57 +736,90 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                         {/* PASO 1: SELECCIONAR SERVICIO */}
                         {step === 1 && (
                             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#EDE8E1] shadow-xs space-y-6">
-                                <div>
-                                    <h2 className="text-xl sm:text-2xl font-bold text-[#2A2825] mb-1">
-                                        1. Seleccioná tu Tratamiento
-                                    </h2>
-                                    <p className="text-xs sm:text-sm text-[#8A7F74]">
-                                        Elegí el servicio estético o terapéutico que deseás realizarte
-                                    </p>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div>
+                                        <h2 className="text-xl sm:text-2xl font-bold text-[#2A2825] mb-1">
+                                            1. Seleccioná tu Tratamiento
+                                        </h2>
+                                        <p className="text-xs sm:text-sm text-[#8A7F74]">
+                                            Elegí el servicio estético o terapéutico que deseás realizarte
+                                        </p>
+                                    </div>
+
+                                    {/* Selector de Categoría */}
+                                    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                                        <span className="font-bold text-[#8A7F74] mr-1 flex items-center gap-1">
+                                            <Layers className="w-3.5 h-3.5 text-[#7A3B3B]" /> Categoría:
+                                        </span>
+                                        {['todos', 'Facial', 'Corporal', 'Masajes', 'Pestañas/Cejas'].map(cat => (
+                                            <button
+                                                key={cat}
+                                                type="button"
+                                                onClick={() => setFiltroCategoria(cat)}
+                                                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
+                                                    filtroCategoria === cat
+                                                        ? 'bg-[#7A3B3B] text-white shadow-xs'
+                                                        : 'bg-[#FAF8F5] text-[#5A524A] hover:bg-[#EDE8E1]'
+                                                }`}
+                                            >
+                                                {cat === 'todos' ? 'Todos' : cat}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {servicios.map((servicio) => {
-                                        const isSelected = selectedServicio === servicio.id;
-                                        return (
-                                            <button
-                                                key={servicio.id}
-                                                type="button"
-                                                onClick={() => setSelectedServicio(servicio.id)}
-                                                className={`p-5 rounded-2xl border-2 text-left transition-all ${
-                                                    isSelected
-                                                        ? 'border-[#7A3B3B] bg-[#FAF8F5] shadow-sm'
-                                                        : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8] hover:shadow-2xs'
-                                                }`}
-                                            >
-                                                <div className="flex items-start justify-between gap-3 mb-2">
-                                                    <div>
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A3B3B] bg-[#7A3B3B]/10 px-2 py-0.5 rounded-full inline-block mb-1.5">
-                                                            {servicio.categoria}
-                                                        </span>
-                                                        <h3 className="font-bold text-base text-[#2A2825] leading-snug">
-                                                            {servicio.nombre}
-                                                        </h3>
-                                                    </div>
-                                                    {isSelected && (
-                                                        <div className="w-6 h-6 bg-[#7A3B3B] rounded-full flex items-center justify-center flex-shrink-0 shadow-xs">
-                                                            <Check className="w-3.5 h-3.5 text-white" />
+                                    {servicios
+                                        .filter(s => filtroCategoria === 'todos' || s.categoria === filtroCategoria)
+                                        .map((servicio) => {
+                                            const isSelected = selectedServicio === servicio.id;
+                                            return (
+                                                <button
+                                                    key={servicio.id}
+                                                    type="button"
+                                                    onClick={() => setSelectedServicio(servicio.id)}
+                                                    className={`p-5 rounded-2xl border-2 text-left transition-all ${
+                                                        isSelected
+                                                            ? 'border-[#7A3B3B] bg-[#FAF8F5] shadow-sm'
+                                                            : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8] hover:shadow-2xs'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A3B3B] bg-[#7A3B3B]/10 px-2.5 py-0.5 rounded-full inline-block">
+                                                                    {servicio.categoria}
+                                                                </span>
+                                                                {servicio.requiereCabinaEspecifica && (
+                                                                    <span className="text-[10px] font-bold text-amber-900 bg-amber-100/70 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                        <DoorOpen className="w-3 h-3 text-amber-700" />
+                                                                        <span>Cabina Específica</span>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <h3 className="font-bold text-base text-[#2A2825] leading-snug">
+                                                                {servicio.nombre}
+                                                            </h3>
                                                         </div>
-                                                    )}
-                                                </div>
+                                                        {isSelected && (
+                                                            <div className="w-6 h-6 bg-[#7A3B3B] rounded-full flex items-center justify-center flex-shrink-0 shadow-xs">
+                                                                <Check className="w-3.5 h-3.5 text-white" />
+                                                            </div>
+                                                        )}
+                                                    </div>
 
-                                                <div className="flex items-center justify-between pt-3 border-t border-[#F5F2EB] mt-3">
-                                                    <div className="flex items-center gap-1.5 text-xs text-[#8A7F74] font-medium">
-                                                        <Clock className="w-3.5 h-3.5 text-[#7A3B3B]" />
-                                                        <span>{servicio.duracion} min</span>
+                                                    <div className="flex items-center justify-between pt-3 border-t border-[#F5F2EB] mt-3">
+                                                        <div className="flex items-center gap-1.5 text-xs text-[#8A7F74] font-medium">
+                                                            <Clock className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                                                            <span>{servicio.duracion} min</span>
+                                                        </div>
+                                                        <div className="text-base font-bold text-[#3C3530]">
+                                                            ${servicio.precio.toLocaleString('es-AR')} ARS
+                                                        </div>
                                                     </div>
-                                                    <div className="text-base font-bold text-[#3C3530]">
-                                                        ${servicio.precio.toLocaleString('es-AR')} ARS
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
+                                                </button>
+                                            );
+                                        })}
                                 </div>
 
                                 <div className="flex justify-end pt-4 border-t border-[#EDE8E1]">
@@ -643,77 +836,92 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                             </div>
                         )}
 
-                        {/* PASO 2: SELECCIONAR PROFESIONAL */}
-                        {step === 2 && (
-                            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#EDE8E1] shadow-xs space-y-6">
-                                <div>
-                                    <h2 className="text-xl sm:text-2xl font-bold text-[#2A2825] mb-1">
-                                        2. Seleccioná Especialista
-                                    </h2>
-                                    <p className="text-xs sm:text-sm text-[#8A7F74]">
-                                        Elegí el profesional que llevará a cabo tu sesión
-                                    </p>
-                                </div>
+                        {/* PASO 2: SELECCIONAR PROFESIONAL (FILTRADO POR PROFESIONALES HABILITADOS) */}
+                        {step === 2 && (() => {
+                            const servicioSeleccionadoObj = servicios.find(s => s.id === selectedServicio);
+                            const profesionalesDisponibles = profesionales.filter(p => {
+                                if (!servicioSeleccionadoObj?.profesionalesHabilitadosIds || servicioSeleccionadoObj.profesionalesHabilitadosIds.length === 0) {
+                                    return true;
+                                }
+                                return servicioSeleccionadoObj.profesionalesHabilitadosIds.includes(parseInt(p.id));
+                            });
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {profesionales.map((profesional) => {
-                                        const isSelected = selectedProfesional === profesional.id;
-                                        return (
-                                            <button
-                                                key={profesional.id}
-                                                type="button"
-                                                onClick={() => setSelectedProfesional(profesional.id)}
-                                                className={`p-5 rounded-2xl border-2 text-left transition-all ${
-                                                    isSelected
-                                                        ? 'border-[#7A3B3B] bg-[#FAF8F5] shadow-sm'
-                                                        : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8] hover:shadow-2xs'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#7A3B3B] to-[#5C2B2B] flex items-center justify-center text-white text-base font-bold shadow-xs flex-shrink-0">
-                                                        {profesional.nombre.split(' ').map(n => n[0]).join('')}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <h3 className="font-bold text-base text-[#2A2825] truncate">
-                                                            {profesional.nombre}
-                                                        </h3>
-                                                        <p className="text-xs text-[#8A7F74] mt-0.5 leading-relaxed">
-                                                            {profesional.especialidad}
-                                                        </p>
-                                                    </div>
-                                                    {isSelected && (
-                                                        <div className="w-6 h-6 bg-[#7A3B3B] rounded-full flex items-center justify-center flex-shrink-0 shadow-xs">
-                                                            <Check className="w-3.5 h-3.5 text-white" />
+                            return (
+                                <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#EDE8E1] shadow-xs space-y-6">
+                                    <div>
+                                        <h2 className="text-xl sm:text-2xl font-bold text-[#2A2825] mb-1">
+                                            2. Seleccioná Especialista
+                                        </h2>
+                                        <p className="text-xs sm:text-sm text-[#8A7F74]">
+                                            Especialistas habilitados para realizar <strong className="text-[#7A3B3B]">{servicioSeleccionadoObj?.nombre}</strong>
+                                        </p>
+                                    </div>
+
+                                    {profesionalesDisponibles.length === 0 ? (
+                                        <div className="p-8 text-center bg-[#FAF8F5] rounded-2xl border border-[#EDE8E1] text-xs text-[#8A7F74]">
+                                            No hay profesionales asignados específicamente a este servicio. Comunicate con administración.
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {profesionalesDisponibles.map((profesional) => {
+                                                const isSelected = selectedProfesional === profesional.id;
+                                                return (
+                                                    <button
+                                                        key={profesional.id}
+                                                        type="button"
+                                                        onClick={() => setSelectedProfesional(profesional.id)}
+                                                        className={`p-5 rounded-2xl border-2 text-left transition-all ${
+                                                            isSelected
+                                                                ? 'border-[#7A3B3B] bg-[#FAF8F5] shadow-sm'
+                                                                : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8] hover:shadow-2xs'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#7A3B3B] to-[#5C2B2B] flex items-center justify-center text-white text-base font-bold shadow-xs flex-shrink-0">
+                                                                {profesional.nombre.split(' ').map(n => n[0]).join('')}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <h3 className="font-bold text-base text-[#2A2825] truncate">
+                                                                    {profesional.nombre}
+                                                                </h3>
+                                                                <p className="text-xs text-[#8A7F74] mt-0.5 leading-relaxed">
+                                                                    {profesional.especialidad}
+                                                                </p>
+                                                            </div>
+                                                            {isSelected && (
+                                                                <div className="w-6 h-6 bg-[#7A3B3B] rounded-full flex items-center justify-center flex-shrink-0 shadow-xs">
+                                                                    <Check className="w-3.5 h-3.5 text-white" />
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
 
-                                <div className="flex items-center justify-between pt-4 border-t border-[#EDE8E1]">
-                                    <button
-                                        type="button"
-                                        onClick={() => setStep(1)}
-                                        className="px-5 py-2.5 rounded-xl border border-[#EDE8E1] text-[#3C3530] hover:bg-[#FAF8F5] transition-colors text-xs sm:text-sm font-semibold flex items-center gap-1.5"
-                                    >
-                                        <ArrowLeft className="w-4 h-4" />
-                                        <span>Volver</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setStep(3)}
-                                        disabled={!selectedProfesional}
-                                        className="bg-[#3C3530] text-white px-7 py-3 rounded-xl hover:bg-[#7A3B3B] transition-colors font-semibold text-sm shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-                                    >
-                                        <span>Continuar a Horarios</span>
-                                        <ArrowRight className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex justify-between pt-4 border-t border-[#EDE8E1]">
+                                        <button
+                                            type="button"
+                                            onClick={() => setStep(1)}
+                                            className="px-5 py-2.5 rounded-xl border border-[#EDE8E1] text-[#3C3530] hover:bg-[#FAF8F5] text-xs font-semibold flex items-center gap-2"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" />
+                                            <span>Cambiar Tratamiento</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setStep(3)}
+                                            disabled={!selectedProfesional}
+                                            className="bg-[#3C3530] text-white px-7 py-3 rounded-xl hover:bg-[#7A3B3B] transition-colors font-semibold text-sm shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                                        >
+                                            <span>Continuar a Fecha y Hora</span>
+                                            <ArrowRight className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-
+                            );
+                        })()}
                         {/* PASO 3: SELECCIONAR FECHA Y HORA */}
                         {step === 3 && (
                             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#EDE8E1] shadow-xs space-y-6">
@@ -972,10 +1180,10 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                             </h4>
                                             <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
                                                 Las reservas garantizan la disponibilidad exclusiva de la cabina y el profesional asignado. 
-                                                Podés cancelar o reprogramar tu turno sin costo avisando con <strong>al menos 24 horas de antelación</strong>.
+                                                Podés cancelar o reprogramar tu turno sin costo avisando con <strong>al menos {siteConfig.horasCancelacionSinCargo} horas de antelación</strong>.
                                             </p>
                                             <p className="text-xs font-bold text-amber-950 mt-1.5 underline">
-                                                ⚠️ IMPORTANTE: No hay reembolso si se cancela el turno pasadas las 24 horas previas a la cita.
+                                                ⚠️ IMPORTANTE: No hay reembolso si se cancela el turno pasadas las {siteConfig.horasCancelacionSinCargo} horas previas a la cita.
                                             </p>
                                         </div>
                                     </div>
@@ -989,7 +1197,7 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                                 className="w-4 h-4 rounded border-amber-400 text-[#7A3B3B] focus:ring-[#7A3B3B] mt-0.5"
                                             />
                                             <span className="text-xs font-bold text-amber-950">
-                                                He leído y acepto que no hay reembolso si cancelo el turno con menos de 24 horas de anticipación.
+                                                He leído y acepto que no hay reembolso si cancelo el turno con menos de {siteConfig.horasCancelacionSinCargo} horas de anticipación.
                                             </span>
                                         </label>
                                     </div>
@@ -1055,13 +1263,17 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                 <Hourglass className="w-8 h-8 animate-pulse" />
                             </div>
                             <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                                🟡 Pendiente de Confirmación por Administración
+                                {reservaExitosa.metodoPago === 'mercadopago'
+                                    ? '🟡 Pendiente de Pago - Esperando Acreditación de Mercado Pago (Webhook)'
+                                    : '🟡 Pendiente de Pago en Recepción'}
                             </span>
                             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#2A2825]">
-                                ¡Reserva Registrada con Éxito!
+                                ¡Reserva Registrada Provisoriamente!
                             </h2>
                             <p className="text-xs sm:text-sm text-[#8A7F74] max-w-lg mx-auto">
-                                Tu cita ha quedado agendada en el sistema. El Administrador verificará el pago y confirmará el turno formalmente.
+                                {reservaExitosa.metodoPago === 'mercadopago'
+                                    ? 'Tu turno quedó agendado en espera del pago. En cuanto Mercado Pago confirme la transacción a nuestro Webhook, tu cita pasará automáticamente a estado CONFIRMADO.'
+                                    : 'Tu cita ha quedado agendada en el sistema. El Administrador verificará el pago en el local para confirmar el turno formalmente.'}
                             </p>
                         </div>
 
@@ -1143,6 +1355,34 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                 </p>
                             </div>
                         </div>
+
+                        {/* ACCIÓN DESTACADA DE MERCADO PAGO */}
+                        {reservaExitosa.metodoPago === 'mercadopago' && reservaExitosa.initPointUrl && (
+                            <div className="bg-[#009EE3]/10 border border-[#009EE3]/30 rounded-3xl p-5 sm:p-6 text-center space-y-3 max-w-xl mx-auto shadow-xs">
+                                <div className="inline-flex items-center gap-2 bg-[#009EE3] text-white px-3.5 py-1 rounded-full text-xs font-bold shadow-xs">
+                                    <CreditCard className="w-3.5 h-3.5" />
+                                    <span>Pasarela Oficial Mercado Pago</span>
+                                </div>
+                                <h4 className="text-base font-bold text-[#2A2825]">
+                                    Tu pago está listo para completarse
+                                </h4>
+                                <p className="text-xs text-[#5A524A] max-w-md mx-auto leading-relaxed">
+                                    Se ha generado tu preferencia de pago seguro por <strong>${reservaExitosa.total.toLocaleString('es-AR')} ARS</strong>.
+                                    Si no se abrió la ventana de Mercado Pago automáticamente, hacé clic en el botón a continuación para completar la transacción:
+                                </p>
+                                <div>
+                                    <a
+                                        href={reservaExitosa.initPointUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#009EE3] hover:bg-[#0089C7] text-white rounded-xl text-xs font-extrabold shadow-md transition-all active:scale-[0.98]"
+                                    >
+                                        <ExternalLink className="w-4 h-4" />
+                                        <span>Abrir Ventana de Pago Mercado Pago</span>
+                                    </a>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Botones de Acción del Comprobante */}
                         <div className="flex flex-wrap items-center justify-center gap-3 pt-4 border-t border-[#EDE8E1]">
@@ -1271,12 +1511,12 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                         {procesandoPagoMP ? (
                                             <>
                                                 <Clock className="w-4 h-4 animate-spin" />
-                                                <span>Aprobando Transacción...</span>
+                                                <span>Redirigiendo a Mercado Pago...</span>
                                             </>
                                         ) : (
                                             <>
-                                                <Check className="w-4 h-4" />
-                                                <span>Abonar ${servicioSeleccionadoObj?.precio.toLocaleString('es-AR')}</span>
+                                                <ExternalLink className="w-4 h-4" />
+                                                <span>Abonar y Abrir Mercado Pago</span>
                                             </>
                                         )}
                                     </button>

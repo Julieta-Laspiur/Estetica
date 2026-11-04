@@ -16,6 +16,8 @@ public class OrdenCompraDto
 {
     public int OrdenId { get; set; }
     public int UsuarioId { get; set; }
+    public string? ClienteNombre { get; set; }
+    public string? ClienteEmail { get; set; }
     public DateTime Fecha { get; set; }
     public decimal Total { get; set; }
     public EstadoOrden Estado { get; set; }

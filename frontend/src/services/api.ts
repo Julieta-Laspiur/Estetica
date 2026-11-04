@@ -134,6 +134,11 @@ export interface ServicioDto {
   precio: number;
   duracionMin: number;
   activo: boolean;
+  categoria?: 'Facial' | 'Corporal' | 'Masajes' | 'Pestañas/Cejas' | string;
+  requiereCabinaEspecifica?: boolean;
+  cabinaEspecificaId?: number;
+  cabinaEspecificaNombre?: string;
+  profesionalesHabilitadosIds?: number[];
 }
 
 export const serviciosApi = {
@@ -432,6 +437,21 @@ export interface UsuarioDetalleDto {
   intentosFallidos: number;
 }
 
+export interface ProfesionalDto {
+  profesionalId: number;
+  usuarioId: number;
+  nombreCompleto: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+  telefono?: string;
+  especialidad: string;
+  activo: boolean;
+  totalTurnos?: number;
+  cabinaHabitualId?: number;
+  cabinaHabitualNombre?: string;
+}
+
 export const usuariosApi = {
   getClientes: (): Promise<UsuarioDetalleDto[]> => {
     return request<UsuarioDetalleDto[]>('/usuarios/rol/Cliente');
@@ -439,6 +459,38 @@ export const usuariosApi = {
 
   getProfesionales: (): Promise<UsuarioDetalleDto[]> => {
     return request<UsuarioDetalleDto[]>('/usuarios/rol/Profesional');
+  },
+
+  getProfesionalesList: (): Promise<ProfesionalDto[]> => {
+    return request<ProfesionalDto[]>('/usuarios/profesionales');
+  },
+
+  crearProfesional: (data: {
+    nombre: string;
+    apellido: string;
+    email: string;
+    telefono?: string;
+    password?: string;
+    especialidad: string;
+  }): Promise<ProfesionalDto> => {
+    return request<ProfesionalDto>('/usuarios/crear-profesional', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  gestionarProfesional: (data: {
+    usuarioId: number;
+    especialidad: string;
+    activo?: boolean;
+    nombre?: string;
+    apellido?: string;
+    telefono?: string;
+  }): Promise<ProfesionalDto> => {
+    return request<ProfesionalDto>('/usuarios/profesionales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   getBloqueados: (): Promise<UsuarioDetalleDto[]> => {
@@ -477,6 +529,37 @@ export interface TarjetaFidelizacionDto {
   estampitasParaPremio: number;
 }
 
+export interface QrFidelizacionDto {
+  qrTokenId: number;
+  pagoId: number;
+  turnoId?: number;
+  clienteNombre?: string;
+  servicioNombre?: string;
+  token: string;
+  qrSvg: string;
+  qrImageDataUri: string;
+  fechaCreacion: string;
+  fechaExpiracion: string;
+  minutosValidez: number;
+  segundosRestantes: number;
+}
+
+export interface ResultadoEscaneoQrDto {
+  exitoso: boolean;
+  mensaje: string;
+  clienteNombre: string;
+  estampitasActuales: number;
+  progreso: string;
+  cicloCompletado: boolean;
+  cuponGenerado?: {
+    cuponId: number;
+    codigo: string;
+    descuento: number;
+    fechaExpiracion: string;
+    mensaje: string;
+  };
+}
+
 export const fidelizacionApi = {
   getMiTarjeta: (): Promise<TarjetaFidelizacionDto> => {
     return request<TarjetaFidelizacionDto>('/fidelizacion/mi-tarjeta');
@@ -484,6 +567,19 @@ export const fidelizacionApi = {
 
   getTarjetaPorUsuario: (usuarioId: number): Promise<TarjetaFidelizacionDto> => {
     return request<TarjetaFidelizacionDto>(`/fidelizacion/usuario/${usuarioId}`);
+  },
+
+  generarQrTurno: (turnoId: number): Promise<QrFidelizacionDto> => {
+    return request<QrFidelizacionDto>(`/fidelizacion/turno/${turnoId}/qr`, {
+      method: 'POST',
+    });
+  },
+
+  escanearQr: (token: string): Promise<ResultadoEscaneoQrDto> => {
+    return request<ResultadoEscaneoQrDto>('/fidelizacion/escanear-qr', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
   },
 
   acumularEstampitas: (usuarioId: number, cantidadEstampitas: number, motivo?: string): Promise<any> => {
@@ -496,13 +592,6 @@ export const fidelizacionApi = {
   generarQr: (): Promise<{ qrToken: string; expiraEnMinutos: number }> => {
     return request<{ qrToken: string; expiraEnMinutos: number }>('/fidelizacion/generar-qr', {
       method: 'POST',
-    });
-  },
-
-  escanearQr: (token: string): Promise<{ mensaje: string; estampitasActuales: number; cuponGenerado?: boolean }> => {
-    return request<any>('/fidelizacion/escanear-qr', {
-      method: 'POST',
-      body: JSON.stringify({ token }),
     });
   },
 };
@@ -609,5 +698,78 @@ export const pagosApi = {
       method: 'POST',
     });
   },
+
+  simularWebhook: (referenciaExterna: string, estadoPago: number = 1): Promise<any> => {
+    return request<any>(`/pagos/simular-webhook/${referenciaExterna}?estado=${estadoPago}`, {
+      method: 'POST',
+    });
+  },
 };
+
+// 8. Módulo de Notificaciones y Monitor de Actividades
+export interface NotificacionDto {
+  notificacionId: number;
+  usuarioId: number;
+  destinatarioNombre?: string;
+  destinatarioEmail?: string;
+  mensaje: string;
+  tipo: number;
+  tipoDescripcion: string;
+  categoriaAlerta: string;
+  esAlertaCritica: boolean;
+  leida: boolean;
+  fecha: string;
+  fechaFormateada: string;
+  horaFormateada: string;
+}
+
+export const notificacionesApi = {
+  getAlertasAdmin: (soloNoLeidas = false, limite = 100): Promise<NotificacionDto[]> => {
+    return request<NotificacionDto[]>(`/notificaciones/admin?soloNoLeidas=${soloNoLeidas}&limite=${limite}`);
+  },
+
+  marcarLeida: (id: number): Promise<{ mensaje: string }> => {
+    return request<{ mensaje: string }>(`/notificaciones/${id}/leida`, {
+      method: 'PUT',
+    });
+  },
+
+  marcarTodasAdminLeidas: (): Promise<{ mensaje: string }> => {
+    return request<{ mensaje: string }>('/notificaciones/admin/marcar-todas-leidas', {
+      method: 'PUT',
+    });
+  },
+
+  getMisNotificaciones: (soloNoLeidas = false): Promise<NotificacionDto[]> => {
+    return request<NotificacionDto[]>(`/notificaciones/mis-notificaciones?soloNoLeidas=${soloNoLeidas}`);
+  },
+};
+
+// 9. Módulo de Órdenes de Compra y Ventas de Productos
+export interface DetalleOrdenDto {
+  detalleId: number;
+  productoId: number;
+  nombreProducto: string;
+  cantidad: number;
+  precioUnitario: number;
+  subtotal: number;
+}
+
+export interface OrdenCompraDto {
+  ordenId: number;
+  usuarioId: number;
+  clienteNombre?: string;
+  clienteEmail?: string;
+  fecha: string;
+  total: number;
+  estado: number | string;
+  detalles: DetalleOrdenDto[];
+}
+
+export const ordenesApi = {
+  getOrdenesAdmin: (): Promise<OrdenCompraDto[]> => {
+    return request<OrdenCompraDto[]>('/carrito/ordenes');
+  },
+};
+
 

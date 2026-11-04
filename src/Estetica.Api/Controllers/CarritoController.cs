@@ -3,7 +3,9 @@ using Estetica.Application.UseCases.Carrito.Commands.AplicarCuponDescuento;
 using Estetica.Application.UseCases.Carrito.Commands.GenerarOrdenCompra;
 using Estetica.Application.UseCases.Carrito.Commands.QuitarItemCarrito;
 using Estetica.Application.UseCases.Carrito.DTOs;
+using Estetica.Application.UseCases.Carrito.Queries.GetOrdenesAdmin;
 using MediatR;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -59,5 +61,16 @@ public class CarritoController : ControllerBase
     {
         var resultado = await _mediator.Send(command);
         return Ok(resultado);
+    }
+
+    /// <summary>
+    /// HU-06 / HU-16: Listado de todas las órdenes de compra para el dashboard administrativo.
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [HttpGet("ordenes")]
+    public async Task<ActionResult<IReadOnlyList<OrdenCompraDto>>> GetOrdenesAdmin()
+    {
+        var ordenes = await _mediator.Send(new GetOrdenesAdminQuery());
+        return Ok(ordenes);
     }
 }

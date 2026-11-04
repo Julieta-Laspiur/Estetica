@@ -41,4 +41,15 @@ public class OrdenCompraRepository : Repository<OrdenCompra>, IOrdenCompraReposi
             .Include(o => o.Pagos)
             .FirstOrDefaultAsync(o => o.OrdenId == ordenId, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<OrdenCompra>> GetAllWithDetallesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Include(o => o.Usuario)
+            .Include(o => o.Detalles).ThenInclude(d => d.Producto)
+            .Include(o => o.Pagos)
+            .OrderByDescending(o => o.Fecha)
+            .ToListAsync(cancellationToken);
+    }
 }

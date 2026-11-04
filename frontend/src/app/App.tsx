@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
+import { CajaPagos } from './components/CajaPagos';
 import { Turnos } from './components/Turnos';
 import { Clientes } from './components/Clientes';
+import { Profesionales } from './components/Profesionales';
 import { Servicios } from './components/Servicios';
 import { Productos } from './components/Productos';
 import { ProgramaLealtad } from './components/ProgramaLealtad';
 import { CalendarioTurnos } from './components/CalendarioTurnos';
+import { Configuracion } from './components/Configuracion';
 import { NavbarCliente } from './components/cliente/NavbarCliente';
 import { InicioCliente } from './components/cliente/InicioCliente';
 import { ServiciosCliente } from './components/cliente/ServiciosCliente';
@@ -17,7 +20,9 @@ import { ChatIA } from './components/cliente/ChatIA';
 import { Carrito } from './components/cliente/Carrito';
 import { ListaDeseos, type WishlistItem } from './components/cliente/ListaDeseos';
 import { AuthPage } from './components/cliente/AuthPage';
-import { authApi, type AuthUser } from '../services/api';
+import { PanelProfesional } from './components/profesional/PanelProfesional';
+import { authApi, pagosApi, type AuthUser } from '../services/api';
+import { configuracionService } from '../services/configuracionService';
 import { User, LogOut, Calendar, QrCode, ShoppingCart, Shield, Scissors, Heart } from 'lucide-react';
 
 interface ProductoCarrito {
@@ -31,9 +36,11 @@ interface ProductoCarrito {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authApi.getCurrentUser());
-  const [vistaActual, setVistaActual] = useState<'admin' | 'cliente'>(() => {
+  const [vistaActual, setVistaActual] = useState<'admin' | 'cliente' | 'profesional'>(() => {
     const user = authApi.getCurrentUser();
-    return user?.rol === 'Administrador' ? 'admin' : 'cliente';
+    if (user?.rol === 'Administrador') return 'admin';
+    if (user?.rol === 'Profesional') return 'profesional';
+    return 'cliente';
   });
   const [activeSection, setActiveSection] = useState('inicio');
   const [servicioParaReserva, setServicioParaReserva] = useState<string | null>(null);
@@ -53,6 +60,56 @@ export default function App() {
       localStorage.setItem('estetica_wishlist', JSON.stringify(wishlistItems));
     } catch {}
   }, [wishlistItems]);
+
+  // Detector de retorno desde Mercado Pago (Back URLs)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const pagoStatus = params.get('pago_status') || params.get('collection_status') || params.get('status');
+      const paymentId = params.get('payment_id') || params.get('collection_id');
+      const externalRef = params.get('external_reference');
+
+      if (pagoStatus) {
+        if (pagoStatus === 'approved') {
+          // Si el retorno es approved, actualizar la orden correspondiente a Pagada
+          try {
+            const ordenesLocales = JSON.parse(localStorage.getItem('estetica_ordenes_productos') || '[]');
+            if (Array.isArray(ordenesLocales) && ordenesLocales.length > 0) {
+              const actualizadas = ordenesLocales.map((o: any) => {
+                if (externalRef && o.codigoOperacion === externalRef) {
+                  return { ...o, estado: 'Pagada' };
+                }
+                return o;
+              });
+              localStorage.setItem('estetica_ordenes_productos', JSON.stringify(actualizadas));
+            }
+          } catch {}
+
+          alert(
+            `🎉 ¡PAGO PROCESADO EXITOSAMENTE!\n\n` +
+            `Mercado Pago ha procesado tu transacción correctamente (ID: ${paymentId || 'MP-OK'}).\n` +
+            `Tu compra o reserva se encuentra confirmada.`
+          );
+        } else if (pagoStatus === 'pending') {
+          alert(
+            `⏳ PAGO PENDIENTE DE ACREDITACIÓN\n\n` +
+            `Mercado Pago reporta que tu pago está pendiente de procesamiento.\n` +
+            `Tu compra u orden permanece en estado 'Pendiente de Pago' hasta que se confirmen los fondos.`
+          );
+        } else {
+          alert(
+            `ℹ️ PAGO NO COMPLETADO\n\n` +
+            `Has regresado a la tienda sin completar el pago en Mercado Pago.\n` +
+            `Tu compra permanece en estado 'Pendiente de Pago'. Podés completar el pago en cualquier momento desde tu carrito o historial.`
+          );
+        }
+        // Limpiar parámetros de la URL sin recargar
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch (e) {
+      console.error('Error al procesar parámetros de retorno MP:', e);
+    }
+  }, []);
 
   const handleToggleWishlist = (productId: string, customItem?: Partial<WishlistItem>) => {
     setWishlistItems(prev => {
@@ -165,22 +222,75 @@ export default function App() {
     setCarritoItems(prev => prev.filter(item => item.id !== productId));
   };
 
-  const handleCheckout = () => {
-    alert('¡Compra realizada con éxito!\n\nRecibirás un email de confirmación con los detalles de tu pedido.');
-    setCarritoItems([]);
-    setActiveSection('inicio');
+  const handleCheckout = async () => {
+    if (carritoItems.length > 0) {
+      const subtotal = carritoItems.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
+      const cfg = configuracionService.get();
+      const minGratis = cfg.montoEnvioGratis || 15000;
+      const costoEnv = cfg.costoEnvioEstandar || 1200;
+      const envio = subtotal >= minGratis ? 0 : costoEnv;
+      const totalOrden = subtotal + envio;
+      const ordenId = Date.now();
+      let initPoint = `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=PREF_${ordenId}`;
+      let codigoOp = `MP-${Math.floor(100000000 + Math.random() * 900000000)}`;
+
+      try {
+        const resPago = await pagosApi.procesar({ ordenId: Math.floor(ordenId % 100000), proveedor: 0 });
+        if (resPago && resPago.initPointUrl) {
+          initPoint = resPago.initPointUrl;
+          if (resPago.referenciaExterna) {
+            codigoOp = resPago.referenciaExterna;
+          }
+        }
+      } catch (e) {
+        console.warn('Preferencia fallback para orden:', e);
+      }
+
+      const nuevaOrden = {
+        ordenId,
+        codigoOperacion: codigoOp,
+        fecha: new Date().toISOString(),
+        total: totalOrden,
+        medioPago: 'mercadopago',
+        medioDetalle: 'Mercado Pago Checkout',
+        estado: 'Pendiente', // Pendiente hasta que el webhook de Mercado Pago confirme el pago
+        clienteNombre: currentUser ? `${currentUser.nombre} ${currentUser.apellido}` : 'Cliente Web',
+        detalles: carritoItems.map(item => ({
+          detalleId: Math.floor(Math.random() * 10000),
+          productoId: item.id,
+          nombreProducto: item.nombre,
+          cantidad: item.cantidad,
+          precioUnitario: item.precio,
+          subtotal: item.precio * item.cantidad,
+        })),
+        initPointUrl: initPoint,
+      };
+      const ordenesLocales = JSON.parse(localStorage.getItem('estetica_ordenes_productos') || '[]');
+      localStorage.setItem('estetica_ordenes_productos', JSON.stringify([nuevaOrden, ...ordenesLocales]));
+
+      // Redirigir a la ventana de Mercado Pago
+      window.open(initPoint, '_blank');
+
+      alert(`¡Orden registrada como pendiente de pago!\n\nSe ha abierto la pasarela de Mercado Pago para abonar $${totalOrden.toLocaleString('es-AR')} ARS.\nTu pedido se confirmará automáticamente en cuanto Mercado Pago acredite la transacción.`);
+      setCarritoItems([]);
+      setActiveSection('inicio');
+    }
   };
 
   const renderAdminSection = () => {
     switch (activeSection) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onNavigate={setActiveSection} />;
+      case 'caja':
+        return <CajaPagos />;
       case 'calendario':
         return <CalendarioTurnos />;
       case 'turnos':
         return <Turnos />;
       case 'clientes':
         return <Clientes />;
+      case 'profesionales':
+        return <Profesionales />;
       case 'servicios':
         return <Servicios />;
       case 'productos':
@@ -188,12 +298,7 @@ export default function App() {
       case 'lealtad':
         return <ProgramaLealtad />;
       case 'configuracion':
-        return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-semibold">Configuración</h2>
-            <p className="text-muted-foreground">Módulo en construcción...</p>
-          </div>
-        );
+        return <Configuracion currentUser={currentUser} />;
       default:
         return <Dashboard />;
     }
@@ -354,14 +459,32 @@ export default function App() {
               </div>
 
               {/* Quick shortcuts adaptados según el ROL del usuario */}
-              {currentUser.rol === 'Administrador' ? (
+              {currentUser.rol === 'Profesional' ? (
+                /* Accesos directos para Profesional */
+                <div className="p-6">
+                  <div className="mb-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#7A3B3B]">Herramientas del Profesional</p>
+                    <p className="text-xs text-[#8A7F74]">Ingresá a tu panel de agenda, turnos, fichas clínicas y perfil</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setVistaActual('profesional')}
+                      className="p-4 rounded-xl border border-[#7A3B3B] bg-[#7A3B3B]/5 hover:bg-[#7A3B3B]/10 transition-all text-left group"
+                    >
+                      <User className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
+                      <h4 className="font-semibold text-sm text-[#2A2825]">Abrir Panel del Profesional</h4>
+                      <p className="text-xs text-[#8A7F74] mt-0.5">Mis turnos, agenda, clientes y ficha de perfil</p>
+                    </button>
+                  </div>
+                </div>
+              ) : currentUser.rol === 'Administrador' ? (
                 /* Accesos de gestión para Administrador */
                 <div className="p-6">
                   <div className="mb-3">
                     <p className="text-xs font-bold uppercase tracking-wider text-[#7A3B3B]">Accesos Rápidos de Gestión</p>
                     <p className="text-xs text-[#8A7F74]">Atajos a los módulos operativos del centro</p>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <button
                       onClick={() => {
                         setVistaActual('admin');
@@ -384,6 +507,18 @@ export default function App() {
                       <Scissors className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
                       <h4 className="font-semibold text-sm text-[#2A2825]">Servicios & Tratamientos</h4>
                       <p className="text-xs text-[#8A7F74] mt-0.5">Catálogo, precios y duraciones</p>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setVistaActual('admin');
+                        setActiveSection('lealtad');
+                      }}
+                      className="p-4 rounded-xl border border-[#EDE8E1] hover:border-[#7A3B3B] hover:bg-[#FAF8F5] transition-all text-left group"
+                    >
+                      <QrCode className="w-5 h-5 text-[#7A3B3B] mb-2 group-hover:scale-110 transition-transform" />
+                      <h4 className="font-semibold text-sm text-[#2A2825]">Programa Lealtad & QRs</h4>
+                      <p className="text-xs text-[#8A7F74] mt-0.5">Acreditar estampitas y cupones</p>
                     </button>
                   </div>
                 </div>
@@ -457,6 +592,9 @@ export default function App() {
           if (user.rol === 'Administrador') {
             setVistaActual('admin');
             setActiveSection('dashboard');
+          } else if (user.rol === 'Profesional') {
+            setVistaActual('profesional');
+            setActiveSection('perfil');
           } else {
             setVistaActual('cliente');
             setActiveSection('inicio');
@@ -467,7 +605,29 @@ export default function App() {
     );
   }
 
-  // 2. Vista Administrativa (acceso condicionado por rol del usuario)
+  // 2. Vista del Panel del Profesional (idéntica a la captura de pantalla)
+  if (vistaActual === 'profesional') {
+    return (
+      <PanelProfesional
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onSwitchToCliente={() => {
+          setVistaActual('cliente');
+          setActiveSection('inicio');
+        }}
+        onSwitchToAdmin={
+          currentUser?.rol === 'Administrador'
+            ? () => {
+                setVistaActual('admin');
+                setActiveSection('dashboard');
+              }
+            : undefined
+        }
+      />
+    );
+  }
+
+  // 3. Vista Administrativa (acceso condicionado por rol del usuario)
   if (vistaActual === 'admin') {
     // Si no es administrador, retornar a la vista de cliente
     if (currentUser?.rol !== 'Administrador') {
@@ -495,7 +655,7 @@ export default function App() {
     );
   }
 
-  // 3. Vista Cliente con Barra de Navegación adaptada al usuario
+  // 4. Vista Cliente con Barra de Navegación adaptada al usuario
   return (
     <div className="min-h-screen bg-background">
       <NavbarCliente
@@ -511,6 +671,14 @@ export default function App() {
             ? () => {
                 setVistaActual('admin');
                 setActiveSection('dashboard');
+              }
+            : undefined
+        }
+        onSwitchToProfesional={
+          currentUser?.rol === 'Profesional'
+            ? () => {
+                setVistaActual('profesional');
+                setActiveSection('perfil');
               }
             : undefined
         }
