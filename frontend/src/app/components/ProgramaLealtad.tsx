@@ -18,7 +18,8 @@ import {
   Edit3,
   Trash2,
   Layers,
-  Gift
+  Gift,
+  Heart
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { usuariosApi, fidelizacionApi, type UsuarioDetalleDto, type TarjetaFidelizacionDto, type ResultadoEscaneoQrDto } from '../../services/api';
@@ -389,42 +390,58 @@ export function ProgramaLealtad() {
     cargarDatosLealtad();
   };
 
-  // Helpers de color de tarjeta
-  const getColorGradient = (tema: ColorTemaTarjeta) => {
+  // Helpers de color y borde fino para la tarjeta blanca
+  const getCardBorderStyle = (tema: ColorTemaTarjeta) => {
     switch (tema) {
       case 'rose':
-        return 'bg-gradient-to-br from-[#A04355] via-[#852C3E] to-[#5C1B28] text-white border-pink-300/30';
+        return {
+          borderStyle: 'border-[#E08A97]',
+          badgeColor: 'bg-pink-50 text-[#A04355] border-pink-200',
+          accentText: 'text-[#A04355]',
+          lightBg: 'bg-pink-50/60',
+        };
       case 'wine':
-        return 'bg-gradient-to-br from-[#7A3B3B] via-[#652E2E] to-[#451B1B] text-white border-[#9E5555]/30';
+        return {
+          borderStyle: 'border-[#7A3B3B]',
+          badgeColor: 'bg-[#FAF0F0] text-[#7A3B3B] border-[#7A3B3B]/30',
+          accentText: 'text-[#7A3B3B]',
+          lightBg: 'bg-[#FAF0F0]/60',
+        };
       case 'emerald':
-        return 'bg-gradient-to-br from-[#2D5A46] via-[#204434] to-[#142B20] text-white border-emerald-300/30';
+        return {
+          borderStyle: 'border-[#4A8068]',
+          badgeColor: 'bg-emerald-50 text-[#2D5A46] border-emerald-200',
+          accentText: 'text-[#2D5A46]',
+          lightBg: 'bg-emerald-50/60',
+        };
       case 'dark':
-        return 'bg-gradient-to-br from-[#3C3530] via-[#2A2420] to-[#1A1614] text-white border-[#5A4F46]/50';
+        return {
+          borderStyle: 'border-[#4A423A]',
+          badgeColor: 'bg-stone-100 text-[#3C3530] border-stone-300',
+          accentText: 'text-[#3C3530]',
+          lightBg: 'bg-stone-100/60',
+        };
       case 'gold':
-        return 'bg-gradient-to-br from-[#B38E46] via-[#8C6D2E] to-[#5E471B] text-white border-amber-300/30';
+        return {
+          borderStyle: 'border-[#C5A358]',
+          badgeColor: 'bg-amber-50 text-[#8C6D2E] border-amber-200',
+          accentText: 'text-[#8C6D2E]',
+          lightBg: 'bg-amber-50/60',
+        };
       case 'violet':
-        return 'bg-gradient-to-br from-[#694273] via-[#512D5C] to-[#361A3D] text-white border-purple-300/30';
+        return {
+          borderStyle: 'border-[#8F5B9B]',
+          badgeColor: 'bg-purple-50 text-[#694273] border-purple-200',
+          accentText: 'text-[#694273]',
+          lightBg: 'bg-purple-50/60',
+        };
       default:
-        return 'bg-gradient-to-br from-[#7A3B3B] to-[#451B1B] text-white border-[#9E5555]/30';
-    }
-  };
-
-  const getBadgeColor = (tema: ColorTemaTarjeta) => {
-    switch (tema) {
-      case 'rose':
-        return 'bg-[#6E2232] text-[#FCDDEC] border-pink-300/30';
-      case 'wine':
-        return 'bg-[#522020] text-[#F3E7C4] border-[#F3E7C4]/30';
-      case 'emerald':
-        return 'bg-[#193629] text-[#D1F2D9] border-emerald-300/30';
-      case 'dark':
-        return 'bg-[#25201C] text-[#E5C378] border-[#E5C378]/30';
-      case 'gold':
-        return 'bg-[#523F18] text-[#FFF0C8] border-amber-300/30';
-      case 'violet':
-        return 'bg-[#401E49] text-[#F0D5F7] border-purple-300/30';
-      default:
-        return 'bg-white/20 text-white';
+        return {
+          borderStyle: 'border-[#7A3B3B]',
+          badgeColor: 'bg-[#FAF0F0] text-[#7A3B3B] border-[#7A3B3B]/30',
+          accentText: 'text-[#7A3B3B]',
+          lightBg: 'bg-[#FAF0F0]/60',
+        };
     }
   };
 
@@ -437,22 +454,29 @@ export function ProgramaLealtad() {
     return fullName.includes(query) || c.usuario.email.toLowerCase().includes(query);
   });
 
-  // Renderiza los círculos de estampitas con la meta exacta de esa tarjeta (ej. 5 o 8)
+  // Renderiza los corazones de estampitas que se ponen rojos al acumularse
   const renderEstampillasDinamicas = (actual: number, total: number) => {
     return (
-      <div className="flex flex-wrap gap-1.5 sm:gap-2">
+      <div className="flex flex-wrap gap-2">
         {Array.from({ length: total }).map((_, idx) => {
           const isStamped = idx < actual;
           return (
             <div
               key={idx}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex flex-col items-center justify-center transition-all ${
                 isStamped
-                  ? 'bg-white text-[#7A3B3B] shadow-md border-2 border-white scale-105'
-                  : 'bg-white/10 text-white/50 border-2 border-white/20'
+                  ? 'bg-rose-50 border border-red-200 shadow-2xs scale-105'
+                  : 'bg-[#FAF8F5] border border-[#EDE8E1]'
               }`}
             >
-              {isStamped ? '✓' : idx + 1}
+              {isStamped ? (
+                <Heart className="w-5 h-5 text-red-500 fill-red-500 animate-in zoom-in-75" />
+              ) : (
+                <Heart className="w-4 h-4 text-[#DDD5C8] stroke-[1.5]" />
+              )}
+              <span className={`text-[8px] font-mono font-bold mt-0.5 ${isStamped ? 'text-red-500 font-extrabold' : 'text-[#8A7F74]'}`}>
+                {isStamped ? '✓' : idx + 1}
+              </span>
             </div>
           );
         })}
@@ -670,28 +694,27 @@ export function ProgramaLealtad() {
                 </button>
               </div>
 
-              {/* Grid de Tarjetas de Membresía */}
+              {/* Grid de Tarjetas de Membresía en Blanco con Borde Fino de Color */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {tiposTarjetas.map((tarjeta) => {
-                  const gradientClass = getColorGradient(tarjeta.colorTema);
-                  const badgeClass = getBadgeColor(tarjeta.colorTema);
+                  const estilo = getCardBorderStyle(tarjeta.colorTema);
 
                   return (
                     <div
                       key={tarjeta.id}
-                      className={`rounded-3xl p-6 sm:p-7 shadow-lg border relative overflow-hidden transition-all duration-300 hover:shadow-xl ${gradientClass}`}
+                      className={`bg-white text-[#2A2825] rounded-3xl p-6 sm:p-7 shadow-xs hover:shadow-md border ${estilo.borderStyle} relative overflow-hidden transition-all duration-300`}
                     >
                       {/* Cabecera de la tarjeta */}
                       <div className="flex items-start justify-between gap-3 mb-4">
                         <div className="flex items-center gap-3">
-                          <span className="text-3xl p-2 bg-white/15 backdrop-blur-xs rounded-2xl border border-white/20 shadow-inner">
+                          <span className={`text-2xl p-2.5 rounded-2xl ${estilo.lightBg} border ${estilo.borderStyle} shadow-2xs`}>
                             {tarjeta.icono}
                           </span>
                           <div>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${estilo.badgeColor}`}>
                               {tarjeta.categoria}
                             </span>
-                            <h4 className="text-lg sm:text-xl font-extrabold text-white mt-1 leading-snug">
+                            <h4 className="text-lg sm:text-xl font-extrabold text-[#2A2825] mt-1 leading-snug">
                               {tarjeta.nombre}
                             </h4>
                           </div>
@@ -704,8 +727,8 @@ export function ProgramaLealtad() {
                             onClick={() => handleToggleActivar(tarjeta.id)}
                             className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
                               tarjeta.activa
-                                ? 'bg-emerald-500/20 text-emerald-200 border-emerald-300/40 hover:bg-emerald-500/30'
-                                : 'bg-white/10 text-white/50 border-white/20 hover:bg-white/20'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-[#FAF8F5] text-[#8A7F74] border-[#EDE8E1] hover:bg-[#EDE8E1]'
                             }`}
                             title="Cambiar estado"
                           >
@@ -714,45 +737,45 @@ export function ProgramaLealtad() {
                         </div>
                       </div>
 
-                      <p className="text-xs text-white/80 mb-5 leading-relaxed">
+                      <p className="text-xs text-[#8A7F74] mb-5 leading-relaxed">
                         {tarjeta.descripcion}
                       </p>
 
-                      {/* Meta de estampitas destacada */}
-                      <div className="bg-black/25 backdrop-blur-xs border border-white/15 rounded-2xl p-4 mb-4 space-y-2">
-                        <div className="flex items-center justify-between text-xs font-bold text-white">
+                      {/* Meta de estampitas destacada con corazones */}
+                      <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-4 mb-4 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-[#2A2825]">
                           <span className="flex items-center gap-1.5">
-                            <Award className="w-4 h-4 text-amber-300" />
+                            <Heart className="w-4 h-4 text-red-500 fill-red-500" />
                             <span>Meta para el Premio:</span>
                           </span>
-                          <span className="text-sm font-black text-amber-300 font-mono bg-white/10 px-2 py-0.5 rounded-md">
-                            {tarjeta.estampitasRequeridas} estampitas
+                          <span className="text-xs font-black text-red-600 font-mono bg-rose-50 border border-red-200 px-2 py-0.5 rounded-md">
+                            {tarjeta.estampitasRequeridas} corazones
                           </span>
                         </div>
 
-                        {/* Muestra visual interactiva de los sellos configurados */}
+                        {/* Muestra visual interactiva de los corazones que se ponen rojos */}
                         <div className="pt-1">
                           {renderEstampillasDinamicas(
                             Math.min(3, tarjeta.estampitasRequeridas),
                             tarjeta.estampitasRequeridas
                           )}
                         </div>
-                        <span className="text-[10px] text-white/60 block text-right font-medium">
-                          Visualización para el cliente ({tarjeta.estampitasRequeridas} sellos en tarjeta)
+                        <span className="text-[10px] text-[#8A7F74] block text-right font-medium">
+                          Visualización para el cliente ({tarjeta.estampitasRequeridas} corazones en tarjeta blanca)
                         </span>
                       </div>
 
                       {/* Premio oficial */}
-                      <div className="bg-white/15 backdrop-blur-xs border border-white/20 rounded-2xl p-3.5 mb-5 space-y-1">
-                        <span className="text-[10px] uppercase tracking-wider text-white/70 font-bold block flex items-center gap-1">
-                          <Gift className="w-3.5 h-3.5 text-amber-300" />
+                      <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-3.5 mb-5 space-y-1">
+                        <span className="text-[10px] uppercase tracking-wider text-[#8A7F74] font-bold block flex items-center gap-1">
+                          <Gift className="w-3.5 h-3.5 text-amber-600" />
                           <span>Recompensa al Completar:</span>
                         </span>
-                        <p className="text-xs sm:text-sm font-extrabold text-white">
+                        <p className="text-xs sm:text-sm font-extrabold text-[#2A2825]">
                           {tarjeta.recompensaTitulo}
                         </p>
-                        <div className="flex items-center gap-2 pt-1 text-[11px] text-white/80">
-                          <span className="px-2 py-0.5 bg-white/20 rounded font-semibold">
+                        <div className="flex items-center gap-2 pt-1 text-[11px] text-[#5A524A]">
+                          <span className="px-2 py-0.5 bg-white border border-[#EDE8E1] rounded font-semibold">
                             {tarjeta.tipoPremio === 'servicio_gratis'
                               ? '100% Bonificado'
                               : tarjeta.tipoPremio === 'porcentaje'
@@ -764,11 +787,11 @@ export function ProgramaLealtad() {
                       </div>
 
                       {/* Botones de Acción */}
-                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/15">
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EDE8E1]">
                         <button
                           type="button"
                           onClick={() => abrirModalEditarTarjeta(tarjeta)}
-                          className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
+                          className="px-3 py-1.5 rounded-xl border border-[#EDE8E1] hover:bg-[#FAF8F5] text-[#3C3530] text-xs font-bold transition-colors flex items-center gap-1.5"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                           <span>Editar</span>
@@ -776,7 +799,7 @@ export function ProgramaLealtad() {
                         <button
                           type="button"
                           onClick={() => handleEliminarTarjeta(tarjeta.id, tarjeta.nombre)}
-                          className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/40 text-rose-200 text-xs font-bold transition-colors flex items-center gap-1.5"
+                          className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-colors flex items-center gap-1.5 border border-rose-200"
                           title="Eliminar tipo de tarjeta"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1345,19 +1368,19 @@ export function ProgramaLealtad() {
                   </div>
                 </div>
 
-                {/* Paleta de Color Visual */}
+                {/* Paleta de Color Visual (Borde Fino) */}
                 <div className="sm:col-span-2 space-y-1.5">
                   <label className="text-xs font-bold text-[#3C3530] uppercase tracking-wider">
-                    Estilo Visual & Gradiente de Tarjeta
+                    Color del Borde Fino de la Tarjeta
                   </label>
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                     {[
-                      { key: 'rose', label: 'Rosa Uñas', bg: 'bg-[#A04355]' },
-                      { key: 'wine', label: 'Borgoña Glam', bg: 'bg-[#7A3B3B]' },
-                      { key: 'emerald', label: 'Esmeralda Spa', bg: 'bg-[#2D5A46]' },
-                      { key: 'dark', label: 'Platino Noche', bg: 'bg-[#3C3530]' },
-                      { key: 'gold', label: 'Oro Champán', bg: 'bg-[#B38E46]' },
-                      { key: 'violet', label: 'Púrpura Velvet', bg: 'bg-[#694273]' },
+                      { key: 'rose', label: 'Borde Rosa', bg: 'bg-[#A04355]' },
+                      { key: 'wine', label: 'Borde Borgoña', bg: 'bg-[#7A3B3B]' },
+                      { key: 'emerald', label: 'Borde Esmeralda', bg: 'bg-[#2D5A46]' },
+                      { key: 'dark', label: 'Borde Grafito', bg: 'bg-[#3C3530]' },
+                      { key: 'gold', label: 'Borde Dorado', bg: 'bg-[#B38E46]' },
+                      { key: 'violet', label: 'Borde Velvet', bg: 'bg-[#694273]' },
                     ].map(col => (
                       <button
                         key={col.key}
@@ -1375,6 +1398,49 @@ export function ProgramaLealtad() {
                         </span>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Previsualización en Vivo de la Tarjeta Blanca */}
+                <div className="sm:col-span-2 space-y-2">
+                  <label className="text-xs font-bold text-[#3C3530] uppercase tracking-wider flex items-center justify-between">
+                    <span>Previsualización (Tarjeta blanca con borde fino de color)</span>
+                    <span className="text-[11px] font-semibold text-[#8A7F74]">
+                      {formEstampitas} corazones meta
+                    </span>
+                  </label>
+                  <div className={`bg-white rounded-2xl p-4 sm:p-5 border ${getCardBorderStyle(formColorTema).borderStyle} shadow-2xs`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`text-xl p-2 rounded-xl ${getCardBorderStyle(formColorTema).lightBg} border ${getCardBorderStyle(formColorTema).borderStyle}`}>
+                          {formIcono}
+                        </span>
+                        <div>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${getCardBorderStyle(formColorTema).badgeColor}`}>
+                            {formCategoria}
+                          </span>
+                          <h5 className="text-sm font-extrabold text-[#2A2825] mt-0.5">
+                            {formNombre || 'Nombre de la Membresía'}
+                          </h5>
+                        </div>
+                      </div>
+                      <span className="text-xs font-black text-red-600 bg-rose-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
+                        <Heart className="w-3.5 h-3.5 fill-red-500 text-red-500" />
+                        {formEstampitas}
+                      </span>
+                    </div>
+
+                    <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl p-3 mb-2">
+                      <span className="text-[10px] font-bold text-[#8A7F74] uppercase tracking-wider block mb-2">
+                        Muestra de sellos (los obtenidos se ponen rojos):
+                      </span>
+                      {renderEstampillasDinamicas(2, formEstampitas)}
+                    </div>
+
+                    <div className="text-[11px] text-[#5A524A] flex items-center justify-between pt-1">
+                      <span className="font-semibold truncate">🎁 {formRecompensa || 'Premio a configurar'}</span>
+                      <span className="text-[10px] text-[#8A7F74] shrink-0 font-mono">{formValidezDias} días vigencia</span>
+                    </div>
                   </div>
                 </div>
 
