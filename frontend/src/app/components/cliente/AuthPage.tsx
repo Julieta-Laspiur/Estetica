@@ -201,9 +201,9 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                 
                 {/* Logo idéntico a la tienda con fondo blanco integrado */}
                 <div className="flex flex-col items-center justify-center text-center mb-6">
-                    {(siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
+                    {(siteConfig.logoRectangularUrl || siteConfig.logoUrl || siteConfig.logoRedondoUrl) ? (
                         <img
-                            src={siteConfig.logoRectangularUrl || siteConfig.logoUrl}
+                            src={siteConfig.logoRectangularUrl || siteConfig.logoUrl || siteConfig.logoRedondoUrl}
                             alt={siteConfig.nombreCentro}
                             className="h-24 sm:h-32 md:h-36 max-w-[320px] sm:max-w-[360px] w-auto object-contain mb-3 drop-shadow-2xs transition-all"
                         />

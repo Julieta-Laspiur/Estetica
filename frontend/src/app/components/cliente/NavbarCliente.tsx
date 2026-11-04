@@ -258,11 +258,11 @@ export function NavbarCliente({
                                 title={siteConfig.nombreCentro}
                                 aria-label="Ir al inicio"
                             >
-                                {(siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
+                                {(siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
                                     <img
-                                        src={siteConfig.logoRectangularUrl || siteConfig.logoUrl}
+                                        src={siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl}
                                         alt={siteConfig.nombreCentro}
-                                        className="h-8 sm:h-9 max-w-[130px] object-contain group-hover:scale-105 transition-transform"
+                                        className="h-8 sm:h-9 max-w-[130px] object-contain rounded-lg group-hover:scale-105 transition-transform"
                                     />
                                 ) : (
                                     <span className={`${obtenerClaseTipografia(siteConfig.tipografiaLogo)} text-xl sm:text-2xl font-normal tracking-wide text-[#2A2825] group-hover:text-[#7A3B3B] transition-colors leading-none`}>
@@ -373,9 +373,9 @@ export function NavbarCliente({
                                         title={siteConfig.nombreCentro}
                                         aria-label="Ir al inicio"
                                     >
-                                        {(siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
+                                        {(siteConfig.logoRectangularUrl || siteConfig.logoUrl || siteConfig.logoRedondoUrl) ? (
                                             <img
-                                                src={siteConfig.logoRectangularUrl || siteConfig.logoUrl}
+                                                src={siteConfig.logoRectangularUrl || siteConfig.logoUrl || siteConfig.logoRedondoUrl}
                                                 alt={siteConfig.nombreCentro}
                                                 className="h-12 sm:h-14 max-w-[260px] sm:max-w-[340px] object-contain group-hover:opacity-90 transition-opacity"
                                             />

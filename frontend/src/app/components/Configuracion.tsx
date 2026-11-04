@@ -88,6 +88,26 @@ const FONDOS_HERO_PREDEFINIDOS = [
   },
 ];
 
+// Logos Secundarios / Isotipos predefinidos para la barra comprimida o móvil (cuadrados / suaves)
+const LOGOS_SECUNDARIOS_PREDEFINIDOS = [
+  {
+    nombre: 'Flor de Loto Zen',
+    url: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400&q=80',
+  },
+  {
+    nombre: 'Isotipo Minimalista',
+    url: 'https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400&q=80',
+  },
+  {
+    nombre: 'Botanical Gold',
+    url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400&q=80',
+  },
+  {
+    nombre: 'Monograma Soft',
+    url: 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400&q=80',
+  },
+];
+
 export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
   const [config, setConfig] = useState<ConfiguracionGeneral>(() => configuracionService.get());
   const [activeTab, setActiveTab] = useState<TabSeccion>('identidad');
@@ -112,7 +132,6 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
   // Conmutador de la previsualización en vivo
   const [vistaPreviaNav, setVistaPreviaNav] = useState<'normal' | 'comprimida'>('normal');
 
-
   useEffect(() => {
     setConfig(configuracionService.get());
   }, []);
@@ -120,6 +139,20 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
   const mostrarFeedback = (msg: string) => {
     setMensajeExito(msg);
     setTimeout(() => setMensajeExito(null), 4000);
+  };
+
+  // Guardado inmediato y sincronizado para acciones directas (presets, uploads, borrar logo)
+  const guardarCambiosInmediatos = (cambiosParciales: Partial<ConfiguracionGeneral>, mensaje?: string) => {
+    const nuevaConfig: ConfiguracionGeneral = {
+      ...config,
+      ...cambiosParciales,
+    };
+    setConfig(nuevaConfig);
+    const usuario = currentUser ? `${currentUser.nombre} ${currentUser.apellido || ''}`.trim() : 'Administrador';
+    configuracionService.save(nuevaConfig, usuario);
+    if (mensaje) {
+      mostrarFeedback(mensaje);
+    }
   };
 
   const handleGuardar = (e?: React.FormEvent) => {
@@ -159,21 +192,19 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorLogoRectangular('El tamaño máximo de imagen permitido es de 5MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorLogoRectangular('El tamaño máximo de imagen permitido es de 10MB.');
       return;
     }
 
     setSubiendoLogoRectangular(true);
     setErrorLogoRectangular(null);
     try {
-      const urlOData = await procesarArchivoAUrl(file);
-      setConfig(prev => ({
-        ...prev,
-        logoRectangularUrl: urlOData,
-        logoUrl: prev.logoUrl || urlOData,
-      }));
-      mostrarFeedback('¡Foto del logo rectangular cargada! Presioná "Guardar Cambios".');
+      const urlOData = await procesarArchivoAUrl(file, 600);
+      guardarCambiosInmediatos(
+        { logoRectangularUrl: urlOData, logoUrl: urlOData },
+        '¡Logo principal subido y guardado exitosamente!'
+      );
     } catch {
       setErrorLogoRectangular('Ocurrió un error al procesar el archivo del logo rectangular.');
     } finally {
@@ -182,7 +213,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
     }
   };
 
-  // Manejador de subida del Logo Redondo (Barra Comprimida) desde PC
+  // Manejador de subida del Logo Secundario (Barra Comprimida / Costado) desde PC
   const handleLogoRedondoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -192,22 +223,21 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorLogoRedondo('El tamaño máximo de imagen permitido es de 5MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorLogoRedondo('El tamaño máximo de imagen permitido es de 10MB.');
       return;
     }
 
     setSubiendoLogoRedondo(true);
     setErrorLogoRedondo(null);
     try {
-      const urlOData = await procesarArchivoAUrl(file);
-      setConfig(prev => ({
-        ...prev,
-        logoRedondoUrl: urlOData,
-      }));
-      mostrarFeedback('¡Foto del logo redondo cargada! Presioná "Guardar Cambios".');
+      const urlOData = await procesarArchivoAUrl(file, 500);
+      guardarCambiosInmediatos(
+        { logoRedondoUrl: urlOData },
+        '¡Logo secundario subido y guardado exitosamente!'
+      );
     } catch {
-      setErrorLogoRedondo('Ocurrió un error al procesar el archivo del logo redondo.');
+      setErrorLogoRedondo('Ocurrió un error al procesar el archivo del logo secundario.');
     } finally {
       setSubiendoLogoRedondo(false);
       if (fileLogoRedondoRef.current) fileLogoRedondoRef.current.value = '';
@@ -224,20 +254,19 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
       return;
     }
 
-    if (file.size > 8 * 1024 * 1024) {
-      setErrorBanner('La imagen del banner no debe superar los 8MB.');
+    if (file.size > 12 * 1024 * 1024) {
+      setErrorBanner('La imagen del banner no debe superar los 12MB.');
       return;
     }
 
     setSubiendoBanner(true);
     setErrorBanner(null);
     try {
-      const urlOData = await procesarArchivoAUrl(file);
-      setConfig(prev => ({
-        ...prev,
-        bannerHero: { ...prev.bannerHero, imagenUrl: urlOData },
-      }));
-      mostrarFeedback('¡Fondo del banner actualizado! Presioná "Guardar Cambios".');
+      const urlOData = await procesarArchivoAUrl(file, 1000);
+      guardarCambiosInmediatos(
+        { bannerHero: { ...config.bannerHero, imagenUrl: urlOData } },
+        '¡Fondo del banner actualizado y guardado!'
+      );
     } catch {
       setErrorBanner('Ocurrió un error al procesar la imagen del banner.');
     } finally {
@@ -358,7 +387,12 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                 {(config.logoRectangularUrl || config.logoUrl) && (
                   <button
                     type="button"
-                    onClick={() => setConfig({ ...config, logoRectangularUrl: '', logoUrl: '' })}
+                    onClick={() =>
+                      guardarCambiosInmediatos(
+                        { logoRectangularUrl: '', logoUrl: '' },
+                        'Se quitó el logo principal y se guardaron los cambios.'
+                      )
+                    }
                     className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 self-start sm:self-auto"
                   >
                     <X className="w-3.5 h-3.5" /> Quitar Logo
@@ -398,7 +432,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                         />
                       </div>
                       <span className="text-[10px] text-emerald-700 font-bold block flex items-center justify-center gap-1">
-                        <Check className="w-3 h-3" /> Logo Activo
+                        <Check className="w-3 h-3" /> Logo Activo y Guardado
                       </span>
                     </div>
                   ) : (
@@ -430,7 +464,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                       {subiendoLogoRectangular ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Procesando...</span>
+                          <span>Guardando foto...</span>
                         </>
                       ) : (
                         <>
@@ -450,24 +484,58 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                     </p>
                   )}
 
-                  <input
-                    type="url"
-                    value={config.logoRectangularUrl || config.logoUrl || ''}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        logoRectangularUrl: e.target.value,
-                        logoUrl: e.target.value,
-                      })
-                    }
-                    placeholder="https://miservidor.com/logo-banner-horizontal.png"
-                    className="w-full px-3.5 py-2 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={config.logoRectangularUrl || config.logoUrl || ''}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          logoRectangularUrl: e.target.value,
+                          logoUrl: e.target.value,
+                        })
+                      }
+                      onBlur={() => {
+                        const val = config.logoRectangularUrl || config.logoUrl || '';
+                        guardarCambiosInmediatos(
+                          { logoRectangularUrl: val, logoUrl: val },
+                          val ? '¡Logo principal actualizado y guardado!' : undefined
+                        );
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = config.logoRectangularUrl || config.logoUrl || '';
+                          guardarCambiosInmediatos(
+                            { logoRectangularUrl: val, logoUrl: val },
+                            '¡Logo principal guardado exitosamente!'
+                          );
+                        }
+                      }}
+                      placeholder="https://miservidor.com/logo-banner-horizontal.png"
+                      className="flex-1 px-3.5 py-2 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = config.logoRectangularUrl || config.logoUrl || '';
+                        guardarCambiosInmediatos(
+                          { logoRectangularUrl: val, logoUrl: val },
+                          '¡Logo principal guardado exitosamente!'
+                        );
+                      }}
+                      className="px-3.5 py-2 bg-[#3C3530] hover:bg-[#2A2825] text-white rounded-xl text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5 shadow-2xs active:scale-95"
+                      title="Guardar este logo principal"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Guardar este Logo</span>
+                    </button>
+                  </div>
 
                   {/* Presets Rectangulares */}
                   <div className="pt-2">
                     <span className="text-[11px] font-bold text-[#8A7F74] uppercase tracking-wider block mb-1.5">
-                      O elegí una foto rectangular de prueba:
+                      O elegí una foto rectangular de prueba (se guarda al hacer clic):
                     </span>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {LOGOS_RECTANGULARES_PREDEFINIDOS.map((preset, idx) => (
@@ -475,11 +543,13 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                           key={idx}
                           type="button"
                           onClick={() =>
-                            setConfig({
-                              ...config,
-                              logoRectangularUrl: preset.url,
-                              logoUrl: preset.url,
-                            })
+                            guardarCambiosInmediatos(
+                              {
+                                logoRectangularUrl: preset.url,
+                                logoUrl: preset.url,
+                              },
+                              `¡Logo principal "${preset.nombre}" aplicado y guardado!`
+                            )
                           }
                           className={`p-2 bg-white border rounded-xl flex items-center gap-2 text-left hover:border-[#7A3B3B] transition-all ${
                             (config.logoRectangularUrl || config.logoUrl) === preset.url
@@ -518,7 +588,12 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                 {config.logoRedondoUrl && (
                   <button
                     type="button"
-                    onClick={() => setConfig({ ...config, logoRedondoUrl: '' })}
+                    onClick={() =>
+                      guardarCambiosInmediatos(
+                        { logoRedondoUrl: '' },
+                        'Se quitó el logo secundario y se guardaron los cambios.'
+                      )
+                    }
                     className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 self-start sm:self-auto"
                   >
                     <X className="w-3.5 h-3.5" /> Quitar Logo Secundario
@@ -539,7 +614,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                         />
                       </div>
                       <span className="text-[10px] text-emerald-700 font-bold block flex items-center justify-center gap-1">
-                        <Check className="w-3 h-3" /> Logo Secundario Activo
+                        <Check className="w-3 h-3" /> Logo Secundario Activo y Guardado
                       </span>
                     </div>
                   ) : (
@@ -571,7 +646,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                       {subiendoLogoRedondo ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Procesando...</span>
+                          <span>Guardando foto...</span>
                         </>
                       ) : (
                         <>
@@ -591,22 +666,88 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                     </p>
                   )}
 
-                  <input
-                    type="url"
-                    value={config.logoRedondoUrl || ''}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        logoRedondoUrl: e.target.value,
-                      })
-                    }
-                    placeholder="https://miservidor.com/logo-secundario-o-isotipo.png"
-                    className="w-full px-3.5 py-2 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={config.logoRedondoUrl || ''}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          logoRedondoUrl: e.target.value,
+                        })
+                      }
+                      onBlur={() => {
+                        guardarCambiosInmediatos(
+                          { logoRedondoUrl: config.logoRedondoUrl || '' },
+                          config.logoRedondoUrl ? '¡Logo secundario guardado!' : undefined
+                        );
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          guardarCambiosInmediatos(
+                            { logoRedondoUrl: config.logoRedondoUrl || '' },
+                            '¡Logo secundario guardado exitosamente!'
+                          );
+                        }
+                      }}
+                      placeholder="https://miservidor.com/logo-secundario-o-isotipo.png"
+                      className="flex-1 px-3.5 py-2 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        guardarCambiosInmediatos(
+                          { logoRedondoUrl: config.logoRedondoUrl || '' },
+                          '¡Logo secundario guardado exitosamente!'
+                        );
+                      }}
+                      className="px-3.5 py-2 bg-[#3C3530] hover:bg-[#2A2825] text-white rounded-xl text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5 shadow-2xs active:scale-95"
+                      title="Guardar este logo secundario"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Guardar este Logo</span>
+                    </button>
+                  </div>
 
                   <p className="text-[11px] text-[#8A7F74]">
                     Ideal para isotipos, flores, monogramas o versiones cuadradas de tu logo. Se muestra con esquinas suaves (sin corte circular forzado).
                   </p>
+
+                  {/* Presets Secundarios */}
+                  <div className="pt-2">
+                    <span className="text-[11px] font-bold text-[#8A7F74] uppercase tracking-wider block mb-1.5">
+                      O elegí un isotipo / foto secundaria de prueba (se guarda al hacer clic):
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {LOGOS_SECUNDARIOS_PREDEFINIDOS.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() =>
+                            guardarCambiosInmediatos(
+                              { logoRedondoUrl: preset.url },
+                              `¡Logo secundario "${preset.nombre}" aplicado y guardado!`
+                            )
+                          }
+                          className={`p-2 bg-white border rounded-xl flex items-center gap-2 text-left hover:border-[#7A3B3B] transition-all ${
+                            config.logoRedondoUrl === preset.url
+                              ? 'border-[#7A3B3B] ring-2 ring-[#7A3B3B]/20'
+                              : 'border-[#EDE8E1]'
+                          }`}
+                        >
+                          <img
+                            src={preset.url}
+                            alt={preset.nombre}
+                            className="w-7 h-7 rounded-lg object-cover"
+                          />
+                          <span className="text-[10px] font-semibold text-[#2A2825] truncate">
+                            {preset.nombre}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -701,11 +842,11 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                     <div className="flex items-center justify-between gap-4">
                       {/* Costado: Foto del Logo en proporción natural o texto */}
                       <div className="flex items-center">
-                        {(config.logoRectangularUrl || config.logoUrl) ? (
+                        {(config.logoRedondoUrl || config.logoRectangularUrl || config.logoUrl) ? (
                           <img
-                            src={config.logoRectangularUrl || config.logoUrl}
+                            src={config.logoRedondoUrl || config.logoRectangularUrl || config.logoUrl}
                             alt="Logo Mockup"
-                            className="h-8 sm:h-9 max-w-[130px] object-contain"
+                            className="h-8 sm:h-9 max-w-[130px] object-contain rounded-lg"
                           />
                         ) : (
                           <span className={`${obtenerClaseTipografia(config.tipografiaLogo)} text-lg sm:text-xl font-normal text-[#2A2825] leading-none`}>
@@ -888,6 +1029,23 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Barra de Guardado de Identidad */}
+            <div className="pt-4 border-t border-[#EDE8E1] flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-[#8A7F74]">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Los logos y datos se sincronizan en vivo en la tienda y en el panel.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleGuardar()}
+                disabled={guardando}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95"
+              >
+                <Save className="w-4 h-4" />
+                <span>{guardando ? 'Guardando...' : 'Guardar Identidad y Logos'}</span>
+              </button>
             </div>
           </div>
         )}

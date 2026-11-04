@@ -99,15 +99,70 @@ export interface ConfiguracionGeneral {
   actualizadoPor?: string;
 }
 
-export const procesarArchivoAUrl = (archivo: File): Promise<string> => {
+export const procesarArchivoAUrl = (archivo: File, maxDimension: number = 600): Promise<string> => {
   return new Promise((resolve, reject) => {
+    // Si es SVG, preservar vectorial directamente
+    if (archivo.type === 'image/svg+xml') {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Error al leer el archivo SVG'));
+      reader.readAsDataURL(archivo);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('No se pudo procesar la imagen'));
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        return reject(new Error('No se pudo procesar la imagen'));
       }
+
+      // Optimizar y redimensionar con Canvas para evitar QuotaExceededError en localStorage
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, width);
+        canvas.height = Math.max(1, height);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          return resolve(result);
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // 1. Intentar WebP (soporta canal alfa/transparencia y comprime ~90% más que PNG)
+        try {
+          const webpData = canvas.toDataURL('image/webp', 0.85);
+          if (webpData.startsWith('data:image/webp')) {
+            return resolve(webpData);
+          }
+        } catch {}
+
+        // 2. Si el navegador no soporta WebP, exportar en PNG/JPEG
+        try {
+          const mime = archivo.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+          const fallback = canvas.toDataURL(mime, 0.85);
+          resolve(fallback);
+        } catch {
+          resolve(result);
+        }
+      };
+
+      img.onerror = () => resolve(result);
+      img.src = result;
     };
     reader.onerror = () => reject(new Error('Error al leer el archivo'));
     reader.readAsDataURL(archivo);
@@ -210,7 +265,7 @@ export const EVENTO_CONFIG_ACTUALIZADA = 'estetica_config_changed';
 export const configuracionService = {
   get: (): ConfiguracionGeneral => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         return {
@@ -245,15 +300,36 @@ export const configuracionService = {
       ultimaActualizacion: new Date().toISOString(),
       actualizadoPor: usuarioNombre,
     };
+    const jsonString = JSON.stringify(configCompleta);
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(configCompleta));
-      // Emitir evento global para que la Navbar y otros componentes se actualicen reactivamente
+      localStorage.setItem(STORAGE_KEY, jsonString);
+    } catch (e) {
+      console.warn('No se pudo guardar directamente en localStorage (posible exceso de cuota). Reintentando limpieza...', e);
+      try {
+        // Limpiar cachés temporales si existen
+        const clavesTemporales = ['estetica_turnos_cache', 'estetica_temp', 'estetica_debug'];
+        clavesTemporales.forEach(k => {
+          try { localStorage.removeItem(k); } catch {}
+        });
+        localStorage.setItem(STORAGE_KEY, jsonString);
+      } catch (e2) {
+        console.warn('Fallo al escribir en localStorage tras limpieza. Guardando en sessionStorage como respaldo:', e2);
+        try {
+          sessionStorage.setItem(STORAGE_KEY, jsonString);
+        } catch (e3) {
+          console.error('Error crítico al persistir configuración:', e3);
+        }
+      }
+    }
+
+    // Siempre emitir evento global para que la Navbar y toda la web reaccionen de inmediato
+    try {
       window.dispatchEvent(
         new CustomEvent(EVENTO_CONFIG_ACTUALIZADA, { detail: configCompleta })
       );
-    } catch (e) {
-      console.error('Error guardando configuración:', e);
-    }
+    } catch {}
+
     return configCompleta;
   },
 
