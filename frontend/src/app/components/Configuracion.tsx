@@ -31,7 +31,6 @@ import {
   X,
   Loader2,
   Check,
-  Type,
   Maximize2,
   Minimize2
 } from 'lucide-react';
@@ -48,52 +47,6 @@ interface ConfiguracionProps {
 }
 
 type TabSeccion = 'identidad' | 'agenda' | 'politicas' | 'pagos' | 'tienda' | 'fidelizacion' | 'banner' | 'backup';
-
-// Tipografías de lujo para la marca y logo escrito (estilo Nàvin / belleza)
-const TIPOGRAFIAS_DISPONIBLES = [
-  {
-    id: 'cormorant',
-    nombre: 'Cormorant Garamond',
-    etiqueta: 'Recomendada (Estilo Nàvin)',
-    descripcion: 'Serif clásico de altísimo contraste con curvas orgánicas y remates elegantes, idéntico al logo de Nàvin.',
-    clase: 'font-brand-navin',
-  },
-  {
-    id: 'playfair',
-    nombre: 'Playfair Display',
-    etiqueta: 'Alta Costura & Cosmética',
-    descripcion: 'Diseño editorial contemporáneo, estilizado y con gran fuerza visual.',
-    clase: 'font-playfair',
-  },
-  {
-    id: 'cinzel',
-    nombre: 'Cinzel',
-    etiqueta: 'Clásico Romano',
-    descripcion: 'Inspirado en la elegancia atemporal del primer siglo.',
-    clase: 'font-cinzel',
-  },
-  {
-    id: 'cinzel-decorative',
-    nombre: 'Cinzel Decorative',
-    etiqueta: 'Ornamental / Joyería',
-    descripcion: 'Floreos y acabados caligráficos en mayúsculas.',
-    clase: 'font-cinzel-decorative',
-  },
-  {
-    id: 'prata',
-    nombre: 'Prata',
-    etiqueta: 'Didone Refinado',
-    descripcion: 'Terminaciones de lágrima suaves y proporciones nobles.',
-    clase: 'font-prata',
-  },
-  {
-    id: 'italiana',
-    nombre: 'Italiana',
-    etiqueta: 'Moda Italiana',
-    descripcion: 'Diseño minimalista y sofisticado de revistas europeas.',
-    clase: 'font-italiana',
-  },
-];
 
 // Logos Rectangulares predefinidos para la cabecera superior (fotos horizontales)
 const LOGOS_RECTANGULARES_PREDEFINIDOS = [
@@ -550,117 +503,111 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
               </div>
             </div>
 
-            {/* SECCIÓN 2: TIPOGRAFÍA DE MARCA PARA LOGO ESCRITO (ESTILO NÀVIN) */}
+            {/* SECCIÓN 2: LOGO SECUNDARIO / ISOTIPO (BARRA COMPRIMIDA / COSTADO) */}
             <div className="p-5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-3xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EDE8E1] pb-3">
                 <div>
                   <h4 className="text-sm font-bold text-[#2A2825] flex items-center gap-2">
-                    <Type className="w-4 h-4 text-[#7A3B3B]" />
-                    <span>2. Tipografía para Logo Escrito Directamente (Estilo Nàvin)</span>
+                    <ImageIcon className="w-4 h-4 text-[#7A3B3B]" />
+                    <span>2. Logo Secundario / Isotipo (Costado de la Barra al Scrollear)</span>
                   </h4>
                   <p className="text-[11px] text-[#8A7F74]">
-                    Si preferís que el nombre de tu centro aparezca directamente escrito (o cuando no se use foto), se renderizará con esta tipografía de lujo.
+                    Imagen o isotipo de tu marca que se muestra en el costado al hacer scroll o en móvil (en formato con esquinas suaves, sin recorte redondo).
                   </p>
                 </div>
+                {config.logoRedondoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setConfig({ ...config, logoRedondoUrl: '' })}
+                    className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 self-start sm:self-auto"
+                  >
+                    <X className="w-3.5 h-3.5" /> Quitar Logo Secundario
+                  </button>
+                )}
               </div>
 
-              {/* Selector Visual de Tipografías */}
-              <div className="space-y-2">
-                <span className="text-[11px] font-bold text-[#5C534A] uppercase tracking-wider block">
-                  Seleccioná la tipografía que mejor combine con tu marca:
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {TIPOGRAFIAS_DISPONIBLES.map((tip) => {
-                    const isSelected = (config.tipografiaLogo || 'cormorant') === tip.id;
-                    return (
-                      <button
-                        key={tip.id}
-                        type="button"
-                        onClick={() => setConfig({ ...config, tipografiaLogo: tip.id })}
-                        className={`p-4 rounded-2xl border text-left transition-all duration-200 bg-white relative flex flex-col justify-between gap-3 ${
-                          isSelected
-                            ? 'border-[#7A3B3B] ring-2 ring-[#7A3B3B]/20 shadow-xs'
-                            : 'border-[#EDE8E1] hover:border-[#7A3B3B]/50'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-bold text-[#2A2825]">{tip.nombre}</span>
-                            {isSelected && (
-                              <span className="w-4 h-4 rounded-full bg-[#7A3B3B] text-white flex items-center justify-center shrink-0">
-                                <Check className="w-2.5 h-2.5" />
-                              </span>
-                            )}
-                          </div>
-                          <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FAF8F5] text-[#7A3B3B] border border-[#EDE8E1] mb-2">
-                            {tip.etiqueta}
-                          </span>
-                          <p className="text-[11px] text-[#8A7F74] leading-relaxed mb-3">
-                            {tip.descripcion}
-                          </p>
-                        </div>
-
-                        {/* Muestra en vivo con el nombre del centro */}
-                        <div className="pt-2 border-t border-[#FAF8F5]">
-                          <span className="text-[10px] text-[#A89E94] block uppercase tracking-wider mb-0.5">Muestra:</span>
-                          <span className={`${tip.clase} text-2xl sm:text-3xl text-[#2A2825] font-normal tracking-wide block leading-none`}>
-                            {config.nombreCentro || 'Nàvin'}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Opción secundaria: Avatar Redondo Opcional */}
-              <div className="pt-3 border-t border-[#EDE8E1]">
-                <details className="group">
-                  <summary className="text-xs font-semibold text-[#8A7F74] hover:text-[#2A2825] cursor-pointer flex items-center gap-1.5 list-none">
-                    <span className="text-[#7A3B3B] font-bold">+</span>
-                    <span>Opcional: Avatar o isotipo redondo (costado móvil)</span>
-                    {config.logoRedondoUrl && (
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold ml-2">
-                        Activo
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+                {/* Cuadro de Previsualización: Proporción natural con bordes suaves (NO REDONDO) */}
+                <div className="md:col-span-4 flex flex-col items-center justify-center p-4 bg-white border border-[#EDE8E1] rounded-2xl text-center min-h-[160px] shadow-2xs">
+                  {config.logoRedondoUrl ? (
+                    <div className="space-y-2 w-full flex flex-col items-center">
+                      <div className="w-28 h-28 flex items-center justify-center p-2.5 bg-[#FAF8F5] rounded-2xl border border-[#EDE8E1] overflow-hidden">
+                        <img
+                          src={config.logoRedondoUrl}
+                          alt="Logo Secundario Preview"
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                      <span className="text-[10px] text-emerald-700 font-bold block flex items-center justify-center gap-1">
+                        <Check className="w-3 h-3" /> Logo Secundario Activo
                       </span>
-                    )}
-                  </summary>
-                  <div className="mt-3 p-3.5 bg-white border border-[#EDE8E1] rounded-2xl space-y-3">
-                    <p className="text-[11px] text-[#8A7F74]">
-                      Por defecto la barra comprimida ya no recorta tu logo en redondo. Si querés subir un icono redondo separado, podés hacerlo acá:
-                    </p>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <input
-                        ref={fileLogoRedondoRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                        onChange={handleLogoRedondoUpload}
-                        className="hidden"
-                        id="upload-logo-redondo-opt"
-                      />
-                      <label
-                        htmlFor="upload-logo-redondo-opt"
-                        className={`px-3 py-1.5 bg-[#FAF8F5] border border-[#EDE8E1] hover:border-[#7A3B3B] text-xs font-semibold rounded-xl cursor-pointer ${
-                          subiendoLogoRedondo ? 'opacity-50 pointer-events-none' : ''
-                        }`}
-                      >
-                        {subiendoLogoRedondo ? 'Procesando...' : 'Subir Imagen'}
-                      </label>
-                      {config.logoRedondoUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setConfig({ ...config, logoRedondoUrl: '' })}
-                          className="text-xs text-red-600 hover:underline font-semibold"
-                        >
-                          Eliminar foto redonda
-                        </button>
-                      )}
                     </div>
-                    {errorLogoRedondo && (
-                      <p className="text-xs text-red-600 font-semibold">{errorLogoRedondo}</p>
-                    )}
+                  ) : (
+                    <div className="text-[#8A7F74] space-y-1">
+                      <ImageIcon className="w-10 h-10 mx-auto text-[#DDD5C8]" />
+                      <span className="text-xs font-semibold block">Sin logo secundario cargado</span>
+                      <span className="text-[10px] block">Se usará el logo principal en su tamaño compacto</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Controles de Carga */}
+                <div className="md:col-span-8 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <input
+                      ref={fileLogoRedondoRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      onChange={handleLogoRedondoUpload}
+                      className="hidden"
+                      id="upload-logo-secundario"
+                    />
+                    <label
+                      htmlFor="upload-logo-secundario"
+                      className={`inline-flex items-center gap-2 px-4 py-2.5 bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs ${
+                        subiendoLogoRedondo ? 'opacity-50 pointer-events-none' : ''
+                      }`}
+                    >
+                      {subiendoLogoRedondo ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Procesando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          <span>Subir Foto del Logo Secundario desde tu PC</span>
+                        </>
+                      )}
+                    </label>
+
+                    <span className="text-xs text-[#8A7F74] font-medium">o pegá la URL directa:</span>
                   </div>
-                </details>
+
+                  {errorLogoRedondo && (
+                    <p className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>{errorLogoRedondo}</span>
+                    </p>
+                  )}
+
+                  <input
+                    type="url"
+                    value={config.logoRedondoUrl || ''}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        logoRedondoUrl: e.target.value,
+                      })
+                    }
+                    placeholder="https://miservidor.com/logo-secundario-o-isotipo.png"
+                    className="w-full px-3.5 py-2 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
+                  />
+
+                  <p className="text-[11px] text-[#8A7F74]">
+                    Ideal para isotipos, flores, monogramas o versiones cuadradas de tu logo. Se muestra con esquinas suaves (sin corte circular forzado).
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -697,7 +644,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                     }`}
                   >
                     <Minimize2 className="w-3 h-3" />
-                    <span>2. Al Scrollear (Logo Redondo al Costado)</span>
+                    <span>2. Al Scrollear (Logo al Costado)</span>
                   </button>
                 </div>
               </div>
@@ -707,7 +654,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                 /* VISTA 1: NORMAL / ARRIBA DE TODO CON LOGO AGRANDADO */
                 <div className="space-y-2">
                   <span className="text-[11px] font-semibold text-[#8A7F74] block">
-                    Modo normal (tope de página): se visualiza el logo destacado y amplio o la tipografía de marca:
+                    Modo normal (tope de página): se visualiza el logo destacado y amplio:
                   </span>
                   <div className="bg-white border border-[#DDD5C8] rounded-2xl p-4 shadow-xs">
                     <div className="grid grid-cols-3 items-center gap-4">
@@ -745,10 +692,10 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                   </div>
                 </div>
               ) : (
-                /* VISTA 2: COMPRIMIDA AL SCROLLEAR (SIN RECORTE REDONDO FORZADO) */
+                /* VISTA 2: COMPRIMIDA AL SCROLLEAR (SIN RECORTE REDONDO) */
                 <div className="space-y-2">
                   <span className="text-[11px] font-semibold text-[#8A7F74] block">
-                    Modo comprimido (al scrollear): logo rectangular estilizado o tipografía sin cortes circulares:
+                    Modo comprimido (al scrollear): se visualiza el logo al costado en proporción natural (sin cortes circulares):
                   </span>
                   <div className="bg-white border border-[#DDD5C8] rounded-2xl px-4 py-2.5 shadow-xs">
                     <div className="flex items-center justify-between gap-4">
