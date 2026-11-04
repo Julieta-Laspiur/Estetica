@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Clock, User, Scissors, X, RefreshCw, Check } from 'lucide-react';
-import { turnosApi } from '../../services/api';
+import { ChevronLeft, ChevronRight, Clock, User, Scissors, X, RefreshCw, Check, Lock, UserX, DoorOpen, Filter } from 'lucide-react';
+import { turnosApi, usuariosApi, type CabinaDto, type UsuarioDetalleDto } from '../../services/api';
 
 interface CalendarTurno {
   id: string;
@@ -8,8 +8,12 @@ interface CalendarTurno {
   cliente: string;
   servicio: string;
   profesional: string;
+  profesionalId?: number;
+  cabinaId?: number;
+  cabinaNombre?: string;
   duracion: number;
-  estado: 'confirmado' | 'pendiente' | 'cancelado' | 'completado';
+  estado: 'confirmado' | 'pendiente' | 'cancelado' | 'completado' | 'ausente' | 'bloqueado';
+  motivo?: string;
 }
 
 interface DaySchedule {
@@ -23,10 +27,24 @@ export function CalendarioTurnos() {
   const [appointments, setAppointments] = useState<DaySchedule>({});
   const [loading, setLoading] = useState(true);
 
+  // Filtros de Agenda
+  const [filtroEstado, setFiltroEstado] = useState<string>('todos');
+  const [filtroProfesional, setFiltroProfesional] = useState<string>('todos');
+  const [filtroCabina, setFiltroCabina] = useState<string>('todos');
+  const [profesionalesList, setProfesionalesList] = useState<UsuarioDetalleDto[]>([]);
+  const [cabinasList, setCabinasList] = useState<CabinaDto[]>([]);
+
   const cargarTurnosCalendario = async () => {
     setLoading(true);
     try {
-      let data = await turnosApi.getTurnos();
+      const [data, profs, cabs] = await Promise.all([
+        turnosApi.getTurnos(),
+        usuariosApi.getProfesionales().catch(() => []),
+        turnosApi.getCabinas().catch(() => [])
+      ]);
+      setProfesionalesList(profs);
+      setCabinasList(cabs);
+
       // Combinar con turnos locales agendados en el navegador
       const turnosLocales: any[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
       const idsExistentes = new Set(data.map(d => d.turnoId));
@@ -47,19 +65,26 @@ export function CalendarioTurnos() {
         const duracion = t.servicios?.[0]?.duracionMin || 60;
         const servicio = t.servicios?.[0]?.nombre || 'Tratamiento';
 
-        let estadoNorm: 'confirmado' | 'pendiente' | 'cancelado' | 'completado' = 'pendiente';
+        let estadoNorm: 'confirmado' | 'pendiente' | 'cancelado' | 'completado' | 'ausente' | 'bloqueado' = 'pendiente';
         if (t.estado === 1 || String(t.estado).toLowerCase().includes('conf')) estadoNorm = 'confirmado';
-        else if (t.estado === 2 || String(t.estado).toLowerCase().includes('comp')) estadoNorm = 'completado';
-        else if (t.estado === 3 || String(t.estado).toLowerCase().includes('canc')) estadoNorm = 'cancelado';
+        else if (t.estado === 2 || String(t.estado).toLowerCase().includes('proc')) estadoNorm = 'confirmado';
+        else if (t.estado === 3 || String(t.estado).toLowerCase().includes('comp')) estadoNorm = 'completado';
+        else if (t.estado === 4 || String(t.estado).toLowerCase().includes('canc')) estadoNorm = 'cancelado';
+        else if (t.estado === 5 || String(t.estado).toLowerCase().includes('aus')) estadoNorm = 'ausente';
+        else if (t.estado === 6 || String(t.estado).toLowerCase().includes('bloq')) estadoNorm = 'bloqueado';
 
         const item: CalendarTurno = {
           id: String(t.turnoId),
           hora,
-          cliente: t.clienteNombreCompleto || 'Cliente',
-          servicio,
+          cliente: estadoNorm === 'bloqueado' ? 'Bloqueo Operativo' : (t.clienteNombreCompleto || (t.usuarioId ? `Cliente #${t.usuarioId}` : 'Cliente')),
+          servicio: estadoNorm === 'bloqueado' ? (t.motivo || 'Horario Inhabilitado') : servicio,
           profesional: t.profesionalNombreCompleto || 'Profesional',
+          profesionalId: t.profesionalId,
+          cabinaId: t.cabinaId,
+          cabinaNombre: t.cabinaNombre,
           duracion,
           estado: estadoNorm,
+          motivo: t.motivo,
         };
 
         if (!schedule[dateKey]) {
@@ -133,7 +158,13 @@ export function CalendarioTurnos() {
 
   const getAppointmentsForDate = (date: Date): CalendarTurno[] => {
     const key = formatDateKey(date);
-    return appointments[key] || [];
+    const list = appointments[key] || [];
+    return list.filter((apt) => {
+      if (filtroEstado !== 'todos' && apt.estado !== filtroEstado) return false;
+      if (filtroProfesional !== 'todos' && String(apt.profesionalId) !== filtroProfesional) return false;
+      if (filtroCabina !== 'todos' && String(apt.cabinaId) !== filtroCabina) return false;
+      return true;
+    });
   };
 
   const previousPeriod = () => {
@@ -162,10 +193,12 @@ export function CalendarioTurnos() {
 
   const getEstadoColor = (estado: CalendarTurno['estado']) => {
     switch (estado) {
-      case 'confirmado': return 'bg-green-600';
+      case 'confirmado': return 'bg-emerald-600';
       case 'pendiente': return 'bg-amber-500';
       case 'cancelado': return 'bg-red-500';
       case 'completado': return 'bg-blue-600';
+      case 'ausente': return 'bg-purple-600';
+      case 'bloqueado': return 'bg-stone-500';
       default: return 'bg-gray-400';
     }
   };
@@ -283,14 +316,18 @@ export function CalendarioTurnos() {
                     {hourAppointments.map((apt) => (
                       <div
                         key={apt.id}
-                        className="bg-gradient-to-r from-[#3C3530] to-[#2A2825] text-white p-2 rounded-xl text-xs mb-1 relative shadow-sm"
+                        className={`${apt.estado === 'bloqueado' ? 'bg-stone-700' : 'bg-gradient-to-r from-[#3C3530] to-[#2A2825]'} text-white p-2 rounded-xl text-xs mb-1 relative shadow-sm border border-white/5`}
                         style={{ minHeight: '55px' }}
                       >
                         <div className="flex items-center justify-between mb-0.5">
                           <span className="font-bold text-[11px] text-[#D4C8BC]">{apt.hora}</span>
                           <span className={`w-2 h-2 rounded-full ${getEstadoColor(apt.estado)}`} />
                         </div>
-                        <div className="font-semibold text-xs leading-tight truncate">{apt.cliente}</div>
+                        <div className="font-semibold text-xs leading-tight truncate flex items-center gap-1">
+                          {apt.estado === 'bloqueado' && <Lock className="w-3 h-3 text-amber-300 shrink-0" />}
+                          {apt.estado === 'ausente' && <UserX className="w-3 h-3 text-purple-300 shrink-0" />}
+                          <span className="truncate">{apt.cliente}</span>
+                        </div>
                         <div className="text-[10px] text-white/70 truncate">{apt.servicio}</div>
                       </div>
                     ))}
@@ -332,7 +369,7 @@ export function CalendarioTurnos() {
                     {hourAppointments.map((apt) => (
                       <div
                         key={apt.id}
-                        className="bg-gradient-to-r from-[#3C3530] to-[#2A2825] text-white p-4 rounded-xl mb-2 shadow-sm"
+                        className={`${apt.estado === 'bloqueado' ? 'bg-stone-800' : 'bg-gradient-to-r from-[#3C3530] to-[#2A2825]'} text-white p-4 rounded-xl mb-2 shadow-sm border border-white/5`}
                       >
                         <div className="flex items-start justify-between mb-1.5">
                           <div className="flex items-center gap-2">
@@ -340,20 +377,39 @@ export function CalendarioTurnos() {
                             <span className="font-bold text-xs">{apt.hora}</span>
                             <span className="text-[11px] text-white/70">({apt.duracion} min)</span>
                           </div>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold text-white ${getEstadoColor(apt.estado)}`}>
-                            {apt.estado}
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold text-white ${getEstadoColor(apt.estado)} capitalize`}>
+                            {apt.estado === 'ausente' ? 'Ausente (No-show)' : apt.estado}
                           </span>
                         </div>
                         <div className="space-y-1 text-xs">
                           <div className="flex items-center gap-1.5 font-bold">
-                            <User className="w-3.5 h-3.5 text-[#D4C8BC]" />
+                            {apt.estado === 'bloqueado' ? (
+                              <Lock className="w-3.5 h-3.5 text-amber-300" />
+                            ) : apt.estado === 'ausente' ? (
+                              <UserX className="w-3.5 h-3.5 text-purple-300" />
+                            ) : (
+                              <User className="w-3.5 h-3.5 text-[#D4C8BC]" />
+                            )}
                             <span>{apt.cliente}</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-white/80">
                             <Scissors className="w-3.5 h-3.5 text-[#D4C8BC]" />
                             <span>{apt.servicio}</span>
                           </div>
-                          <div className="text-[11px] text-white/60">Prof: {apt.profesional}</div>
+                          <div className="flex items-center justify-between text-[11px] text-white/60 pt-1 border-t border-white/10">
+                            <span>Prof: {apt.profesional}</span>
+                            {(apt.cabinaNombre || apt.cabinaId) && (
+                              <span className="flex items-center gap-1 text-amber-200/80">
+                                <DoorOpen className="w-3 h-3" />
+                                <span>{apt.cabinaNombre || `Cabina #${apt.cabinaId}`}</span>
+                              </span>
+                            )}
+                          </div>
+                          {apt.motivo && (
+                            <div className="text-[10px] text-amber-200/90 italic bg-black/20 p-1.5 rounded mt-1">
+                              Motivo: {apt.motivo}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -374,14 +430,26 @@ export function CalendarioTurnos() {
               </div>
               <div className="flex justify-between pb-2 border-b border-[#EDE8E1]">
                 <span className="text-[#8A7F74]">Confirmados:</span>
-                <span className="font-bold text-green-700">
+                <span className="font-bold text-emerald-700">
                   {dayAppointments.filter(a => a.estado === 'confirmado').length}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between pb-2 border-b border-[#EDE8E1]">
                 <span className="text-[#8A7F74]">Pendientes:</span>
                 <span className="font-bold text-amber-700">
                   {dayAppointments.filter(a => a.estado === 'pendiente').length}
+                </span>
+              </div>
+              <div className="flex justify-between pb-2 border-b border-[#EDE8E1]">
+                <span className="text-[#8A7F74]">Ausentes (No-show):</span>
+                <span className="font-bold text-purple-700">
+                  {dayAppointments.filter(a => a.estado === 'ausente').length}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#8A7F74]">Bloqueados:</span>
+                <span className="font-bold text-stone-700">
+                  {dayAppointments.filter(a => a.estado === 'bloqueado').length}
                 </span>
               </div>
             </div>
@@ -429,6 +497,67 @@ export function CalendarioTurnos() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Barra de Filtros Rápida de Agenda */}
+      <div className="bg-white border border-[#EDE8E1] rounded-2xl p-4 shadow-sm flex flex-wrap items-center gap-3 text-xs">
+        <div className="flex items-center gap-1.5 font-bold text-[#3C3530]">
+          <Filter className="w-4 h-4 text-[#7A3B3B]" />
+          <span>Filtrar Agenda:</span>
+        </div>
+
+        <select
+          value={filtroEstado}
+          onChange={(e) => setFiltroEstado(e.target.value)}
+          className="px-3 py-1.5 border border-[#EDE8E1] rounded-xl bg-[#FAF8F5] text-[#3C3530] focus:outline-hidden font-medium"
+        >
+          <option value="todos">Todos los Estados</option>
+          <option value="pendiente">🟡 Pendientes</option>
+          <option value="confirmado">🟢 Confirmados</option>
+          <option value="ausente">🟣 Ausentes / No-show</option>
+          <option value="bloqueado">⚪ Bloqueados</option>
+          <option value="completado">🔵 Completados</option>
+          <option value="cancelado">🔴 Cancelados</option>
+        </select>
+
+        <select
+          value={filtroProfesional}
+          onChange={(e) => setFiltroProfesional(e.target.value)}
+          className="px-3 py-1.5 border border-[#EDE8E1] rounded-xl bg-[#FAF8F5] text-[#3C3530] focus:outline-hidden font-medium"
+        >
+          <option value="todos">👤 Todos los Profesionales</option>
+          {profesionalesList.map((p) => (
+            <option key={p.usuarioId} value={String(p.usuarioId)}>
+              {p.nombre} {p.apellido}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={filtroCabina}
+          onChange={(e) => setFiltroCabina(e.target.value)}
+          className="px-3 py-1.5 border border-[#EDE8E1] rounded-xl bg-[#FAF8F5] text-[#3C3530] focus:outline-hidden font-medium"
+        >
+          <option value="todos">🚪 Todas las Cabinas</option>
+          {cabinasList.map((c) => (
+            <option key={c.cabinaId} value={String(c.cabinaId)}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
+
+        {(filtroEstado !== 'todos' || filtroProfesional !== 'todos' || filtroCabina !== 'todos') && (
+          <button
+            onClick={() => {
+              setFiltroEstado('todos');
+              setFiltroProfesional('todos');
+              setFiltroCabina('todos');
+            }}
+            className="text-[#7A3B3B] hover:underline font-semibold ml-auto"
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {/* Navegación de Período */}
@@ -491,10 +620,30 @@ export function CalendarioTurnos() {
                         {apt.estado}
                       </span>
                     </div>
-                    <div className="text-xs space-y-0.5">
-                      <div className="font-bold text-[#2A2825]">{apt.cliente}</div>
-                      <div className="text-[#8A7F74]">{apt.servicio}</div>
-                      <div className="text-[11px] text-[#8A7F74]">Profesional: {apt.profesional}</div>
+                    <div className="text-xs space-y-1">
+                      <div className="font-bold text-[#2A2825] flex items-center gap-1.5">
+                        {apt.estado === 'bloqueado' && <Lock className="w-3.5 h-3.5 text-stone-600 shrink-0" />}
+                        {apt.estado === 'ausente' && <UserX className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
+                        <span>{apt.cliente}</span>
+                      </div>
+                      <div className="text-[#8A7F74] flex items-center gap-1.5">
+                        <Scissors className="w-3 h-3 text-[#7A3B3B]" />
+                        <span>{apt.servicio}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-[#8A7F74] pt-1 border-t border-[#EDE8E1]">
+                        <span>Profesional: {apt.profesional}</span>
+                        {(apt.cabinaNombre || apt.cabinaId) && (
+                          <span className="flex items-center gap-1 text-[#7A3B3B] font-medium">
+                            <DoorOpen className="w-3 h-3" />
+                            <span>{apt.cabinaNombre || `Cabina #${apt.cabinaId}`}</span>
+                          </span>
+                        )}
+                      </div>
+                      {apt.motivo && (
+                        <div className="text-[10px] text-[#7A3B3B] bg-[#7A3B3B]/5 p-1.5 rounded border border-[#7A3B3B]/10">
+                          <strong>Motivo:</strong> {apt.motivo}
+                        </div>
+                      )}
                     </div>
                     {apt.estado === 'pendiente' && (
                       <div className="mt-2.5 pt-2 border-t border-[#EDE8E1] flex justify-end">

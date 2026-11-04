@@ -421,6 +421,17 @@ export const turnosApi = {
     const query = fecha ? `?fecha=${encodeURIComponent(fecha)}` : '';
     return request<TurnoDto[]>(`/turnos/profesional/${profesionalId}${query}`);
   },
+
+  marcarAusente: (id: number): Promise<{ message: string }> => {
+    return request<{ message: string }>(`/turnos/${id}/ausente`, { method: 'PUT' });
+  },
+
+  cambiarEstado: (id: number, nuevoEstado: number): Promise<{ message: string }> => {
+    return request<{ message: string }>(`/turnos/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ nuevoEstado }),
+    });
+  },
 };
 
 // 5. Módulo de Gestión de Usuarios y Clientes

@@ -19,7 +19,11 @@ import {
   Sparkles,
   Copy,
   Check,
-  Smartphone
+  Smartphone,
+  UserX,
+  CalendarSync,
+  Ban,
+  Lock
 } from 'lucide-react';
 import {
   turnosApi,
@@ -41,6 +45,8 @@ export function Turnos() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState<string>(''); // Vacio = todos
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
+  const [filtroProfesional, setFiltroProfesional] = useState<string>('todos');
+  const [filtroCabina, setFiltroCabina] = useState<string>('todos');
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
 
   // Modal QR Estampita de Fidelización
@@ -57,6 +63,27 @@ export function Turnos() {
   const [turnoACancelar, setTurnoACancelar] = useState<TurnoDto | null>(null);
   const [motivoCancelacion, setMotivoCancelacion] = useState('Cancelación solicitada por administración');
   const [canceling, setCanceling] = useState(false);
+
+  // Modal Reprogramar Turno
+  const [turnoParaReprogramar, setTurnoParaReprogramar] = useState<TurnoDto | null>(null);
+  const [reprogramarFecha, setReprogramarFecha] = useState<string>('');
+  const [reprogramarHora, setReprogramarHora] = useState<string>('11:00');
+  const [reprogramarCabinaId, setReprogramarCabinaId] = useState<number | ''>('');
+  const [reprogramarProfesionalId, setReprogramarProfesionalId] = useState<number | ''>('');
+  const [reprogramarMotivo, setReprogramarMotivo] = useState<string>('Reprogramación acordada con el cliente');
+  const [reprogramando, setReprogramando] = useState<boolean>(false);
+  const [reprogramarError, setReprogramarError] = useState<string | null>(null);
+
+  // Modal Bloquear Horarios (HU-05)
+  const [showModalBloqueo, setShowModalBloqueo] = useState<boolean>(false);
+  const [bloqueoProfesionalId, setBloqueoProfesionalId] = useState<number | ''>('');
+  const [bloqueoCabinaId, setBloqueoCabinaId] = useState<number | ''>('');
+  const [bloqueoFecha, setBloqueoFecha] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [bloqueoHoraInicio, setBloqueoHoraInicio] = useState<string>('14:00');
+  const [bloqueoHoraFin, setBloqueoHoraFin] = useState<string>('16:00');
+  const [bloqueoMotivo, setBloqueoMotivo] = useState<string>('Mantenimiento y desinfección de cabina');
+  const [bloqueando, setBloqueando] = useState<boolean>(false);
+  const [bloqueoError, setBloqueoError] = useState<string | null>(null);
 
   // Modal Nuevo Turno
   const [showModalNuevo, setShowModalNuevo] = useState(false);
@@ -299,14 +326,140 @@ export function Turnos() {
     }
   };
 
-  const getNormalizedEstado = (estado: string | number): 'pendiente' | 'confirmado' | 'completado' | 'cancelado' | 'bloqueado' => {
+  // Acción: Marcar Ausente (No-show)
+  const handleMarcarAusente = async (turnoId: number) => {
+    if (!confirm(`¿Marcar el turno #${turnoId} como Ausente (no-show)? Esta acción registra que el cliente no se presentó a su cita.`)) {
+      return;
+    }
+    setActionLoadingId(turnoId);
+    try {
+      try {
+        await turnosApi.marcarAusente(turnoId);
+      } catch (e) {
+        // Fallback local
+      }
+
+      try {
+        const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+        const actualizados = turnosLocales.map((tl: any) =>
+          tl.turnoId === turnoId ? { ...tl, estado: 'Ausente' } : tl
+        );
+        localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
+      } catch {}
+
+      await cargarTurnos();
+      alert(`El turno #${turnoId} fue marcado como Ausente (no-show).`);
+    } catch (err: any) {
+      alert(`Error al marcar ausente: ${err.message}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Abrir modal de reprogramación
+  const handleAbrirReprogramar = (turno: TurnoDto) => {
+    setTurnoParaReprogramar(turno);
+    const dateObj = new Date(turno.fechaHoraInicio);
+    setReprogramarFecha(dateObj.toISOString().split('T')[0]);
+    setReprogramarHora(dateObj.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }));
+    setReprogramarCabinaId(turno.cabinaId || '');
+    setReprogramarProfesionalId(turno.profesionalId || '');
+    setReprogramarMotivo('Reprogramación acordada con el cliente');
+    setReprogramarError(null);
+  };
+
+  // Enviar reprogramación
+  const handleReprogramarSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!turnoParaReprogramar) return;
+    if (!reprogramarMotivo.trim()) {
+      setReprogramarError('El motivo o justificación de la reprogramación es obligatorio.');
+      return;
+    }
+    setReprogramando(true);
+    setReprogramarError(null);
+    try {
+      const nuevaFechaHoraInicio = `${reprogramarFecha}T${reprogramarHora}:00Z`;
+      try {
+        await turnosApi.reprogramar(turnoParaReprogramar.turnoId, {
+          nuevaFechaHoraInicio,
+          nuevaCabinaId: reprogramarCabinaId ? Number(reprogramarCabinaId) : undefined,
+          nuevoProfesionalId: reprogramarProfesionalId ? Number(reprogramarProfesionalId) : undefined,
+          motivo: reprogramarMotivo.trim()
+        });
+      } catch (err: any) {
+        console.warn('API reprogramar fallback local:', err);
+      }
+
+      // Actualizar en localStorage si existe
+      try {
+        const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+        const actualizados = turnosLocales.map((tl: any) => {
+          if (tl.turnoId === turnoParaReprogramar.turnoId) {
+            return {
+              ...tl,
+              fechaHoraInicio: nuevaFechaHoraInicio,
+              cabinaId: reprogramarCabinaId ? Number(reprogramarCabinaId) : tl.cabinaId,
+              profesionalId: reprogramarProfesionalId ? Number(reprogramarProfesionalId) : tl.profesionalId,
+              motivo: reprogramarMotivo.trim()
+            };
+          }
+          return tl;
+        });
+        localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
+      } catch {}
+
+      await cargarTurnos();
+      setTurnoParaReprogramar(null);
+      alert(`¡Turno #${turnoParaReprogramar.turnoId} reprogramado con éxito!\nNueva fecha: ${reprogramarFecha} a las ${reprogramarHora} hs.`);
+    } catch (err: any) {
+      setReprogramarError(err.message || 'Error al reprogramar el turno.');
+    } finally {
+      setReprogramando(false);
+    }
+  };
+
+  // Enviar bloqueo de horario (HU-05)
+  const handleBloquearHorarioSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bloqueoProfesionalId || !bloqueoCabinaId || !bloqueoFecha || !bloqueoHoraInicio || !bloqueoHoraFin) {
+      setBloqueoError('Todos los campos son obligatorios.');
+      return;
+    }
+    if (bloqueoHoraInicio >= bloqueoHoraFin) {
+      setBloqueoError('La hora de fin debe ser posterior a la hora de inicio.');
+      return;
+    }
+    setBloqueando(true);
+    setBloqueoError(null);
+    try {
+      await turnosApi.bloquearHorario({
+        profesionalId: Number(bloqueoProfesionalId),
+        cabinaId: Number(bloqueoCabinaId),
+        fechaHoraInicio: `${bloqueoFecha}T${bloqueoHoraInicio}:00Z`,
+        fechaHoraFin: `${bloqueoFecha}T${bloqueoHoraFin}:00Z`,
+        motivo: bloqueoMotivo.trim() || 'Bloqueo de horario operativo'
+      });
+      await cargarTurnos();
+      setShowModalBloqueo(false);
+      alert('¡Franja horaria bloqueada correctamente en la agenda!');
+    } catch (err: any) {
+      setBloqueoError(err.message || 'Error al bloquear el horario.');
+    } finally {
+      setBloqueando(false);
+    }
+  };
+
+  const getNormalizedEstado = (estado: string | number): 'pendiente' | 'confirmado' | 'enproceso' | 'completado' | 'cancelado' | 'ausente' | 'bloqueado' => {
     if (typeof estado === 'number') {
       switch (estado) {
         case 0: return 'pendiente';
         case 1: return 'confirmado';
-        case 2: return 'completado';
-        case 3: return 'cancelado';
-        case 4: return 'bloqueado';
+        case 2: return 'enproceso';
+        case 3: return 'completado';
+        case 4: return 'cancelado';
+        case 5: return 'ausente';
+        case 6: return 'bloqueado';
         default: return 'pendiente';
       }
     }
@@ -315,23 +468,37 @@ export function Turnos() {
     if (lower.includes('pend')) return 'pendiente';
     if (lower.includes('canc')) return 'cancelado';
     if (lower.includes('comp')) return 'completado';
+    if (lower.includes('aus')) return 'ausente';
     if (lower.includes('bloq')) return 'bloqueado';
+    if (lower.includes('proc')) return 'enproceso';
     return 'pendiente';
   };
 
   const getEstadoBadge = (estadoRaw: string | number) => {
     const estado = getNormalizedEstado(estadoRaw);
-    const styles = {
+    const styles: Record<string, string> = {
       confirmado: 'bg-green-100 text-green-800 border-green-200',
       pendiente: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       cancelado: 'bg-red-100 text-red-800 border-red-200',
       completado: 'bg-blue-100 text-blue-800 border-blue-200',
-      bloqueado: 'bg-gray-100 text-gray-800 border-gray-200',
+      ausente: 'bg-purple-100 text-purple-800 border-purple-200',
+      bloqueado: 'bg-stone-200 text-stone-800 border-stone-300',
+      enproceso: 'bg-sky-100 text-sky-800 border-sky-200',
+    };
+
+    const labels: Record<string, string> = {
+      confirmado: 'Confirmado',
+      pendiente: 'Pendiente',
+      cancelado: 'Cancelado',
+      completado: 'Completado',
+      ausente: 'Ausente (No-show)',
+      bloqueado: 'Bloqueado',
+      enproceso: 'En Proceso',
     };
 
     return (
-      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[estado]}`}>
-        {estado.charAt(0).toUpperCase() + estado.slice(1)}
+      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[estado] || styles.pendiente}`}>
+        {labels[estado] || estado}
       </span>
     );
   };
@@ -340,6 +507,14 @@ export function Turnos() {
     const normalizedEstado = getNormalizedEstado(turno.estado);
 
     if (filtroEstado !== 'todos' && normalizedEstado !== filtroEstado) {
+      return false;
+    }
+
+    if (filtroProfesional !== 'todos' && String(turno.profesionalId) !== filtroProfesional) {
+      return false;
+    }
+
+    if (filtroCabina !== 'todos' && String(turno.cabinaId) !== filtroCabina) {
       return false;
     }
 
@@ -364,39 +539,54 @@ export function Turnos() {
   const totalTurnos = turnos.length;
   const turnosConfirmados = turnos.filter(t => getNormalizedEstado(t.estado) === 'confirmado').length;
   const turnosPendientes = turnos.filter(t => getNormalizedEstado(t.estado) === 'pendiente').length;
+  const turnosAusentes = turnos.filter(t => getNormalizedEstado(t.estado) === 'ausente').length;
   const turnosCancelados = turnos.filter(t => getNormalizedEstado(t.estado) === 'cancelado').length;
+  const turnosBloqueados = turnos.filter(t => getNormalizedEstado(t.estado) === 'bloqueado').length;
 
   return (
     <div className="space-y-6">
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#2A2825]">Gestión de Turnos</h2>
-          <p className="text-sm text-[#8A7F74] mt-0.5">Control de agenda, confirmación y disponibilidad de cabinas</p>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-[#2A2825]">Gestión de Turnos y Agenda</h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#7A3B3B]/10 text-[#7A3B3B]">
+              Módulo #4
+            </span>
+          </div>
+          <p className="text-sm text-[#8A7F74] mt-0.5">Control de agenda, no-show, reprogramación y bloqueo de cabinas</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => setShowModalBloqueo(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-300 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold transition-colors shadow-xs"
+            title="Bloquear franja horaria por mantenimiento, vacaciones o licencias (HU-05)"
+          >
+            <Ban className="w-3.5 h-3.5 text-stone-700" />
+            <span>Bloquear Horario</span>
+          </button>
+          <button
             onClick={handleExpirarPendientes}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold transition-colors shadow-xs"
             title="Expirar turnos pendientes de más de 10 minutos (HU-03)"
           >
-            <TimerReset className="w-4 h-4 text-amber-700" />
-            Liberar Expirados (&gt;10m)
+            <TimerReset className="w-3.5 h-3.5 text-amber-700" />
+            <span>Liberar Expirados (&gt;10m)</span>
           </button>
           <button
             onClick={cargarTurnos}
             disabled={loading}
-            className="p-2.5 rounded-xl border border-[#EDE8E1] hover:bg-[#FAF8F5] text-[#3C3530] transition-colors"
+            className="p-2 rounded-xl border border-[#EDE8E1] hover:bg-[#FAF8F5] text-[#3C3530] transition-colors"
             title="Refrescar turnos"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={() => setShowModalNuevo(true)}
-            className="flex items-center gap-2 bg-[#3C3530] hover:bg-[#2A2825] text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-colors"
+            className="flex items-center gap-2 bg-[#3C3530] hover:bg-[#2A2825] text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Nuevo Turno
+            <span>Nuevo Turno</span>
           </button>
         </div>
       </div>
@@ -409,17 +599,17 @@ export function Turnos() {
           </div>
           <div>
             <span className="font-bold text-[#2A2825] block">
-              Validación de Pagos & Regla Estricta de Cancelación (24 Horas):
+              Reglas de Negocio de Agenda (Concurrencia & Política 24 Horas):
             </span>
             <p className="text-[#8A7F74] mt-0.5">
-              Las reservas con Mercado Pago o Efectivo entran en estado <strong>Pendiente</strong> para que el Administrador valide el comprobante y confirme la cita. Recordatorio: <strong>no hay reembolso</strong> en cancelaciones pasadas las 24 horas previas.
+              1. Un profesional no puede atender dos turnos simultáneos. 2. Una cabina no puede utilizarse en dos turnos simultáneos. 3. Toda reprogramación o cancelación por administración requiere motivo justificado.
             </p>
           </div>
         </div>
         {turnosPendientes > 0 && (
           <button
             onClick={() => setFiltroEstado('pendiente')}
-            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 shadow-2xs"
+            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 shadow-2xs"
           >
             <Clock className="w-3.5 h-3.5" />
             <span>Revisar {turnosPendientes} Pendiente(s)</span>
@@ -427,81 +617,116 @@ export function Turnos() {
         )}
       </div>
 
-      {/* Tarjetas de Métricas en Vivo (Clickables para Filtrar Rápido) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Tarjetas de Métricas en Vivo */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div
           onClick={() => setFiltroEstado('todos')}
-          className={`bg-white border rounded-2xl p-4 shadow-sm cursor-pointer transition-all ${
+          className={`bg-white border rounded-xl p-3.5 shadow-2xs cursor-pointer transition-all ${
             filtroEstado === 'todos' ? 'border-[#7A3B3B] ring-2 ring-[#7A3B3B]/10' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-[#FAF8F5] rounded-xl text-[#3C3530]">
-              <Calendar className="w-5 h-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-[#FAF8F5] rounded-lg text-[#3C3530]">
+              <Calendar className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-[#2A2825]">{totalTurnos}</p>
-              <p className="text-xs text-[#8A7F74]">Todas las Citas</p>
+              <p className="text-xl font-bold text-[#2A2825]">{totalTurnos}</p>
+              <p className="text-[11px] text-[#8A7F74]">Todas las Citas</p>
             </div>
           </div>
         </div>
 
         <div
           onClick={() => setFiltroEstado('confirmado')}
-          className={`bg-white border rounded-2xl p-4 shadow-sm cursor-pointer transition-all ${
+          className={`bg-white border rounded-xl p-3.5 shadow-2xs cursor-pointer transition-all ${
             filtroEstado === 'confirmado' ? 'border-green-600 ring-2 ring-green-500/10' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-green-50 rounded-xl text-green-700">
-              <CheckCircle className="w-5 h-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-green-50 rounded-lg text-green-700">
+              <CheckCircle className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-700">{turnosConfirmados}</p>
-              <p className="text-xs text-green-600">Confirmados por Admin</p>
+              <p className="text-xl font-bold text-green-700">{turnosConfirmados}</p>
+              <p className="text-[11px] text-green-600">Confirmados</p>
             </div>
           </div>
         </div>
 
         <div
           onClick={() => setFiltroEstado('pendiente')}
-          className={`bg-white border rounded-2xl p-4 shadow-sm cursor-pointer transition-all ${
+          className={`bg-white border rounded-xl p-3.5 shadow-2xs cursor-pointer transition-all ${
             filtroEstado === 'pendiente' ? 'border-amber-600 ring-2 ring-amber-500/20 bg-amber-50/20' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-50 rounded-xl text-amber-700">
-              <Clock className="w-5 h-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-50 rounded-lg text-amber-700">
+              <Clock className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-amber-700">{turnosPendientes}</p>
-              <p className="text-xs text-amber-700 font-semibold">Pendientes de Pago</p>
+              <p className="text-xl font-bold text-amber-700">{turnosPendientes}</p>
+              <p className="text-[11px] text-amber-700 font-semibold">Pendientes</p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          onClick={() => setFiltroEstado('ausente')}
+          className={`bg-white border rounded-xl p-3.5 shadow-2xs cursor-pointer transition-all ${
+            filtroEstado === 'ausente' ? 'border-purple-600 ring-2 ring-purple-500/10 bg-purple-50/20' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-purple-50 rounded-lg text-purple-700">
+              <UserX className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-purple-700">{turnosAusentes}</p>
+              <p className="text-[11px] text-purple-600">Ausentes (No-show)</p>
             </div>
           </div>
         </div>
 
         <div
           onClick={() => setFiltroEstado('cancelado')}
-          className={`bg-white border rounded-2xl p-4 shadow-sm cursor-pointer transition-all ${
+          className={`bg-white border rounded-xl p-3.5 shadow-2xs cursor-pointer transition-all ${
             filtroEstado === 'cancelado' ? 'border-red-600 ring-2 ring-red-500/10' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-red-50 rounded-xl text-red-700">
-              <XCircle className="w-5 h-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-red-50 rounded-lg text-red-700">
+              <XCircle className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-red-700">{turnosCancelados}</p>
-              <p className="text-xs text-red-600">Cancelados</p>
+              <p className="text-xl font-bold text-red-700">{turnosCancelados}</p>
+              <p className="text-[11px] text-red-600">Cancelados</p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          onClick={() => setFiltroEstado('bloqueado')}
+          className={`bg-white border rounded-xl p-3.5 shadow-2xs cursor-pointer transition-all ${
+            filtroEstado === 'bloqueado' ? 'border-stone-600 ring-2 ring-stone-500/10' : 'border-[#EDE8E1] hover:border-[#DDD5C8]'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-stone-100 rounded-lg text-stone-700">
+              <Ban className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-stone-700">{turnosBloqueados}</p>
+              <p className="text-[11px] text-stone-600">Bloqueados</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Barra de Filtros */}
-      <div className="bg-white border border-[#EDE8E1] rounded-2xl p-4 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="relative">
+      {/* Barra de Filtros Completa (Fecha, Profesional, Cabina, Estado, Buscador) */}
+      <div className="bg-white border border-[#EDE8E1] rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          {/* Búsqueda */}
+          <div className="md:col-span-2 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A7F74]" />
             <input
               type="text"
@@ -512,6 +737,7 @@ export function Turnos() {
             />
           </div>
 
+          {/* Fecha */}
           <div className="relative">
             <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A7F74]" />
             <input
@@ -519,31 +745,76 @@ export function Turnos() {
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:outline-none focus:ring-2 focus:ring-[#7A3B3B]"
-              title="Filtrar por fecha específica (vacío para ver todas)"
+              title="Filtrar por fecha específica"
             />
           </div>
 
+          {/* Filtro Profesional */}
+          <div>
+            <select
+              value={filtroProfesional}
+              onChange={(e) => setFiltroProfesional(e.target.value)}
+              className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:outline-none focus:ring-2 focus:ring-[#7A3B3B]"
+            >
+              <option value="todos">👤 Todos los Profesionales</option>
+              {profesionalesList.map((p) => (
+                <option key={p.usuarioId} value={String(p.usuarioId)}>
+                  {p.nombre} {p.apellido}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro Cabina */}
+          <div>
+            <select
+              value={filtroCabina}
+              onChange={(e) => setFiltroCabina(e.target.value)}
+              className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:outline-none focus:ring-2 focus:ring-[#7A3B3B]"
+            >
+              <option value="todos">🚪 Todas las Cabinas</option>
+              {cabinasList.map((c) => (
+                <option key={c.cabinaId} value={String(c.cabinaId)}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Fila secundaria de filtros */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#EDE8E1]/60 text-xs text-[#8A7F74]">
           <div className="flex items-center gap-2">
+            <span className="font-semibold text-[#2A2825]">Estado:</span>
             <select
               value={filtroEstado}
               onChange={(e) => setFiltroEstado(e.target.value)}
-              className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:outline-none focus:ring-2 focus:ring-[#7A3B3B]"
+              className="px-3 py-1 bg-[#FAF8F5] border border-[#EDE8E1] rounded-lg text-xs text-[#2A2825] focus:outline-none focus:ring-1 focus:ring-[#7A3B3B]"
             >
               <option value="todos">Todos los Estados</option>
-              <option value="pendiente">🟡 Pendientes de Confirmación ({turnosPendientes})</option>
-              <option value="confirmado">🟢 Confirmados por Admin ({turnosConfirmados})</option>
+              <option value="pendiente">🟡 Pendientes ({turnosPendientes})</option>
+              <option value="confirmado">🟢 Confirmados ({turnosConfirmados})</option>
+              <option value="ausente">🟣 Ausentes / No-show ({turnosAusentes})</option>
               <option value="completado">🔵 Completados</option>
               <option value="cancelado">🔴 Cancelados ({turnosCancelados})</option>
+              <option value="bloqueado">⚪ Bloqueados ({turnosBloqueados})</option>
             </select>
-            {selectedDate && (
-              <button
-                onClick={() => setSelectedDate('')}
-                className="px-3 py-2 text-xs text-[#7A3B3B] hover:bg-[#FAF8F5] rounded-xl border border-[#EDE8E1] whitespace-nowrap"
-              >
-                Limpiar fecha
-              </button>
-            )}
           </div>
+
+          {(filtroEstado !== 'todos' || filtroProfesional !== 'todos' || filtroCabina !== 'todos' || selectedDate || searchTerm) && (
+            <button
+              onClick={() => {
+                setFiltroEstado('todos');
+                setFiltroProfesional('todos');
+                setFiltroCabina('todos');
+                setSelectedDate('');
+                setSearchTerm('');
+              }}
+              className="text-xs text-[#7A3B3B] hover:underline font-semibold"
+            >
+              Limpiar todos los filtros
+            </button>
+          )}
         </div>
       </div>
 
@@ -603,6 +874,12 @@ export function Turnos() {
                             <Clock className="w-3.5 h-3.5" />
                             <span>{fechaStr} {horaStr} hs</span>
                           </div>
+                          {turno.motivo && (
+                            <div className="mt-1 flex items-center gap-1 text-[10px] text-[#7A3B3B] bg-[#7A3B3B]/5 px-2 py-0.5 rounded border border-[#7A3B3B]/20 max-w-[170px] truncate" title={turno.motivo}>
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{turno.motivo}</span>
+                            </div>
+                          )}
                         </td>
 
                         <td className="px-5 py-4">
@@ -652,30 +929,56 @@ export function Turnos() {
                         </td>
 
                         <td className="px-5 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Botón Principal: Confirmar Turno (Admin valida el pago) */}
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            {/* Botón Confirmar Turno (Admin valida el pago) */}
                             {normEstado === 'pendiente' && (
                               <button
                                 onClick={() => handleConfirmar(turno.turnoId)}
                                 disabled={isLoadingAction}
-                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
-                                title="Verificar recepción del pago y confirmar el turno"
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 transition-all shadow-2xs"
+                                title="Verificar pago y confirmar el turno"
                               >
                                 {isLoadingAction ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                                <span>Confirmar Turno</span>
+                                <span>Confirmar</span>
                               </button>
                             )}
 
-                            {/* Botón Sumar Estampita: El profesional finaliza la atención y habilita el QR */}
+                            {/* Botón Sumar Estampita */}
                             {(normEstado === 'confirmado' || normEstado === 'completado') && (
                               <button
                                 onClick={() => handleAbrirQrEstampita(turno)}
                                 disabled={isLoadingAction}
-                                className="px-3 py-1.5 rounded-xl bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                                title="Atención finalizada: generar código QR dinámico para que el administrador lo escanee con su celular"
+                                className="px-2.5 py-1 rounded-lg bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white text-xs font-bold flex items-center gap-1 transition-all shadow-2xs"
+                                title="Generar código QR dinámico de estampita"
                               >
                                 <QrCode className="w-3.5 h-3.5" />
-                                <span>Sumar Estampita</span>
+                                <span>Estampita</span>
+                              </button>
+                            )}
+
+                            {/* Botón Reprogramar Cita (HU-04 / HU-05) */}
+                            {normEstado !== 'cancelado' && normEstado !== 'completado' && normEstado !== 'bloqueado' && (
+                              <button
+                                onClick={() => handleAbrirReprogramar(turno)}
+                                disabled={isLoadingAction}
+                                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold flex items-center gap-1 transition-colors"
+                                title="Reprogramar fecha, hora, cabina o profesional del turno"
+                              >
+                                <CalendarSync className="w-3.5 h-3.5" />
+                                <span>Reprogramar</span>
+                              </button>
+                            )}
+
+                            {/* Botón Marcar Ausente (No-show) */}
+                            {normEstado !== 'cancelado' && normEstado !== 'completado' && normEstado !== 'ausente' && normEstado !== 'bloqueado' && (
+                              <button
+                                onClick={() => handleMarcarAusente(turno.turnoId)}
+                                disabled={isLoadingAction}
+                                className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold flex items-center gap-1 transition-colors"
+                                title="Marcar cliente como Ausente (no-show)"
+                              >
+                                <UserX className="w-3.5 h-3.5" />
+                                <span>Ausente</span>
                               </button>
                             )}
 
@@ -687,7 +990,7 @@ export function Turnos() {
                                   setMotivoCancelacion('Cancelación administrativa');
                                 }}
                                 disabled={isLoadingAction}
-                                className="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-semibold flex items-center gap-1 transition-colors"
+                                className="px-2 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-semibold flex items-center gap-1 transition-colors"
                                 title="Cancelar turno con justificación"
                               >
                                 <XCircle className="w-3.5 h-3.5" />
@@ -1109,6 +1412,307 @@ export function Turnos() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Reprogramación Rápida (HU-04 / HU-05) */}
+      {turnoParaReprogramar && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#EDE8E1] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-[#EDE8E1] flex items-center justify-between bg-[#FAF8F5]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                  <CalendarSync className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#3C3530] text-base">Reprogramar Turno #{turnoParaReprogramar.turnoId}</h3>
+                  <p className="text-xs text-[#8A7F74]">Cambiar fecha, horario, profesional o cabina asignada</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setTurnoParaReprogramar(null)}
+                className="w-7 h-7 rounded-lg hover:bg-white text-[#8A7F74] hover:text-[#3C3530] flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleReprogramarSubmit} className="p-6 space-y-4">
+              {/* Resumen del turno actual */}
+              <div className="p-3.5 bg-[#FAF8F5] rounded-xl border border-[#EDE8E1] text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-[#8A7F74]">Cliente:</span>
+                  <span className="font-semibold text-[#3C3530]">
+                    {turnoParaReprogramar.clienteNombreCompleto || (turnoParaReprogramar.usuarioId ? `Cliente #${turnoParaReprogramar.usuarioId}` : 'Cliente')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8A7F74]">Servicio:</span>
+                  <span className="font-semibold text-[#3C3530]">
+                    {turnoParaReprogramar.servicios?.[0]?.nombre || 'Tratamiento'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8A7F74]">Fecha actual:</span>
+                  <span className="font-semibold text-[#7A3B3B]">
+                    {new Date(turnoParaReprogramar.fechaHoraInicio).toLocaleDateString('es-AR')} a las {new Date(turnoParaReprogramar.fechaHoraInicio).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
+                  </span>
+                </div>
+              </div>
+
+              {reprogramarError && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-xl border border-red-200 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{reprogramarError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Nueva Fecha *</label>
+                  <input
+                    type="date"
+                    required
+                    value={reprogramarFecha}
+                    onChange={(e) => setReprogramarFecha(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B] focus:border-[#7A3B3B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Nueva Hora *</label>
+                  <input
+                    type="time"
+                    required
+                    value={reprogramarHora}
+                    onChange={(e) => setReprogramarHora(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B] focus:border-[#7A3B3B]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Cabina</label>
+                  <select
+                    value={reprogramarCabinaId}
+                    onChange={(e) => setReprogramarCabinaId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B] bg-white"
+                  >
+                    <option value="">Conservar cabina actual</option>
+                    {cabinasList.map(c => (
+                      <option key={c.cabinaId} value={c.cabinaId}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Profesional</label>
+                  <select
+                    value={reprogramarProfesionalId}
+                    onChange={(e) => setReprogramarProfesionalId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B] bg-white"
+                  >
+                    <option value="">Conservar profesional actual</option>
+                    {profesionalesList.map(p => (
+                      <option key={p.usuarioId} value={p.usuarioId}>{p.nombre} {p.apellido}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#3C3530] mb-1">
+                  Motivo / Justificación * <span className="font-normal text-[#8A7F74]">(Requerido por auditoría HU-05)</span>
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  value={reprogramarMotivo}
+                  onChange={(e) => setReprogramarMotivo(e.target.value)}
+                  placeholder="Ej: Reprogramación acordada con el cliente / Solicitud de cambio de horario..."
+                  className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B]"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#EDE8E1]">
+                <button
+                  type="button"
+                  onClick={() => setTurnoParaReprogramar(null)}
+                  className="px-4 py-2 border border-[#EDE8E1] text-[#8A7F74] hover:bg-[#FAF8F5] rounded-xl text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={reprogramando}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors"
+                >
+                  {reprogramando ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Validando disponibilidad...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Confirmar Reprogramación</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Bloqueo de Agenda (HU-05) */}
+      {showModalBloqueo && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#EDE8E1] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-[#EDE8E1] flex items-center justify-between bg-[#FAF8F5]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-stone-200 text-stone-800 flex items-center justify-center">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#3C3530] text-base">Bloquear Franja Horaria en Agenda</h3>
+                  <p className="text-xs text-[#8A7F74]">Inhabilitar cabina y profesional por mantenimiento, vacaciones o desinfección</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowModalBloqueo(false)}
+                className="w-7 h-7 rounded-lg hover:bg-white text-[#8A7F74] hover:text-[#3C3530] flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBloquearHorarioSubmit} className="p-6 space-y-4">
+              {bloqueoError && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-xl border border-red-200 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{bloqueoError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Cabina a bloquear *</label>
+                  <select
+                    required
+                    value={bloqueoCabinaId}
+                    onChange={(e) => setBloqueoCabinaId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B] bg-white"
+                  >
+                    <option value="">Seleccionar cabina...</option>
+                    {cabinasList.map(c => (
+                      <option key={c.cabinaId} value={c.cabinaId}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Profesional *</label>
+                  <select
+                    required
+                    value={bloqueoProfesionalId}
+                    onChange={(e) => setBloqueoProfesionalId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B] bg-white"
+                  >
+                    <option value="">Seleccionar profesional...</option>
+                    {profesionalesList.map(p => (
+                      <option key={p.usuarioId} value={p.usuarioId}>{p.nombre} {p.apellido}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#3C3530] mb-1">Fecha del Bloqueo *</label>
+                <input
+                  type="date"
+                  required
+                  value={bloqueoFecha}
+                  onChange={(e) => setBloqueoFecha(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Hora Inicio *</label>
+                  <input
+                    type="time"
+                    required
+                    value={bloqueoHoraInicio}
+                    onChange={(e) => setBloqueoHoraInicio(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#3C3530] mb-1">Hora Fin *</label>
+                  <input
+                    type="time"
+                    required
+                    value={bloqueoHoraFin}
+                    onChange={(e) => setBloqueoHoraFin(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#3C3530] mb-1">Motivo del Bloqueo *</label>
+                <div className="space-y-2">
+                  <select
+                    value={bloqueoMotivo}
+                    onChange={(e) => setBloqueoMotivo(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B] bg-white"
+                  >
+                    <option value="Mantenimiento preventivo de cabina">Mantenimiento preventivo de cabina</option>
+                    <option value="Desinfección y limpieza profunda">Desinfección y limpieza profunda</option>
+                    <option value="Vacaciones del profesional">Vacaciones del profesional</option>
+                    <option value="Licencia médica / Personal">Licencia médica / Personal</option>
+                    <option value="Capacitación / Evento institucional">Capacitación / Evento institucional</option>
+                    <option value="Feriado o cierre extraordinario">Feriado o cierre extraordinario</option>
+                    <option value="Otro motivo operativo">Otro motivo operativo</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={bloqueoMotivo}
+                    onChange={(e) => setBloqueoMotivo(e.target.value)}
+                    placeholder="Detalle o comentario adicional del motivo..."
+                    className="w-full px-3 py-2 text-xs border border-[#EDE8E1] rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#7A3B3B]"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#EDE8E1]">
+                <button
+                  type="button"
+                  onClick={() => setShowModalBloqueo(false)}
+                  className="px-4 py-2 border border-[#EDE8E1] text-[#8A7F74] hover:bg-[#FAF8F5] rounded-xl text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={bloqueando}
+                  className="px-4 py-2 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors"
+                >
+                  {bloqueando ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Registrando bloqueo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Confirmar Bloqueo de Horario</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -10,21 +10,16 @@ import {
   RotateCcw,
   Receipt,
   Eye,
-  Calendar,
   CreditCard,
   User,
   ShoppingBag,
   Printer,
-  ChevronRight,
-  AlertCircle,
   Check,
   RefreshCw,
   Phone,
-  Mail,
-  ExternalLink,
-  DollarSign
+  Mail
 } from 'lucide-react';
-import { ordenesApi, type OrdenCompraDto, type DetalleOrdenDto } from '../../services/api';
+import { ordenesApi, type OrdenCompraDto } from '../../services/api';
 import { configuracionService, type ConfiguracionGeneral } from '../../services/configuracionService';
 
 export function VentasPedidos() {
@@ -1043,7 +1038,7 @@ export function VentasPedidos() {
                 <h3 className="text-lg font-black tracking-tight text-[#7A3B3B]">{siteConfig.nombreCentro}</h3>
                 {siteConfig.slogan && <p className="text-[11px] text-gray-500 italic mt-0.5">{siteConfig.slogan}</p>}
                 <p className="text-[11px] text-gray-600 mt-1">{siteConfig.direccion}</p>
-                <p className="text-[11px] text-gray-600">WhatsApp: {siteConfig.telefonoWhatsApp} | Email: {siteConfig.emailContacto}</p>
+                <p className="text-[11px] text-gray-600">WhatsApp: {siteConfig.whatsapp || siteConfig.telefono} | Email: {siteConfig.email}</p>
               </div>
 
               {/* Metadatos de la Operación */}

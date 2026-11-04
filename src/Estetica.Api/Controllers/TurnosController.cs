@@ -96,6 +96,28 @@ public class TurnosController : ControllerBase
     }
 
     /// <summary>
+    /// Marcar un turno como Ausente (no-show) cuando el cliente no se presenta a la sesión.
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional")]
+    [HttpPut("{id:int}/ausente")]
+    public async Task<IActionResult> MarcarAusente(int id)
+    {
+        await _mediator.Send(new CambiarEstadoTurnoCommand(id, EstadoTurno.Ausente));
+        return Ok(new { message = $"Turno #{id} marcado como Ausente (no-show)." });
+    }
+
+    /// <summary>
+    /// Cambiar el estado operativo de un turno (ej. EnProceso, Completado, Ausente).
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional")]
+    [HttpPut("{id:int}/estado")]
+    public async Task<IActionResult> CambiarEstadoTurno(int id, [FromBody] CambiarEstadoTurnoRequest request)
+    {
+        await _mediator.Send(new CambiarEstadoTurnoCommand(id, request.NuevoEstado));
+        return Ok(new { message = $"Estado del turno #{id} actualizado a '{request.NuevoEstado}'." });
+    }
+
+    /// <summary>
     /// Cancelar un turno programado. Clientes requieren al menos 24 hs de anticipación (HU-04). Personal administrativo requiere justificación (HU-05).
     /// </summary>
     [HttpPut("{id:int}/cancelar")]
@@ -185,3 +207,5 @@ public record ReprogramarTurnoRequest(
     int? NuevoProfesionalId = null,
     string? Motivo = null
 );
+
+public record CambiarEstadoTurnoRequest(EstadoTurno NuevoEstado);
