@@ -750,6 +750,8 @@ export interface DetalleOrdenDto {
   detalleId: number;
   productoId: number;
   nombreProducto: string;
+  imagenUrl?: string;
+  marca?: string;
   cantidad: number;
   precioUnitario: number;
   subtotal: number;
@@ -760,15 +762,33 @@ export interface OrdenCompraDto {
   usuarioId: number;
   clienteNombre?: string;
   clienteEmail?: string;
+  clienteTelefono?: string;
   fecha: string;
   total: number;
-  estado: number | string;
+  estado: number | string; // Pendiente, Pagada, EnPreparacion, Enviada, Entregada, Cancelada, Devuelta
+  medioPago?: string;
+  estadoPago?: number | string;
+  referenciaExterna?: string;
+  fechaPago?: string;
+  motivoDevolucion?: string;
   detalles: DetalleOrdenDto[];
 }
 
 export const ordenesApi = {
   getOrdenesAdmin: (): Promise<OrdenCompraDto[]> => {
     return request<OrdenCompraDto[]>('/carrito/ordenes');
+  },
+  actualizarEstado: (ordenId: number, estado: string | number): Promise<OrdenCompraDto> => {
+    return request<OrdenCompraDto>(`/carrito/ordenes/${ordenId}/estado`, {
+      method: 'PATCH',
+      body: JSON.stringify({ estado }),
+    });
+  },
+  registrarDevolucion: (ordenId: number, motivo: string, reintegrarStock: boolean = true): Promise<OrdenCompraDto> => {
+    return request<OrdenCompraDto>(`/carrito/ordenes/${ordenId}/devolucion`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo, reintegrarStock }),
+    });
   },
 };
 

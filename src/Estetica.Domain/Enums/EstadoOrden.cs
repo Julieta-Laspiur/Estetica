@@ -7,5 +7,6 @@ public enum EstadoOrden
     EnPreparacion,
     Enviada,
     Entregada,
-    Cancelada
+    Cancelada,
+    Devuelta
 }

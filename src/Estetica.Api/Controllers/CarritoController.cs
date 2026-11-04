@@ -1,11 +1,13 @@
+using Estetica.Application.UseCases.Carrito.Commands.ActualizarEstadoOrden;
 using Estetica.Application.UseCases.Carrito.Commands.AgregarItemCarrito;
 using Estetica.Application.UseCases.Carrito.Commands.AplicarCuponDescuento;
 using Estetica.Application.UseCases.Carrito.Commands.GenerarOrdenCompra;
 using Estetica.Application.UseCases.Carrito.Commands.QuitarItemCarrito;
+using Estetica.Application.UseCases.Carrito.Commands.RegistrarDevolucionOrden;
 using Estetica.Application.UseCases.Carrito.DTOs;
 using Estetica.Application.UseCases.Carrito.Queries.GetOrdenesAdmin;
+using Estetica.Domain.Enums;
 using MediatR;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -73,4 +75,37 @@ public class CarritoController : ControllerBase
         var ordenes = await _mediator.Send(new GetOrdenesAdminQuery());
         return Ok(ordenes);
     }
+
+    /// <summary>
+    /// Cambiar el estado logístico de una orden (EnPreparacion, Enviada, Entregada, Cancelada).
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [HttpPatch("ordenes/{id:int}/estado")]
+    public async Task<ActionResult<OrdenCompraDto>> ActualizarEstadoOrden(int id, [FromBody] ActualizarEstadoOrdenRequest request)
+    {
+        var orden = await _mediator.Send(new ActualizarEstadoOrdenCommand(id, request.Estado));
+        return Ok(orden);
+    }
+
+    /// <summary>
+    /// Registrar devolución de una orden con reposición automática opcional de stock al inventario.
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [HttpPost("ordenes/{id:int}/devolucion")]
+    public async Task<ActionResult<OrdenCompraDto>> RegistrarDevolucion(int id, [FromBody] RegistrarDevolucionRequest request)
+    {
+        var orden = await _mediator.Send(new RegistrarDevolucionOrdenCommand(id, request.Motivo, request.ReintegrarStock));
+        return Ok(orden);
+    }
+}
+
+public class ActualizarEstadoOrdenRequest
+{
+    public EstadoOrden Estado { get; set; }
+}
+
+public class RegistrarDevolucionRequest
+{
+    public string Motivo { get; set; } = string.Empty;
+    public bool ReintegrarStock { get; set; } = true;
 }

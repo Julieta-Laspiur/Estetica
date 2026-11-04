@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Calendar, Users, UserCheck, Scissors, ShoppingBag, Gift, Settings, Store, LogOut, Shield, Wallet } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, UserCheck, Scissors, ShoppingBag, Gift, Settings, Store, LogOut, Shield, Wallet, PackageCheck } from 'lucide-react';
 import type { AuthUser } from '../../services/api';
 import { configuracionService, EVENTO_CONFIG_ACTUALIZADA, type ConfiguracionGeneral } from '../../services/configuracionService';
 import { lealtadService, EVENTO_QR_SOLICITUD_CREADA, EVENTO_ESTAMPITA_ACREDITADA } from '../../services/lealtadService';
@@ -53,6 +53,7 @@ export function Sidebar({
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'pedidos', label: 'Ventas y Pedidos', icon: PackageCheck },
     { id: 'caja', label: 'Caja y Pagos', icon: Wallet },
     { id: 'calendario', label: 'Calendario', icon: Calendar },
     { id: 'turnos', label: 'Lista Turnos', icon: Calendar },

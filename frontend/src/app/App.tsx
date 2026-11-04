@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { CajaPagos } from './components/CajaPagos';
+import { VentasPedidos } from './components/VentasPedidos';
 import { Turnos } from './components/Turnos';
 import { Clientes } from './components/Clientes';
 import { Profesionales } from './components/Profesionales';
@@ -281,6 +282,8 @@ export default function App() {
     switch (activeSection) {
       case 'dashboard':
         return <Dashboard onNavigate={setActiveSection} />;
+      case 'pedidos':
+        return <VentasPedidos />;
       case 'caja':
         return <CajaPagos />;
       case 'calendario':
