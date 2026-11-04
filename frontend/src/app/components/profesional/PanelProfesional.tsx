@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   User,
   LayoutGrid,
@@ -145,79 +145,19 @@ export function PanelProfesional({
   const fileFotoRef = useRef<HTMLInputElement | null>(null);
   const [, setSubiendoFoto] = useState(false);
 
-  useEffect(() => {
-    setPerfil(profesionalService.getPerfil(currentUser));
-    cargarTurnos();
-    serviciosApi.getActivos()
-      .then(res => {
-        if (Array.isArray(res) && res.length > 0) {
-          setServiciosDisponibles(res);
-        }
-      })
-      .catch(() => {});
-  }, [currentUser]);
-
-  // Escuchar cuando el Administrador escanea o acredita el QR para actualizar el modal en tiempo real
-  useEffect(() => {
-    const handleAcreditacion = (e: any) => {
-      if (e.detail?.solicitud) {
-        if (
-          solicitudQrModal &&
-          (solicitudQrModal.id === e.detail.solicitud.id ||
-            solicitudQrModal.codigoQr === e.detail.solicitud.codigoQr)
-        ) {
-          setQrAcreditadoModal(true);
-          mostrarFeedback(`¡El Administrador acreditó con éxito la estampita de ${e.detail.solicitud.clienteNombre}! 🎉`);
-        }
-        const actNotif = profesionalService.agregarNotificacion({
-          titulo: 'Estampita Acreditada',
-          mensaje: `Recepción acreditó la estampita de fidelización para ${e.detail.solicitud.clienteNombre}.`,
-          tipo: 'fidelizacion',
-          accionSeccion: 'clientes',
-        });
-        setNotificaciones(actNotif);
-      }
-    };
-    window.addEventListener(EVENTO_ESTAMPITA_ACREDITADA, handleAcreditacion);
-    return () => window.removeEventListener(EVENTO_ESTAMPITA_ACREDITADA, handleAcreditacion);
-  }, [solicitudQrModal]);
-
-  const handleHabilitarQrEstampita = (turno: TurnoDto) => {
-    const isPend = turno.estado === 0 || turno.estado === '0' || String(turno.estado).toLowerCase().includes('pend');
-    if (isPend) {
-      mostrarFeedback('⚠️ No podés habilitar el QR de fidelización: el turno se encuentra PENDIENTE DE PAGO. Debe estar confirmado tras abonarse.', 'error');
-      return;
-    }
-
-    const sol = lealtadService.solicitarQr({
-      turnoId: turno.turnoId,
-      clienteId: turno.usuarioId || 101,
-      clienteNombre: turno.clienteNombreCompleto || 'Paciente',
-      clienteTelefono: '+54 9 11 5566-7788',
-      profesionalId: perfil.id,
-      profesionalNombre: `${perfil.nombre} ${perfil.apellido}`,
-      servicioNombre: turno.servicios?.[0]?.nombre || 'Tratamiento facial',
-      fechaTurno: turno.fechaHoraInicio.split('T')[0],
-      horaTurno: turno.fechaHoraInicio.split('T')[1]?.slice(0, 5) || '10:00',
-    });
-    setSolicitudQrModal(sol);
-    setQrAcreditadoModal(sol.estado === 'acreditado');
-    mostrarFeedback(`¡Código QR habilitado para ${turno.clienteNombreCompleto}! Solicitud enviada a Administración.`);
-  };
-
-  const mostrarFeedback = (mensaje: string, tipo: 'exito' | 'error' = 'exito') => {
+  const mostrarFeedback = useCallback((mensaje: string, tipo: 'exito' | 'error' = 'exito') => {
     setFeedback({ tipo, mensaje });
     setTimeout(() => setFeedback(null), 4000);
-  };
+  }, []);
 
-  const cargarTurnos = async () => {
+  const cargarTurnos = useCallback(async () => {
     setCargandoTurnos(true);
     try {
       const data = await turnosApi.getTurnos();
-      const turnosLocales: any[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+      const turnosLocales: TurnoDto[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
       const ids = new Set((data || []).map(d => d.turnoId));
       const combinados = [...(data || [])];
-      turnosLocales.forEach((tl: any) => {
+      turnosLocales.forEach((tl: TurnoDto) => {
         if (!ids.has(tl.turnoId)) {
           combinados.unshift(tl);
         }
@@ -286,6 +226,72 @@ export function PanelProfesional({
     } finally {
       setCargandoTurnos(false);
     }
+  }, [perfil.nombre, perfil.apellido]);
+
+  const currentUserRef = useRef(currentUser);
+  useEffect(() => {
+    if (currentUserRef.current !== currentUser) {
+      currentUserRef.current = currentUser;
+      setPerfil(profesionalService.getPerfil(currentUser));
+    }
+    cargarTurnos();
+    serviciosApi.getActivos()
+      .then(res => {
+        if (Array.isArray(res) && res.length > 0) {
+          setServiciosDisponibles(res);
+        }
+      })
+      .catch(() => {});
+  }, [currentUser, cargarTurnos]);
+
+  // Escuchar cuando el Administrador escanea o acredita el QR para actualizar el modal en tiempo real
+  useEffect(() => {
+    const handleAcreditacion = (e: Event) => {
+      const customEvent = e as CustomEvent<{ solicitud?: SolicitudEstampitaQr }>;
+      if (customEvent.detail?.solicitud) {
+        const sol = customEvent.detail.solicitud;
+        if (
+          solicitudQrModal &&
+          (solicitudQrModal.id === sol.id ||
+            solicitudQrModal.codigoQr === sol.codigoQr)
+        ) {
+          setQrAcreditadoModal(true);
+          mostrarFeedback(`¡El Administrador acreditó con éxito la estampita de ${sol.clienteNombre}! 🎉`);
+        }
+        const actNotif = profesionalService.agregarNotificacion({
+          titulo: 'Estampita Acreditada',
+          mensaje: `Recepción acreditó la estampita de fidelización para ${sol.clienteNombre}.`,
+          tipo: 'fidelizacion',
+          accionSeccion: 'clientes',
+        });
+        setNotificaciones(actNotif);
+      }
+    };
+    window.addEventListener(EVENTO_ESTAMPITA_ACREDITADA, handleAcreditacion);
+    return () => window.removeEventListener(EVENTO_ESTAMPITA_ACREDITADA, handleAcreditacion);
+  }, [solicitudQrModal, mostrarFeedback]);
+
+  const handleHabilitarQrEstampita = (turno: TurnoDto) => {
+    const isPend = turno.estado === 0 || turno.estado === '0' || String(turno.estado).toLowerCase().includes('pend');
+    if (isPend) {
+      mostrarFeedback('⚠️ No podés habilitar el QR de fidelización: el turno se encuentra PENDIENTE DE PAGO. Debe estar confirmado tras abonarse.', 'error');
+      return;
+    }
+
+    const sol = lealtadService.solicitarQr({
+      turnoId: turno.turnoId,
+      clienteId: turno.usuarioId || 101,
+      clienteNombre: turno.clienteNombreCompleto || 'Paciente',
+      clienteTelefono: '+54 9 11 5566-7788',
+      profesionalId: perfil.id,
+      profesionalNombre: `${perfil.nombre} ${perfil.apellido}`,
+      servicioNombre: turno.servicios?.[0]?.nombre || 'Tratamiento facial',
+      fechaTurno: turno.fechaHoraInicio.split('T')[0],
+      horaTurno: turno.fechaHoraInicio.split('T')[1]?.slice(0, 5) || '10:00',
+    });
+    setSolicitudQrModal(sol);
+    setQrAcreditadoModal(sol.estado === 'acreditado');
+    mostrarFeedback(`¡Código QR habilitado para ${turno.clienteNombreCompleto}! Solicitud enviada a Administración.`);
   };
 
   const handleCambiarDisponibilidad = (nuevoEstado: 'Disponible' | 'En atención' | 'Pausado' | 'Ausente') => {
@@ -413,10 +419,10 @@ export function PanelProfesional({
         prev.map(t => (t.turnoId === turnoId ? { ...t, estado: 'Completado' } : t))
       );
       // 2. Persistir en localStorage
-      const turnosLocales: any[] = JSON.parse(
+      const turnosLocales: TurnoDto[] = JSON.parse(
         localStorage.getItem('estetica_reservas_cliente') || '[]'
       );
-      const act = turnosLocales.map((t: any) =>
+      const act = turnosLocales.map((t: TurnoDto) =>
         t.turnoId === turnoId ? { ...t, estado: 'Completado' } : t
       );
       localStorage.setItem('estetica_reservas_cliente', JSON.stringify(act));
@@ -441,10 +447,10 @@ export function PanelProfesional({
       setTurnos(prev =>
         prev.map(t => (t.turnoId === turnoId ? { ...t, estado: 'Confirmado' } : t))
       );
-      const turnosLocales: any[] = JSON.parse(
+      const turnosLocales: TurnoDto[] = JSON.parse(
         localStorage.getItem('estetica_reservas_cliente') || '[]'
       );
-      const act = turnosLocales.map((t: any) =>
+      const act = turnosLocales.map((t: TurnoDto) =>
         t.turnoId === turnoId ? { ...t, estado: 'Confirmado' } : t
       );
       localStorage.setItem('estetica_reservas_cliente', JSON.stringify(act));
@@ -461,10 +467,10 @@ export function PanelProfesional({
     }
     try {
       setTurnos(prev => prev.filter(t => t.turnoId !== turnoId));
-      const turnosLocales: any[] = JSON.parse(
+      const turnosLocales: TurnoDto[] = JSON.parse(
         localStorage.getItem('estetica_reservas_cliente') || '[]'
       );
-      const act = turnosLocales.filter((t: any) => t.turnoId !== turnoId);
+      const act = turnosLocales.filter((t: TurnoDto) => t.turnoId !== turnoId);
       localStorage.setItem('estetica_reservas_cliente', JSON.stringify(act));
       await turnosApi.cancelar(turnoId, 'Cancelado desde panel profesional').catch(() => {});
       // Notificación del turno cancelado
@@ -540,7 +546,7 @@ export function PanelProfesional({
     '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
   ];
 
-  const hoyISO = new Date().toISOString().split('T')[0];
+  const hoyISO = useMemo(() => new Date().toISOString().split('T')[0], []);
   const turnosHoy = turnos.filter(t => t.fechaHoraInicio.split('T')[0] === hoyISO);
   const turnosDelDia = turnos.filter(t => t.fechaHoraInicio.split('T')[0] === fechaAgenda);
 
@@ -559,11 +565,15 @@ export function PanelProfesional({
   const ticketPromedio = atencionesConcluidasCount > 0 ? Math.round(facturacionCobrada / atencionesConcluidasCount) || 4500 : 4500;
 
   // Fecha actual formateada para cabecera superior derecha (estilo imagen: "quarta-feira, 31/12 / Dezembro / 2025")
-  const ahora = new Date();
-  const nombreDia = ahora.toLocaleDateString('es-AR', { weekday: 'long' });
-  const diaNum = ahora.getDate();
-  const nombreMes = ahora.toLocaleDateString('es-AR', { month: 'long' });
-  const anioNum = ahora.getFullYear();
+  const { nombreDia, diaNum, nombreMes, anioNum } = useMemo(() => {
+    const ahora = new Date();
+    return {
+      nombreDia: ahora.toLocaleDateString('es-AR', { weekday: 'long' }),
+      diaNum: ahora.getDate(),
+      nombreMes: ahora.toLocaleDateString('es-AR', { month: 'long' }),
+      anioNum: ahora.getFullYear(),
+    };
+  }, []);
 
   const getDiasSemana = (fechaStr: string) => {
     const d = new Date(fechaStr + 'T00:00:00');
@@ -629,7 +639,7 @@ export function PanelProfesional({
     };
 
     setTurnos(prev => [nuevoTurno, ...prev]);
-    const turnosLocales: any[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+    const turnosLocales: TurnoDto[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
     localStorage.setItem('estetica_reservas_cliente', JSON.stringify([nuevoTurno, ...turnosLocales]));
 
     setShowModalNuevoTurnoRapido(false);
@@ -2047,16 +2057,16 @@ export function PanelProfesional({
 
             {/* Pestañas de filtrado de notificaciones */}
             <div className="flex flex-wrap items-center gap-2">
-              {[
+              {([
                 { id: 'todas', label: 'Todas', count: notificaciones.length },
                 { id: 'no_leidas', label: 'No leídas', count: notificaciones.filter(n => !n.leida).length },
                 { id: 'turnos', label: 'Citas & Turnos', count: notificaciones.filter(n => n.tipo === 'turno_nuevo' || n.tipo === 'turno_cancelado' || n.tipo === 'recordatorio').length },
                 { id: 'sistema', label: 'Fidelización & Sistema', count: notificaciones.filter(n => n.tipo === 'sistema' || n.tipo === 'fidelizacion').length },
-              ].map(tab => (
+              ] as const).map(tab => (
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setFiltroNotif(tab.id as any)}
+                  onClick={() => setFiltroNotif(tab.id)}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                     filtroNotif === tab.id
                       ? 'bg-[#7A3B3B] text-white shadow-2xs'
