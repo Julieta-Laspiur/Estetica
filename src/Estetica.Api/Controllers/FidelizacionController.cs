@@ -3,6 +3,7 @@ using Estetica.Application.UseCases.FidelizacionHistorial.Commands.AcumularEstam
 using Estetica.Application.UseCases.FidelizacionHistorial.Commands.CanjearCuponFidelizacion;
 using Estetica.Application.UseCases.FidelizacionHistorial.Commands.EscanearQrFidelizacion;
 using Estetica.Application.UseCases.FidelizacionHistorial.Commands.GenerarQrFidelizacion;
+using Estetica.Application.UseCases.FidelizacionHistorial.Commands.GenerarQrTurno;
 using Estetica.Application.UseCases.FidelizacionHistorial.Commands.RegistrarHistorialTratamiento;
 using Estetica.Application.UseCases.FidelizacionHistorial.DTOs;
 using Estetica.Application.UseCases.FidelizacionHistorial.Queries.GetMiTarjetaFidelizacion;
@@ -56,6 +57,18 @@ public class FidelizacionController : ControllerBase
     public async Task<ActionResult<QrFidelizacionDto>> GenerarQrFidelizacion(int pagoId)
     {
         var qrDto = await _mediator.Send(new GenerarQrFidelizacionCommand(pagoId));
+        return Ok(qrDto);
+    }
+
+    /// <summary>
+    /// Habilita el código QR dinámico de estampita tras finalizar la atención del cliente en un turno.
+    /// Marca el turno como Completado y expone el QR para que el administrador lo escanee y acredite la estampita.
+    /// </summary>
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional")]
+    [HttpPost("turno/{turnoId:int}/qr")]
+    public async Task<ActionResult<QrFidelizacionDto>> GenerarQrTurno(int turnoId)
+    {
+        var qrDto = await _mediator.Send(new GenerarQrTurnoCommand(turnoId));
         return Ok(qrDto);
     }
 

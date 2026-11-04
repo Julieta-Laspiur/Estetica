@@ -35,6 +35,9 @@ public class QrFidelizacionDto
 {
     public int QrTokenId { get; set; }
     public int PagoId { get; set; }
+    public int? TurnoId { get; set; }
+    public string? ClienteNombre { get; set; }
+    public string? ServicioNombre { get; set; }
     public string Token { get; set; } = string.Empty;
     public string QrSvg { get; set; } = string.Empty;
     public string QrImageDataUri { get; set; } = string.Empty;
@@ -48,6 +51,7 @@ public class ResultadoEscaneoQrDto
 {
     public bool Exitoso { get; set; }
     public string Mensaje { get; set; } = string.Empty;
+    public string ClienteNombre { get; set; } = string.Empty;
     public int EstampitasActuales { get; set; }
     public string Progreso => $"{EstampitasActuales}/10";
     public bool CicloCompletado { get; set; }

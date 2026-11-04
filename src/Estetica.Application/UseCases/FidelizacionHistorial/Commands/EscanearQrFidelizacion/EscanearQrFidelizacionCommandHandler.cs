@@ -44,22 +44,36 @@ public class EscanearQrFidelizacionCommandHandler : IRequestHandler<EscanearQrFi
                 $"El código QR ha expirado. Su validez es de 5 minutos desde la emisión (Expiró a las {qrToken.FechaExpiracion:HH:mm:ss} UTC).");
         }
 
-        // Determinar a qué usuario corresponde la estampita
-        int usuarioId = request.UsuarioId ?? _currentUserService.UsuarioId ?? 0;
+        // Determinar a qué usuario corresponde la estampita:
+        // Si el QR está asociado a un Pago de un Turno, el beneficiario es SIEMPRE el cliente de ese Turno
+        int usuarioId = 0;
+        if (qrToken.Pago != null && qrToken.Pago.TurnoId.HasValue)
+        {
+            var turno = await _unitOfWork.Turnos.GetByIdAsync(qrToken.Pago.TurnoId.Value, cancellationToken);
+            if (turno != null)
+            {
+                usuarioId = turno.UsuarioId;
+            }
+        }
+        else if (qrToken.Pago != null && qrToken.Pago.OrdenId.HasValue)
+        {
+            var orden = await _unitOfWork.OrdenesCompra.GetByIdAsync(qrToken.Pago.OrdenId.Value, cancellationToken);
+            if (orden != null)
+            {
+                usuarioId = orden.UsuarioId;
+            }
+        }
 
-        // Si no vino explícito, intentar inferirlo a través del Turno u Orden asociada al Pago
+        // Si no se dedujo del turno/orden, verificar si se especificó explícitamente en el request
         if (usuarioId == 0)
         {
-            if (qrToken.Pago.TurnoId.HasValue)
-            {
-                var turno = await _unitOfWork.Turnos.GetByIdAsync(qrToken.Pago.TurnoId.Value, cancellationToken);
-                usuarioId = turno?.UsuarioId ?? 0;
-            }
-            else if (qrToken.Pago.OrdenId.HasValue)
-            {
-                var orden = await _unitOfWork.OrdenesCompra.GetByIdAsync(qrToken.Pago.OrdenId.Value, cancellationToken);
-                usuarioId = orden?.UsuarioId ?? 0;
-            }
+            usuarioId = request.UsuarioId ?? 0;
+        }
+
+        // Fallback final: si fue el propio cliente quien escaneó su propio QR
+        if (usuarioId == 0)
+        {
+            usuarioId = _currentUserService.UsuarioId ?? 0;
         }
 
         if (usuarioId == 0)
@@ -154,12 +168,13 @@ public class EscanearQrFidelizacionCommandHandler : IRequestHandler<EscanearQrFi
         return new ResultadoEscaneoQrDto
         {
             Exitoso = true,
+            ClienteNombre = $"{usuario.Nombre} {usuario.Apellido}",
             EstampitasActuales = fidelizacion.EstampitasActuales,
             CicloCompletado = cicloCompletado,
             CuponGenerado = cuponDto,
             Mensaje = cicloCompletado
-                ? $"¡Felicitaciones! Completaste 10 estampitas y ganaste el cupón '{cuponDto?.Codigo}'. Tu tarjeta se reinició a {fidelizacion.EstampitasActuales}/10."
-                : $"¡Estampita acreditada con éxito! Progreso actual: {fidelizacion.EstampitasActuales}/10 estampitas."
+                ? $"¡Felicitaciones! {usuario.Nombre} {usuario.Apellido} completó 10 estampitas y ganó el cupón '{cuponDto?.Codigo}'. Tarjeta reiniciada a {fidelizacion.EstampitasActuales}/10."
+                : $"¡Estampita acreditada con éxito para {usuario.Nombre} {usuario.Apellido}! Progreso actual: {fidelizacion.EstampitasActuales}/10 estampitas."
         };
     }
 }

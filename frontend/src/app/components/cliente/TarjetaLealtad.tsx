@@ -1,13 +1,36 @@
+import { useState, useEffect } from 'react';
 import { QrCode, Gift, Award, Clock, CheckCircle2, Trophy, Sparkles, ShieldCheck, Crown } from 'lucide-react';
 import type { AuthUser } from '../../../services/api';
+import {
+  lealtadService,
+  type TarjetaClienteLocal,
+  EVENTO_ESTAMPITA_ACREDITADA
+} from '../../../services/lealtadService';
 
 interface TarjetaLealtadProps {
   currentUser?: AuthUser | null;
 }
 
 export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
-  const clienteNombre = currentUser ? `${currentUser.nombre} ${currentUser.apellido || ''}`.trim() : 'Valentina Rossi';
-  const clienteCodigo = currentUser ? `#CLI-${String(currentUser.usuarioId).padStart(3, '0')}-VIP` : '#CLI-001-VIP';
+  const clienteNombre = currentUser ? `${currentUser.nombre} ${currentUser.apellido || ''}`.trim() : 'Carla Gómez';
+  const clienteCodigo = currentUser ? `#CLI-${String(currentUser.usuarioId).padStart(3, '0')}-VIP` : '#CLI-101-VIP';
+
+  const [tarjetaCliente, setTarjetaCliente] = useState<TarjetaClienteLocal>(() =>
+    lealtadService.getTarjetaCliente(currentUser?.usuarioId || 101, clienteNombre)
+  );
+  const [nuevaEstampitaCelebracion, setNuevaEstampitaCelebracion] = useState(false);
+
+  useEffect(() => {
+    const handler = () => {
+      const actual = lealtadService.getTarjetaCliente(currentUser?.usuarioId || 101, clienteNombre);
+      setTarjetaCliente(actual);
+      setNuevaEstampitaCelebracion(true);
+      setTimeout(() => setNuevaEstampitaCelebracion(false), 8000);
+    };
+
+    window.addEventListener(EVENTO_ESTAMPITA_ACREDITADA, handler);
+    return () => window.removeEventListener(EVENTO_ESTAMPITA_ACREDITADA, handler);
+  }, [currentUser, clienteNombre]);
 
   const tarjetas = [
     {
@@ -15,8 +38,8 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
       nombre: 'Tarjeta Facial & Skincare',
       categoria: 'Cuidado Cutáneo',
       icono: Sparkles,
-      estampillasActuales: 7,
-      estampillasRequeridas: 10,
+      estampillasActuales: tarjetaCliente.estampitasActuales,
+      estampillasRequeridas: tarjetaCliente.estampitasRequeridas || 10,
       recompensa: '1 Limpieza Facial Profunda Gratis',
       variante: 'wine' as const,
       bgGradient: 'bg-gradient-to-br from-[#7A3B3B] via-[#652E2E] to-[#451B1B]',
@@ -29,8 +52,8 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
       nombre: 'Tarjeta VIP Tratamientos Corporales',
       categoria: 'Membresía Exclusiva',
       icono: Crown,
-      estampillasActuales: 12,
-      estampillasRequeridas: 15,
+      estampillasActuales: 4,
+      estampillasRequeridas: 10,
       recompensa: '1 Sesión Masaje Descontracturante & Spa',
       variante: 'dark' as const,
       bgGradient: 'bg-gradient-to-br from-[#3C3530] via-[#2A2420] to-[#1A1614]',
@@ -81,6 +104,21 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
 
   return (
     <div className="min-h-screen bg-[#F7F4F0] py-10 px-4 sm:px-6 lg:px-8">
+      {/* Toast de Estampita Acreditada en vivo */}
+      {nuevaEstampitaCelebracion && (
+        <div className="fixed top-6 right-6 z-50 px-5 py-4 rounded-3xl shadow-2xl flex items-center gap-3.5 border bg-[#7A3B3B] text-white border-white/20 animate-in fade-in slide-in-from-top-6">
+          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+            <Sparkles className="w-6 h-6 text-[#F3E7C4] animate-spin" />
+          </div>
+          <div>
+            <p className="font-extrabold text-sm text-white">¡Nueva Estampita Acreditada! 🎉</p>
+            <p className="text-xs text-[#F5EAD4]">
+              Recepción acaba de sellar tu tarjeta digital. Ya tienes {tarjetaCliente.estampitasActuales} de {tarjetaCliente.estampitasRequeridas} sellos.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-5xl mx-auto space-y-8">
         {/* Header principal */}
         <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#EDE8E1] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
