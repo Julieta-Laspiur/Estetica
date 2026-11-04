@@ -95,7 +95,7 @@ export function PerfilCliente({
       setPerfil(perfilActualizado);
 
       // Guardar inmediatamente la foto
-      await clientePerfilService.guardarPerfil(perfilActualizado);
+      await clientePerfilService.guardarPerfil(perfilActualizado, currentUser);
 
       if (currentUser && onUpdateUser) {
         onUpdateUser({
@@ -122,7 +122,7 @@ export function PerfilCliente({
     };
     setFormData(perfilActualizado);
     setPerfil(perfilActualizado);
-    await clientePerfilService.guardarPerfil(perfilActualizado);
+    await clientePerfilService.guardarPerfil(perfilActualizado, currentUser);
 
     if (currentUser && onUpdateUser) {
       onUpdateUser({
@@ -156,7 +156,7 @@ export function PerfilCliente({
     }
 
     try {
-      const guardado = await clientePerfilService.guardarPerfil(formData);
+      const guardado = await clientePerfilService.guardarPerfil(formData, currentUser);
       setPerfil(guardado);
       setEditando(false);
 

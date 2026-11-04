@@ -529,14 +529,14 @@ export function PanelProfesional({
         <div className="space-y-6">
           {/* Logo y Nombre del Panel */}
           <div className="px-2 pt-1 flex items-center gap-3">
-            {siteConfig.logoRedondoUrl ? (
+            {(siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
               <img
-                src={siteConfig.logoRedondoUrl}
+                src={siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl}
                 alt="Logo"
-                className="w-10 h-10 rounded-full object-cover bg-white shadow-2xs border border-[#DDD5C8]"
+                className="w-10 h-10 rounded-xl object-contain bg-white shadow-2xs border border-[#DDD5C8] p-0.5"
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-[#7A3B3B] text-white flex items-center justify-center font-bold text-sm shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-[#7A3B3B] text-white flex items-center justify-center font-bold text-sm shadow-2xs">
                 {siteConfig.nombreCentro.charAt(0)}
               </div>
             )}

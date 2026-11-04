@@ -1,1 +1,36 @@
-/* Tipografías importadas desde Figma */
+/* Tipografías de Alta Estética y Belleza (Google Fonts) */
+
+/* 1. Cormorant Garamond: Revival clásico francés, altísimo contraste y curvas orgánicas (Ideal estilo Nàvin) */
+.font-brand-navin,
+.font-cormorant {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  letter-spacing: 0.02em;
+}
+
+/* 2. Playfair Display: Editorial moderna de moda y alta cosmética */
+.font-playfair {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* 3. Cinzel: Elegancia romana de joyería y lujo */
+.font-cinzel {
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.06em;
+}
+
+/* 4. Cinzel Decorative: Floreos y acabados artísticos en mayúsculas */
+.font-cinzel-decorative {
+  font-family: 'Cinzel Decorative', serif;
+  letter-spacing: 0.05em;
+}
+
+/* 5. Prata: Didone refinada con terminales de gota y proporciones delicadas */
+.font-prata {
+  font-family: 'Prata', serif;
+}
+
+/* 6. Italiana: Estética italiana de pasarela y elegancia limpia */
+.font-italiana {
+  font-family: 'Italiana', serif;
+  letter-spacing: 0.04em;
+}

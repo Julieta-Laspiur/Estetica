@@ -38,32 +38,39 @@ export const TRATAMIENTOS_DISPONIBLES = [
 ];
 
 export const clientePerfilService = {
+  getPerfilStorageKey: (usuario?: AuthUser | null): string => {
+    if (usuario?.usuarioId && usuario.usuarioId > 0) {
+      return `${STORAGE_PREFIX}user_${usuario.usuarioId}`;
+    }
+    if (usuario?.email) {
+      const safe = usuario.email.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+      return `${STORAGE_PREFIX}email_${safe}`;
+    }
+    return `${STORAGE_PREFIX}guest`;
+  },
+
   getPerfil: (usuario?: AuthUser | null): PerfilClienteCompleto => {
-    const id = usuario?.usuarioId || 101;
-    const storageKey = `${STORAGE_PREFIX}${id}`;
+    const storageKey = clientePerfilService.getPerfilStorageKey(usuario);
+    const id = usuario?.usuarioId || 0;
     
-    // Valores base con datos de la sesión actual
+    // Valores limpios correspondientes a la cuenta autenticada
     const defaultData: PerfilClienteCompleto = {
       usuarioId: id,
-      nombre: usuario?.nombre || 'Carla',
-      apellido: usuario?.apellido || 'Gómez',
-      email: usuario?.email || 'carla.gomez@gmail.com',
-      telefono: usuario?.telefono || '+54 9 11 5824-9120',
+      nombre: usuario?.nombre || '',
+      apellido: usuario?.apellido || '',
+      email: usuario?.email || '',
+      telefono: usuario?.telefono || '',
       fotoUrl: usuario?.fotoUrl || '',
-      fechaNacimiento: usuario?.fechaNacimiento || '1994-06-18',
-      dni: '38.452.918',
-      direccion: usuario?.direccion || 'Av. Santa Fe 2480, Piso 4 B',
-      ciudad: 'Palermo, CABA',
-      tipoPiel: 'Mixta',
-      alergias: 'Sensibilidad a fragancias fuertes artificiales y alfahidroxiácidos de alta concentración.',
-      interesesTratamientos: [
-        'Limpieza Facial & Dermoestética',
-        'Manicuría & Pedicuría Spa',
-        'Masajes Descontracturantes',
-      ],
-      notasEspeciales: 'Uso protector solar FPS 50 diario. Preferencia por turnos por la tarde después de las 16hs.',
-      contactoEmergenciaNombre: 'Esteban Gómez',
-      contactoEmergenciaTelefono: '+54 9 11 4410-2399',
+      fechaNacimiento: usuario?.fechaNacimiento || '',
+      dni: '',
+      direccion: usuario?.direccion || '',
+      ciudad: '',
+      tipoPiel: '',
+      alergias: '',
+      interesesTratamientos: [],
+      notasEspeciales: '',
+      contactoEmergenciaNombre: '',
+      contactoEmergenciaTelefono: '',
     };
 
     try {
@@ -86,10 +93,15 @@ export const clientePerfilService = {
     return defaultData;
   },
 
-  guardarPerfil: async (perfil: PerfilClienteCompleto): Promise<PerfilClienteCompleto> => {
-    const storageKey = `${STORAGE_PREFIX}${perfil.usuarioId}`;
+  guardarPerfil: async (perfil: PerfilClienteCompleto, usuarioActivo?: AuthUser | null): Promise<PerfilClienteCompleto> => {
+    const userRef = usuarioActivo || ({
+      usuarioId: perfil.usuarioId,
+      email: perfil.email,
+    } as AuthUser);
 
-    // 1. Guardar en localStorage
+    const storageKey = clientePerfilService.getPerfilStorageKey(userRef);
+
+    // 1. Guardar en localStorage bajo la clave exclusiva de este cliente
     try {
       localStorage.setItem(storageKey, JSON.stringify(perfil));
     } catch (e) {
@@ -108,7 +120,7 @@ export const clientePerfilService = {
 
     // 3. Notificar a backend si está conectado
     try {
-      if (perfil.usuarioId && authApi.isAuthenticated()) {
+      if (perfil.usuarioId && perfil.usuarioId > 0 && authApi.isAuthenticated()) {
         await usuariosApi.actualizarPerfil({
           usuarioId: perfil.usuarioId,
           nombre: perfil.nombre,

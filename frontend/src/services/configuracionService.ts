@@ -5,9 +5,10 @@ export interface ConfiguracionGeneral {
   // 1. Identidad y Datos del Centro
   nombreCentro: string;
   slogan: string;
+  tipografiaLogo?: 'cormorant' | 'playfair' | 'cinzel' | 'cinzel-decorative' | 'prata' | 'italiana' | string;
   logoUrl?: string; // Compatibilidad hacia atrás
-  logoRectangularUrl?: string; // Logo rectangular / horizontal de la cabecera superior
-  logoRedondoUrl?: string; // Logo redondo / circular del costado al comprimirse la barra
+  logoRectangularUrl?: string; // Logo principal / horizontal de la cabecera superior
+  logoRedondoUrl?: string; // Foto circular opcional (solo si el admin decide usarla)
   telefono: string;
   whatsapp: string;
   email: string;
@@ -116,6 +117,7 @@ export const procesarArchivoAUrl = (archivo: File): Promise<string> => {
 export const CONFIGURACION_DEFAULT: ConfiguracionGeneral = {
   nombreCentro: 'Centro Estético',
   slogan: 'Tu santuario de belleza, cuidado dérmico y bienestar integral',
+  tipografiaLogo: 'cormorant',
   logoUrl: '',
   logoRectangularUrl: '',
   logoRedondoUrl: '',
@@ -214,8 +216,9 @@ export const configuracionService = {
         return {
           ...CONFIGURACION_DEFAULT,
           ...parsed,
+          tipografiaLogo: parsed.tipografiaLogo || 'cormorant',
           logoRectangularUrl: parsed.logoRectangularUrl || parsed.logoUrl || '',
-          logoRedondoUrl: parsed.logoRedondoUrl || parsed.logoUrl || '',
+          logoRedondoUrl: typeof parsed.logoRedondoUrl === 'string' ? parsed.logoRedondoUrl : '',
           bannerPromocional: {
             ...CONFIGURACION_DEFAULT.bannerPromocional,
             ...(parsed.bannerPromocional || {}),
@@ -283,3 +286,25 @@ export const configuracionService = {
     URL.revokeObjectURL(url);
   },
 };
+
+/**
+ * Devuelve la clase de Tailwind / Google Fonts asociada a la tipografía elegida
+ */
+export const obtenerClaseTipografia = (tipo?: string): string => {
+  switch (tipo) {
+    case 'playfair':
+      return 'font-playfair';
+    case 'cinzel':
+      return 'font-cinzel';
+    case 'cinzel-decorative':
+      return 'font-cinzel-decorative';
+    case 'prata':
+      return 'font-prata';
+    case 'italiana':
+      return 'font-italiana';
+    case 'cormorant':
+    default:
+      return 'font-brand-navin';
+  }
+};
+

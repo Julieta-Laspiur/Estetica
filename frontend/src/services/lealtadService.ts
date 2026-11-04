@@ -706,12 +706,14 @@ export const lealtadService = {
     return TARJETAS_INICIALES;
   },
 
-  getTarjetaCliente: (clienteId: number | string = 101, fallbackNombre?: string): TarjetaClienteLocal => {
-    const numId = Number(clienteId) || 101;
+  getTarjetaCliente: (clienteId?: number | string | null, fallbackNombre?: string): TarjetaClienteLocal => {
+    const rawId = clienteId !== undefined && clienteId !== null ? clienteId : 0;
+    const numId = typeof rawId === 'number' ? rawId : (Number(rawId) || 0);
     const tarjetas = lealtadService.getTarjetas();
-    if (tarjetas[numId]) {
-      // Asegurar que tenga progresosPorTipo inicializados
-      const t = tarjetas[numId];
+
+    const key = numId > 0 ? numId : String(rawId);
+    if ((tarjetas as any)[key]) {
+      const t = (tarjetas as any)[key];
       if (!t.progresosPorTipo) {
         t.progresosPorTipo = {
           'card-unas': { tipoId: 'card-unas', estampitasActuales: Math.min(3, t.estampitasActuales || 0), totalCanjeadas: 0 },
@@ -722,10 +724,10 @@ export const lealtadService = {
     }
 
     const nueva: TarjetaClienteLocal = {
-      clienteId: numId,
+      clienteId: numId > 0 ? numId : 0,
       clienteNombre: fallbackNombre || 'Cliente Estética',
       estampitasActuales: 0,
-      estampitasRequeridas: 10,
+      estampitasRequeridas: 6,
       totalCanjeadas: 0,
       ultimaActualizacion: new Date().toLocaleString('es-AR'),
       progresosPorTipo: {
@@ -736,7 +738,7 @@ export const lealtadService = {
       },
       historial: [],
     };
-    tarjetas[numId] = nueva;
+    (tarjetas as any)[key] = nueva;
     try {
       localStorage.setItem(STORAGE_KEY_TARJETAS, JSON.stringify(tarjetas));
     } catch {}

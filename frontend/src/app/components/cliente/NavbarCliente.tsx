@@ -4,7 +4,8 @@ import type { AuthUser } from '../../../services/api';
 import {
     configuracionService,
     EVENTO_CONFIG_ACTUALIZADA,
-    type ConfiguracionGeneral
+    type ConfiguracionGeneral,
+    obtenerClaseTipografia
 } from '../../../services/configuracionService';
 
 interface NavbarClienteProps {
@@ -247,26 +248,26 @@ export function NavbarCliente({
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex items-center h-[52px] gap-3">
 
-                            {/* Logo del costado (Foto Redonda al comprimirse el banner) */}
+                            {/* Logo / Marca del costado al comprimirse la barra */}
                             <button
                                 onClick={() => {
                                     onSectionChange('inicio');
                                     setCompactSearchOpen(false);
                                 }}
-                                className="shrink-0 flex items-center group focus:outline-none"
+                                className="shrink-0 flex items-center gap-2 group focus:outline-none"
                                 title={siteConfig.nombreCentro}
                                 aria-label="Ir al inicio"
                             >
-                                {(siteConfig.logoRedondoUrl || siteConfig.logoUrl) ? (
+                                {(siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
                                     <img
-                                        src={siteConfig.logoRedondoUrl || siteConfig.logoUrl}
+                                        src={siteConfig.logoRectangularUrl || siteConfig.logoUrl}
                                         alt={siteConfig.nombreCentro}
-                                        className="w-9 h-9 sm:w-10 sm:h-10 object-cover rounded-full border border-[#DDD5C8] shadow-2xs group-hover:scale-105 group-hover:border-[#7A3B3B] transition-all"
+                                        className="h-8 sm:h-9 max-w-[130px] object-contain group-hover:scale-105 transition-transform"
                                     />
                                 ) : (
-                                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#7A3B3B] text-white flex items-center justify-center font-bold text-xs shadow-2xs group-hover:scale-105 transition-transform">
-                                        {siteConfig.nombreCentro.charAt(0) || 'E'}
-                                    </div>
+                                    <span className={`${obtenerClaseTipografia(siteConfig.tipografiaLogo)} text-xl sm:text-2xl font-normal tracking-wide text-[#2A2825] group-hover:text-[#7A3B3B] transition-colors leading-none`}>
+                                        {siteConfig.nombreCentro}
+                                    </span>
                                 )}
                             </button>
 
@@ -380,17 +381,14 @@ export function NavbarCliente({
                                             />
                                         ) : (
                                             <div className="flex flex-col text-center">
-                                                <span className="font-bold tracking-[0.16em] uppercase text-xl leading-none text-[#2A2825] group-hover:text-[#7A3B3B] transition-colors">
-                                                    <span className="text-[#2A2825]">
-                                                        {siteConfig.nombreCentro.split(' ')[0] || 'Centro'}
-                                                    </span>
-                                                    <span className="text-[#7A3B3B]">
-                                                        {' ' + (siteConfig.nombreCentro.split(' ').slice(1).join(' ') || 'Estético')}
-                                                    </span>
+                                                <span className={`${obtenerClaseTipografia(siteConfig.tipografiaLogo)} text-2xl tracking-[0.04em] leading-none text-[#2A2825] group-hover:text-[#7A3B3B] transition-colors`}>
+                                                    {siteConfig.nombreCentro}
                                                 </span>
-                                                <span className="text-[9px] tracking-[0.25em] uppercase text-[#A89E94] mt-0.5 truncate max-w-xs">
-                                                    {siteConfig.slogan || 'Tu belleza, nuestra pasión'}
-                                                </span>
+                                                {siteConfig.slogan && (
+                                                    <span className="text-[9px] tracking-[0.22em] uppercase text-[#A89E94] mt-0.5 truncate max-w-xs">
+                                                        {siteConfig.slogan}
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
                                     </button>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { CajaPagos } from './components/CajaPagos';
@@ -36,6 +36,17 @@ interface ProductoCarrito {
   imagen: string;
 }
 
+export const getUserStorageKey = (prefix: string, user: AuthUser | null | undefined): string => {
+  if (user?.usuarioId && user.usuarioId > 0) {
+    return `${prefix}_user_${user.usuarioId}`;
+  }
+  if (user?.email) {
+    const safeEmail = user.email.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+    return `${prefix}_email_${safeEmail}`;
+  }
+  return `${prefix}_guest`;
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authApi.getCurrentUser());
   const [vistaActual, setVistaActual] = useState<'admin' | 'cliente' | 'profesional'>(() => {
@@ -46,27 +57,91 @@ export default function App() {
   });
   const [activeSection, setActiveSection] = useState('inicio');
   const [servicioParaReserva, setServicioParaReserva] = useState<string | null>(null);
-  const [carritoItems, setCarritoItems] = useState<ProductoCarrito[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  const handleUpdateUser = (updatedUser: AuthUser) => {
-    setCurrentUser(updatedUser);
-  };
 
+  // Clave de almacenamiento aislada por cliente
+  const activeUserStorageKey = useMemo(() => {
+    return getUserStorageKey('user', currentUser);
+  }, [currentUser?.usuarioId, currentUser?.email]);
+
+  // Cargar lista de deseos del cliente activo
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>(() => {
+    const initialUser = authApi.getCurrentUser();
+    const key = getUserStorageKey('estetica_wishlist', initialUser);
     try {
-      const saved = localStorage.getItem('estetica_wishlist');
+      const saved = localStorage.getItem(key);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
   });
 
-  useEffect(() => {
+  // Cargar carrito del cliente activo
+  const [carritoItems, setCarritoItems] = useState<ProductoCarrito[]>(() => {
+    const initialUser = authApi.getCurrentUser();
+    const key = getUserStorageKey('estetica_cart', initialUser);
     try {
-      localStorage.setItem('estetica_wishlist', JSON.stringify(wishlistItems));
-    } catch {}
-  }, [wishlistItems]);
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Ref para sincronizar carga sin sobreescribir datos al cambiar de usuario
+  const loadedUserKeyRef = useRef<string>(activeUserStorageKey);
+
+  // Sincronizar wishlist y carrito cuando cambia el cliente activo (login / logout / switch)
+  useEffect(() => {
+    if (loadedUserKeyRef.current !== activeUserStorageKey) {
+      loadedUserKeyRef.current = activeUserStorageKey;
+
+      try {
+        const wKey = getUserStorageKey('estetica_wishlist', currentUser);
+        const savedW = localStorage.getItem(wKey);
+        setWishlistItems(savedW ? JSON.parse(savedW) : []);
+      } catch {
+        setWishlistItems([]);
+      }
+
+      try {
+        const cKey = getUserStorageKey('estetica_cart', currentUser);
+        const savedC = localStorage.getItem(cKey);
+        setCarritoItems(savedC ? JSON.parse(savedC) : []);
+      } catch {
+        setCarritoItems([]);
+      }
+    }
+  }, [activeUserStorageKey, currentUser]);
+
+  // Persistir lista de deseos exclusivamente para el cliente activo
+  useEffect(() => {
+    if (loadedUserKeyRef.current === activeUserStorageKey) {
+      try {
+        const wKey = getUserStorageKey('estetica_wishlist', currentUser);
+        localStorage.setItem(wKey, JSON.stringify(wishlistItems));
+      } catch (e) {
+        console.warn('Error al persistir wishlist:', e);
+      }
+    }
+  }, [wishlistItems, activeUserStorageKey, currentUser]);
+
+  // Persistir carrito exclusivamente para el cliente activo
+  useEffect(() => {
+    if (loadedUserKeyRef.current === activeUserStorageKey) {
+      try {
+        const cKey = getUserStorageKey('estetica_cart', currentUser);
+        localStorage.setItem(cKey, JSON.stringify(carritoItems));
+      } catch (e) {
+        console.warn('Error al persistir carrito:', e);
+      }
+    }
+  }, [carritoItems, activeUserStorageKey, currentUser]);
+
+  const handleUpdateUser = (updatedUser: AuthUser) => {
+    setCurrentUser(updatedUser);
+  };
 
   // Detector de retorno desde Mercado Pago (Back URLs)
   useEffect(() => {
@@ -172,6 +247,8 @@ export default function App() {
   const handleLogout = () => {
     authApi.logout();
     setCurrentUser(null);
+    setWishlistItems([]);
+    setCarritoItems([]);
     setVistaActual('cliente');
     setActiveSection('inicio');
     setServicioParaReserva(null);
@@ -261,7 +338,9 @@ export default function App() {
         medioPago: 'mercadopago',
         medioDetalle: 'Mercado Pago Checkout',
         estado: 'Pendiente', // Pendiente hasta que el webhook de Mercado Pago confirme el pago
-        clienteNombre: currentUser ? `${currentUser.nombre} ${currentUser.apellido}` : 'Cliente Web',
+        clienteId: currentUser?.usuarioId || null,
+        clienteEmail: currentUser?.email?.toLowerCase().trim() || null,
+        clienteNombre: currentUser ? `${currentUser.nombre} ${currentUser.apellido}`.trim() : 'Cliente Web',
         detalles: carritoItems.map(item => ({
           detalleId: Math.floor(Math.random() * 10000),
           productoId: item.id,
@@ -413,6 +492,7 @@ export default function App() {
         return (
           <Carrito
             items={carritoItems}
+            currentUser={currentUser}
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={handleRemoveItem}
             onCheckout={handleCheckout}

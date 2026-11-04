@@ -4,7 +4,8 @@ import { authApi, type AuthUser } from '../../../services/api';
 import {
     configuracionService,
     EVENTO_CONFIG_ACTUALIZADA,
-    type ConfiguracionGeneral
+    type ConfiguracionGeneral,
+    obtenerClaseTipografia
 } from '../../../services/configuracionService';
 
 interface AuthPageProps {
@@ -204,19 +205,18 @@ export function AuthPage({ onLogin, onCancel }: AuthPageProps) {
                         <img
                             src={siteConfig.logoRectangularUrl || siteConfig.logoUrl}
                             alt={siteConfig.nombreCentro}
-                            className="h-12 sm:h-14 max-w-[280px] object-contain mb-2"
+                            className="h-24 sm:h-32 md:h-36 max-w-[320px] sm:max-w-[360px] w-auto object-contain mb-3 drop-shadow-2xs transition-all"
                         />
                     ) : (
                         <div className="flex flex-col items-center">
-                            <span className="font-bold tracking-[0.16em] uppercase text-2xl leading-none text-[#2A2825]">
-                                <span>{siteConfig.nombreCentro.split(' ')[0] || 'Centro'}</span>
-                                <span className="text-[#7A3B3B]">
-                                    {' ' + (siteConfig.nombreCentro.split(' ').slice(1).join(' ') || 'Estético')}
+                            <span className={`${obtenerClaseTipografia(siteConfig.tipografiaLogo)} text-3xl sm:text-4xl md:text-5xl tracking-[0.04em] text-[#2A2825] leading-none`}>
+                                {siteConfig.nombreCentro}
+                            </span>
+                            {siteConfig.slogan && (
+                                <span className="text-[10px] sm:text-[11px] tracking-[0.25em] uppercase text-[#A89E94] mt-2 font-medium">
+                                    {siteConfig.slogan}
                                 </span>
-                            </span>
-                            <span className="text-[10px] tracking-[0.25em] uppercase text-[#A89E94] mt-1.5 font-medium">
-                                {siteConfig.slogan || 'Tu belleza, nuestra pasión'}
-                            </span>
+                            )}
                         </div>
                     )}
                 </div>

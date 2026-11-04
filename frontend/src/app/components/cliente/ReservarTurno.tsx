@@ -159,29 +159,82 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
         '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'
     ];
 
-    // Cargar Mis Turnos
+    // Cargar Mis Turnos exclusivamente para el cliente autenticado
     const cargarMisTurnos = async () => {
+        if (!currentUser) {
+            setMisTurnos([]);
+            setLoadingMisTurnos(false);
+            return;
+        }
+
         setLoadingMisTurnos(true);
-        try {
-            let turnosData: any[] = [];
-            if (currentUser?.usuarioId) {
-                turnosData = await turnosApi.getPorUsuario(currentUser.usuarioId);
-            } else {
-                turnosData = await turnosApi.getTurnos();
+
+        const obtenerTurnosLocalesDelCliente = (): any[] => {
+            try {
+                const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+                if (!Array.isArray(turnosLocales)) return [];
+                return turnosLocales.filter(t => {
+                    if (currentUser.usuarioId && t.usuarioId && Number(t.usuarioId) === Number(currentUser.usuarioId)) {
+                        return true;
+                    }
+                    if (currentUser.email && t.clienteEmail && t.clienteEmail.toLowerCase() === currentUser.email.toLowerCase().trim()) {
+                        return true;
+                    }
+                    return false;
+                });
+            } catch {
+                return [];
             }
+        };
+
+        try {
+            let turnosApiData: any[] = [];
+            // Si el cliente tiene un ID en la base de datos, consultar únicamente sus citas
+            if (currentUser.usuarioId && currentUser.usuarioId > 0) {
+                try {
+                    turnosApiData = await turnosApi.getPorUsuario(currentUser.usuarioId);
+                } catch (errApi) {
+                    console.warn('API de turnos offline o inaccesible, recurriendo a almacenamiento del cliente:', errApi);
+                    turnosApiData = [];
+                }
+            }
+
+            const turnosLocalesCliente = obtenerTurnosLocalesDelCliente();
+
+            // Combinar turnos sin duplicados
+            const idsVistos = new Set<string>();
+            const combinados: any[] = [];
+
+            if (Array.isArray(turnosApiData)) {
+                turnosApiData.forEach(t => {
+                    const key = String(t.turnoId);
+                    if (!idsVistos.has(key)) {
+                        idsVistos.add(key);
+                        combinados.push(t);
+                    }
+                });
+            }
+
+            turnosLocalesCliente.forEach(t => {
+                const key = String(t.turnoId);
+                if (!idsVistos.has(key)) {
+                    idsVistos.add(key);
+                    combinados.push(t);
+                }
+            });
 
             // Enriquecer con métodos de pago almacenados localmente
             const pagosGuardados = JSON.parse(localStorage.getItem('estetica_turnos_pagos') || '{}');
-            const enriquecidos = turnosData.map(t => ({
+            const enriquecidos = combinados.map(t => ({
                 ...t,
-                metodoPagoGuardado: pagosGuardados[String(t.turnoId)]?.metodo || (t.metodoPago || 'efectivo'),
-                detallePagoGuardado: pagosGuardados[String(t.turnoId)]?.detalle || '',
+                metodoPagoGuardado: t.metodoPagoGuardado || pagosGuardados[String(t.turnoId)]?.metodo || (t.metodoPago || 'efectivo'),
+                detallePagoGuardado: t.detallePagoGuardado || pagosGuardados[String(t.turnoId)]?.detalle || '',
             }));
+
             setMisTurnos(enriquecidos);
         } catch {
-            // Leer desde localStorage si no hay conexión al backend
-            const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
-            setMisTurnos(turnosLocales);
+            // En caso de contingencia total, mostrar únicamente los turnos locales del cliente
+            setMisTurnos(obtenerTurnosLocalesDelCliente());
         } finally {
             setLoadingMisTurnos(false);
         }
@@ -204,11 +257,13 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
             };
             localStorage.setItem('estetica_turnos_pagos', JSON.stringify(pagosData));
 
-            // Guardar en historial de cliente
+            // Guardar en historial asignando explícitamente el usuario actual
             const listado = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
             const turnoFormateado = {
                 turnoId: nuevoTurno.turnoId,
-                clienteNombreCompleto: currentUser ? `${currentUser.nombre} ${currentUser.apellido}` : 'Cliente Web',
+                usuarioId: currentUser?.usuarioId || null,
+                clienteEmail: currentUser?.email?.toLowerCase().trim() || null,
+                clienteNombreCompleto: currentUser ? `${currentUser.nombre} ${currentUser.apellido}`.trim() : 'Cliente Web',
                 profesionalNombreCompleto: nuevoTurno.profesional.nombre,
                 cabinaNombre: 'Cabina Principal 01',
                 fechaHoraInicio: `${nuevoTurno.fecha}T${nuevoTurno.hora}:00`,
@@ -533,6 +588,22 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                             <div className="py-12 text-center text-[#8A7F74]">
                                 <Clock className="w-6 h-6 animate-spin mx-auto mb-2 text-[#7A3B3B]" />
                                 <p className="text-xs">Cargando tus citas agendadas...</p>
+                            </div>
+                        ) : !currentUser ? (
+                            <div className="py-14 text-center space-y-3">
+                                <Calendar className="w-12 h-12 text-[#DDD5C8] mx-auto" />
+                                <h3 className="font-bold text-base text-[#2A2825]">Iniciá sesión para ver tus turnos</h3>
+                                <p className="text-xs text-[#8A7F74] max-w-sm mx-auto">
+                                    Para consultar tu historial de citas, comprobantes y estado de confirmación, iniciá sesión con tu cuenta.
+                                </p>
+                                {onNavigate && (
+                                    <button
+                                        onClick={() => onNavigate('auth')}
+                                        className="mt-3 px-6 py-2.5 bg-[#3C3530] text-white rounded-xl text-xs font-bold hover:bg-[#2A2825] transition-colors shadow-xs"
+                                    >
+                                        Iniciar Sesión / Registrarse
+                                    </button>
+                                )}
                             </div>
                         ) : misTurnos.length === 0 ? (
                             <div className="py-14 text-center space-y-3">

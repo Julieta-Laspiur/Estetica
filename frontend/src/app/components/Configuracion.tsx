@@ -32,6 +32,7 @@ import {
   Loader2,
   Check,
   CircleDot,
+  Type,
   Maximize2,
   Minimize2,
   Bot,
@@ -42,7 +43,8 @@ import {
 import {
   configuracionService,
   procesarArchivoAUrl,
-  type ConfiguracionGeneral
+  type ConfiguracionGeneral,
+  obtenerClaseTipografia
 } from '../../services/configuracionService';
 import { chatIAApi, type AuthUser } from '../../services/api';
 
@@ -51,6 +53,52 @@ interface ConfiguracionProps {
 }
 
 type TabSeccion = 'identidad' | 'agenda' | 'politicas' | 'pagos' | 'tienda' | 'fidelizacion' | 'banner' | 'ia' | 'backup';
+
+// Tipografías de lujo para la marca y logo escrito (estilo Nàvin / belleza)
+const TIPOGRAFIAS_DISPONIBLES = [
+  {
+    id: 'cormorant',
+    nombre: 'Cormorant Garamond',
+    etiqueta: 'Recomendada (Estilo Nàvin)',
+    descripcion: 'Serif clásico de altísimo contraste con curvas orgánicas y remates elegantes, idéntico al logo de Nàvin.',
+    clase: 'font-brand-navin',
+  },
+  {
+    id: 'playfair',
+    nombre: 'Playfair Display',
+    etiqueta: 'Alta Costura & Cosmética',
+    descripcion: 'Diseño editorial contemporáneo, estilizado y con gran fuerza visual.',
+    clase: 'font-playfair',
+  },
+  {
+    id: 'cinzel',
+    nombre: 'Cinzel',
+    etiqueta: 'Clásico Romano',
+    descripcion: 'Inspirado en la elegancia atemporal del primer siglo.',
+    clase: 'font-cinzel',
+  },
+  {
+    id: 'cinzel-decorative',
+    nombre: 'Cinzel Decorative',
+    etiqueta: 'Ornamental / Joyería',
+    descripcion: 'Floreos y acabados caligráficos en mayúsculas.',
+    clase: 'font-cinzel-decorative',
+  },
+  {
+    id: 'prata',
+    nombre: 'Prata',
+    etiqueta: 'Didone Refinado',
+    descripcion: 'Terminaciones de lágrima suaves y proporciones nobles.',
+    clase: 'font-prata',
+  },
+  {
+    id: 'italiana',
+    nombre: 'Italiana',
+    etiqueta: 'Moda Italiana',
+    descripcion: 'Diseño minimalista y sofisticado de revistas europeas.',
+    clase: 'font-italiana',
+  },
+];
 
 // Logos Rectangulares predefinidos para la cabecera superior (fotos horizontales)
 const LOGOS_RECTANGULARES_PREDEFINIDOS = [
@@ -69,26 +117,6 @@ const LOGOS_RECTANGULARES_PREDEFINIDOS = [
   {
     nombre: 'Botánica & Belleza Natural',
     url: 'https://images.unsplash.com/photo-1512290900672-1f4153ae5891?w=400&auto=format&fit=crop&q=80',
-  },
-];
-
-// Logos Redondos predefinidos para la barra comprimida al scrollear (fotos circulares)
-const LOGOS_REDONDOS_PREDEFINIDOS = [
-  {
-    nombre: 'Silueta Rostro Circular',
-    url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=160&auto=format&fit=crop&q=80',
-  },
-  {
-    nombre: 'Flor de Loto Zen',
-    url: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=160&auto=format&fit=crop&q=80',
-  },
-  {
-    nombre: 'Emblema Botánico',
-    url: 'https://images.unsplash.com/photo-1512290900672-1f4153ae5891?w=160&auto=format&fit=crop&q=80',
-  },
-  {
-    nombre: 'Gota de Sérum Dorada',
-    url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=160&auto=format&fit=crop&q=80',
   },
 ];
 
@@ -409,10 +437,10 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                 <div>
                   <h4 className="text-sm font-bold text-[#2A2825] flex items-center gap-2">
                     <ImageIcon className="w-4 h-4 text-[#7A3B3B]" />
-                    <span>1. Logo Rectangular (Banner Superior de la Cabecera)</span>
+                    <span>1. Logo Principal / Rectangular (Banner Superior y Pantalla de Acceso)</span>
                   </h4>
                   <p className="text-[11px] text-[#8A7F74]">
-                    Foto horizontal o rectangular que sale arriba en el centro del banner. Es una foto propia de tu marca, sin texto generado por código.
+                    Imagen de tu logo que se muestra en el banner principal y en la tarjeta de inicio de sesión / registro.
                   </p>
                 </div>
                 {(config.logoRectangularUrl || config.logoUrl) && (
@@ -421,25 +449,44 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                     onClick={() => setConfig({ ...config, logoRectangularUrl: '', logoUrl: '' })}
                     className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 self-start sm:self-auto"
                   >
-                    <X className="w-3.5 h-3.5" /> Quitar Logo Rectangular
+                    <X className="w-3.5 h-3.5" /> Quitar Logo
                   </button>
                 )}
               </div>
 
+              {/* Guía de Tamaños y Calidad */}
+              <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-xs text-[#5C534A] leading-relaxed">
+                <Sparkles className="w-5 h-5 text-[#7A3B3B] shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-[#2A2825] block mb-1">Guía para que tu logo se vea en su máximo tamaño y nitidez:</span>
+                  <ul className="list-disc pl-4 space-y-1 text-[11px] text-[#5C534A]">
+                    <li>
+                      <strong>Formato Vertical (Flor o isotipo arriba y texto abajo, como tu logo Nàvin):</strong> Exportá tu imagen en <strong>800 × 500 px</strong> o <strong>600 × 400 px</strong>.
+                    </li>
+                    <li>
+                      <strong>Formato Horizontal (Isotipo al lado del texto):</strong> Exportá en <strong>800 × 200 px</strong> o <strong>600 × 150 px</strong>.
+                    </li>
+                    <li>
+                      <strong>Consejo clave para que se vea grande:</strong> Recortá (croppea) los bordes transparentes o blancos sobrantes bien al ras del diseño. Si la imagen no tiene márgenes vacíos alrededor, ¡el sistema la agranda al 100% de la altura disponible!
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
-                {/* Cuadro de Previsualización Rectangular */}
-                <div className="md:col-span-4 flex flex-col items-center justify-center p-4 bg-white border border-[#EDE8E1] rounded-2xl text-center min-h-[140px] shadow-2xs">
+                {/* Cuadro de Previsualización Rectangular Agrandado */}
+                <div className="md:col-span-4 flex flex-col items-center justify-center p-4 bg-white border border-[#EDE8E1] rounded-2xl text-center min-h-[160px] shadow-2xs">
                   {(config.logoRectangularUrl || config.logoUrl) ? (
-                    <div className="space-y-2">
-                      <div className="w-full max-w-[240px] h-20 flex items-center justify-center p-1 bg-[#FAF8F5] rounded-xl border border-[#EDE8E1] overflow-hidden">
+                    <div className="space-y-2 w-full flex flex-col items-center">
+                      <div className="w-full max-w-[260px] h-28 flex items-center justify-center p-2 bg-[#FAF8F5] rounded-xl border border-[#EDE8E1] overflow-hidden">
                         <img
                           src={config.logoRectangularUrl || config.logoUrl}
-                          alt="Logo Rectangular Preview"
+                          alt="Logo Preview"
                           className="max-h-full max-w-full object-contain"
                         />
                       </div>
                       <span className="text-[10px] text-emerald-700 font-bold block flex items-center justify-center gap-1">
-                        <Check className="w-3 h-3" /> Foto Rectangular Activa
+                        <Check className="w-3 h-3" /> Logo Activo
                       </span>
                     </div>
                   ) : (
@@ -544,132 +591,117 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
               </div>
             </div>
 
-            {/* SECCIÓN 2: LOGO REDONDO (BARRA COMPRIMIDA / COSTADO) */}
+            {/* SECCIÓN 2: TIPOGRAFÍA DE MARCA PARA LOGO ESCRITO (ESTILO NÀVIN) */}
             <div className="p-5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-3xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EDE8E1] pb-3">
                 <div>
                   <h4 className="text-sm font-bold text-[#2A2825] flex items-center gap-2">
-                    <CircleDot className="w-4 h-4 text-[#7A3B3B]" />
-                    <span>2. Logo Redondo (Costado de la Barra al Comprimirse)</span>
+                    <Type className="w-4 h-4 text-[#7A3B3B]" />
+                    <span>2. Tipografía para Logo Escrito Directamente (Estilo Nàvin)</span>
                   </h4>
                   <p className="text-[11px] text-[#8A7F74]">
-                    Foto circular que sale en el costado cuando el usuario hace scroll hacia arriba y la barra se comprime. Es una foto redonda, no texto.
+                    Si preferís que el nombre de tu centro aparezca directamente escrito (o cuando no se use foto), se renderizará con esta tipografía de lujo.
                   </p>
                 </div>
-                {config.logoRedondoUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setConfig({ ...config, logoRedondoUrl: '' })}
-                    className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 self-start sm:self-auto"
-                  >
-                    <X className="w-3.5 h-3.5" /> Quitar Logo Redondo
-                  </button>
-                )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
-                {/* Cuadro de Previsualización Redonda */}
-                <div className="md:col-span-4 flex flex-col items-center justify-center p-4 bg-white border border-[#EDE8E1] rounded-2xl text-center min-h-[140px] shadow-2xs">
-                  {config.logoRedondoUrl ? (
-                    <div className="space-y-2">
-                      <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#7A3B3B] p-0.5 bg-white mx-auto shadow-sm">
-                        <img
-                          src={config.logoRedondoUrl}
-                          alt="Logo Redondo Preview"
-                          className="w-full h-full object-cover rounded-full"
-                        />
-                      </div>
-                      <span className="text-[10px] text-emerald-700 font-bold block flex items-center justify-center gap-1">
-                        <Check className="w-3 h-3" /> Foto Redonda Activa
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="text-[#8A7F74] space-y-1">
-                      <CircleDot className="w-10 h-10 mx-auto text-[#DDD5C8]" />
-                      <span className="text-xs font-semibold block">Sin foto redonda</span>
-                      <span className="text-[10px] block">Subí un isotipo o avatar circular</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Controles de Carga Logo Redondo */}
-                <div className="md:col-span-8 space-y-3">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <input
-                      ref={fileLogoRedondoRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                      onChange={handleLogoRedondoUpload}
-                      className="hidden"
-                      id="upload-logo-redondo"
-                    />
-                    <label
-                      htmlFor="upload-logo-redondo"
-                      className={`inline-flex items-center gap-2 px-4 py-2.5 bg-[#3C3530] hover:bg-[#2A2825] text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs ${
-                        subiendoLogoRedondo ? 'opacity-50 pointer-events-none' : ''
-                      }`}
-                    >
-                      {subiendoLogoRedondo ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Procesando...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4" />
-                          <span>Subir Foto Redonda desde tu PC</span>
-                        </>
-                      )}
-                    </label>
-
-                    <span className="text-xs text-[#8A7F74] font-medium">o pegá la URL directa:</span>
-                  </div>
-
-                  {errorLogoRedondo && (
-                    <p className="text-xs text-red-600 font-semibold flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      <span>{errorLogoRedondo}</span>
-                    </p>
-                  )}
-
-                  <input
-                    type="url"
-                    value={config.logoRedondoUrl || ''}
-                    onChange={(e) => setConfig({ ...config, logoRedondoUrl: e.target.value })}
-                    placeholder="https://miservidor.com/isotipo-redondo.png"
-                    className="w-full px-3.5 py-2 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
-                  />
-
-                  {/* Presets Redondos */}
-                  <div className="pt-2">
-                    <span className="text-[11px] font-bold text-[#8A7F74] uppercase tracking-wider block mb-1.5">
-                      O elegí una foto redonda de prueba:
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {LOGOS_REDONDOS_PREDEFINIDOS.map((preset, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setConfig({ ...config, logoRedondoUrl: preset.url })}
-                          className={`p-2 bg-white border rounded-xl flex items-center gap-2 text-left hover:border-[#7A3B3B] transition-all ${
-                            config.logoRedondoUrl === preset.url
-                              ? 'border-[#7A3B3B] ring-2 ring-[#7A3B3B]/20'
-                              : 'border-[#EDE8E1]'
-                          }`}
-                        >
-                          <img
-                            src={preset.url}
-                            alt={preset.nombre}
-                            className="w-7 h-7 rounded-full object-cover"
-                          />
-                          <span className="text-[10px] font-semibold text-[#2A2825] truncate">
-                            {preset.nombre}
+              {/* Selector Visual de Tipografías */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-[#5C534A] uppercase tracking-wider block">
+                  Seleccioná la tipografía que mejor combine con tu marca:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {TIPOGRAFIAS_DISPONIBLES.map((tip) => {
+                    const isSelected = (config.tipografiaLogo || 'cormorant') === tip.id;
+                    return (
+                      <button
+                        key={tip.id}
+                        type="button"
+                        onClick={() => setConfig({ ...config, tipografiaLogo: tip.id })}
+                        className={`p-4 rounded-2xl border text-left transition-all duration-200 bg-white relative flex flex-col justify-between gap-3 ${
+                          isSelected
+                            ? 'border-[#7A3B3B] ring-2 ring-[#7A3B3B]/20 shadow-xs'
+                            : 'border-[#EDE8E1] hover:border-[#7A3B3B]/50'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-[#2A2825]">{tip.nombre}</span>
+                            {isSelected && (
+                              <span className="w-4 h-4 rounded-full bg-[#7A3B3B] text-white flex items-center justify-center shrink-0">
+                                <Check className="w-2.5 h-2.5" />
+                              </span>
+                            )}
+                          </div>
+                          <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FAF8F5] text-[#7A3B3B] border border-[#EDE8E1] mb-2">
+                            {tip.etiqueta}
                           </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                          <p className="text-[11px] text-[#8A7F74] leading-relaxed mb-3">
+                            {tip.descripcion}
+                          </p>
+                        </div>
+
+                        {/* Muestra en vivo con el nombre del centro */}
+                        <div className="pt-2 border-t border-[#FAF8F5]">
+                          <span className="text-[10px] text-[#A89E94] block uppercase tracking-wider mb-0.5">Muestra:</span>
+                          <span className={`${tip.clase} text-2xl sm:text-3xl text-[#2A2825] font-normal tracking-wide block leading-none`}>
+                            {config.nombreCentro || 'Nàvin'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
+
+              {/* Opción secundaria: Avatar Redondo Opcional */}
+              <div className="pt-3 border-t border-[#EDE8E1]">
+                <details className="group">
+                  <summary className="text-xs font-semibold text-[#8A7F74] hover:text-[#2A2825] cursor-pointer flex items-center gap-1.5 list-none">
+                    <span className="text-[#7A3B3B] font-bold">+</span>
+                    <span>Opcional: Avatar o isotipo redondo (costado móvil)</span>
+                    {config.logoRedondoUrl && (
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold ml-2">
+                        Activo
+                      </span>
+                    )}
+                  </summary>
+                  <div className="mt-3 p-3.5 bg-white border border-[#EDE8E1] rounded-2xl space-y-3">
+                    <p className="text-[11px] text-[#8A7F74]">
+                      Por defecto la barra comprimida ya no recorta tu logo en redondo. Si querés subir un icono redondo separado, podés hacerlo acá:
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        ref={fileLogoRedondoRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                        onChange={handleLogoRedondoUpload}
+                        className="hidden"
+                        id="upload-logo-redondo-opt"
+                      />
+                      <label
+                        htmlFor="upload-logo-redondo-opt"
+                        className={`px-3 py-1.5 bg-[#FAF8F5] border border-[#EDE8E1] hover:border-[#7A3B3B] text-xs font-semibold rounded-xl cursor-pointer ${
+                          subiendoLogoRedondo ? 'opacity-50 pointer-events-none' : ''
+                        }`}
+                      >
+                        {subiendoLogoRedondo ? 'Procesando...' : 'Subir Imagen'}
+                      </label>
+                      {config.logoRedondoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setConfig({ ...config, logoRedondoUrl: '' })}
+                          className="text-xs text-red-600 hover:underline font-semibold"
+                        >
+                          Eliminar foto redonda
+                        </button>
+                      )}
+                    </div>
+                    {errorLogoRedondo && (
+                      <p className="text-xs text-red-600 font-semibold">{errorLogoRedondo}</p>
+                    )}
+                  </div>
+                </details>
               </div>
             </div>
 
@@ -713,10 +745,10 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
 
               {/* Render de la Previsualización según el modo seleccionado */}
               {vistaPreviaNav === 'normal' ? (
-                /* VISTA 1: NORMAL / ARRIBA DE TODO CON LOGO RECTANGULAR */
+                /* VISTA 1: NORMAL / ARRIBA DE TODO CON LOGO AGRANDADO */
                 <div className="space-y-2">
                   <span className="text-[11px] font-semibold text-[#8A7F74] block">
-                    Modo normal (tope de página): se visualiza la foto rectangular centrada sin texto:
+                    Modo normal (tope de página): se visualiza el logo destacado y amplio o la tipografía de marca:
                   </span>
                   <div className="bg-white border border-[#DDD5C8] rounded-2xl p-4 shadow-xs">
                     <div className="grid grid-cols-3 items-center gap-4">
@@ -725,18 +757,18 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                         Buscar...
                       </div>
 
-                      {/* Centro: Foto del Logo Rectangular */}
+                      {/* Centro: Foto del Logo o Tipografía */}
                       <div className="flex justify-center items-center">
                         {(config.logoRectangularUrl || config.logoUrl) ? (
                           <img
                             src={config.logoRectangularUrl || config.logoUrl}
-                            alt="Logo Rectangular Mockup"
+                            alt="Logo Mockup"
                             className="h-12 max-w-[220px] sm:max-w-[280px] object-contain"
                           />
                         ) : (
                           <div className="text-center">
-                            <span className="font-bold tracking-[0.16em] uppercase text-sm leading-none text-[#2A2825] block">
-                              {config.nombreCentro}
+                            <span className={`${obtenerClaseTipografia(config.tipografiaLogo)} text-xl tracking-wide text-[#2A2825] block leading-tight`}>
+                              {config.nombreCentro || 'Nàvin'}
                             </span>
                             <span className="text-[9px] tracking-[0.2em] uppercase text-[#A89E94] block mt-0.5">
                               {config.slogan}
@@ -747,49 +779,45 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
 
                       {/* Derecha: Iconos */}
                       <div className="flex justify-end items-center gap-2 text-[#7A3B3B] text-xs font-semibold">
-                        <span className="p-1.5 bg-[#FAF8F5] rounded-lg">🛒</span>
-                        <span className="p-1.5 bg-[#FAF8F5] rounded-lg">👤</span>
+                        <span className="p-2 bg-[#FAF8F5] rounded-xl border border-[#EDE8E1]">🛒</span>
+                        <span className="p-2 bg-[#FAF8F5] rounded-xl border border-[#EDE8E1]">👤</span>
                       </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                /* VISTA 2: COMPRIMIDA AL SCROLLEAR CON LOGO REDONDO AL COSTADO */
+                /* VISTA 2: COMPRIMIDA AL SCROLLEAR (SIN RECORTE REDONDO FORZADO) */
                 <div className="space-y-2">
                   <span className="text-[11px] font-semibold text-[#8A7F74] block">
-                    Modo comprimido (al scrollear): se visualiza la foto redonda al costado sin texto:
+                    Modo comprimido (al scrollear): logo rectangular estilizado o tipografía sin cortes circulares:
                   </span>
                   <div className="bg-white border border-[#DDD5C8] rounded-2xl px-4 py-2.5 shadow-xs">
                     <div className="flex items-center justify-between gap-4">
-                      {/* Costado: Foto del Logo Redondo */}
+                      {/* Costado: Foto del Logo en proporción natural o texto */}
                       <div className="flex items-center">
-                        {config.logoRedondoUrl ? (
+                        {(config.logoRectangularUrl || config.logoUrl) ? (
                           <img
-                            src={config.logoRedondoUrl}
-                            alt="Logo Redondo Mockup"
-                            className="w-10 h-10 object-cover rounded-full border border-[#DDD5C8] shadow-2xs"
+                            src={config.logoRectangularUrl || config.logoUrl}
+                            alt="Logo Mockup"
+                            className="h-8 sm:h-9 max-w-[130px] object-contain"
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded-full bg-[#7A3B3B] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-                            {config.nombreCentro.charAt(0) || 'E'}
-                          </div>
+                          <span className={`${obtenerClaseTipografia(config.tipografiaLogo)} text-lg sm:text-xl font-normal text-[#2A2825] leading-none`}>
+                            {config.nombreCentro || 'Nàvin'}
+                          </span>
                         )}
                       </div>
 
                       {/* Centro: Enlaces */}
                       <div className="hidden sm:flex items-center gap-4 text-xs font-semibold text-[#5A524A]">
-                        <span className="text-[#7A3B3B]">Inicio</span>
                         <span>Servicios</span>
-                        <span>Turnos</span>
+                        <span>Reservar</span>
                         <span>Productos</span>
-                        <span>Mi Tarjeta</span>
                       </div>
 
-                      {/* Derecha: Iconos */}
-                      <div className="flex items-center gap-2 text-[#7A3B3B] text-xs font-semibold">
-                        <span className="p-1 bg-[#FAF8F5] rounded-lg">🔍</span>
-                        <span className="p-1 bg-[#FAF8F5] rounded-lg">🛒</span>
-                        <span className="p-1 bg-[#FAF8F5] rounded-lg">👤</span>
+                      {/* Derecha */}
+                      <div className="flex items-center gap-2 text-[#7A3B3B] text-xs">
+                        <span className="p-1.5 bg-[#FAF8F5] rounded-lg border border-[#EDE8E1]">👤</span>
                       </div>
                     </div>
                   </div>

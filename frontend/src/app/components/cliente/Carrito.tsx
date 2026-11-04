@@ -4,6 +4,7 @@ import {
     ArrowRight, Package, CheckCircle, ExternalLink, RotateCcw,
     Clock, AlertTriangle, FileText
 } from 'lucide-react';
+import type { AuthUser } from '../../../services/api';
 import { configuracionService } from '../../../services/configuracionService';
 
 interface ProductoCarrito {
@@ -17,13 +18,14 @@ interface ProductoCarrito {
 
 interface CarritoProps {
     items: ProductoCarrito[];
+    currentUser?: AuthUser | null;
     onUpdateQuantity: (productId: string, newQuantity: number) => void;
     onRemoveItem: (productId: string) => void;
     onCheckout: () => void;
     onNavigate?: (section: string) => void;
 }
 
-export function Carrito({ items, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }: CarritoProps) {
+export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }: CarritoProps) {
     const config = configuracionService.get();
     const [activeTab, setActiveTab] = useState<'carrito' | 'mis_pedidos'>('carrito');
     const [misOrdenes, setMisOrdenes] = useState<any[]>([]);
@@ -31,7 +33,25 @@ export function Carrito({ items, onUpdateQuantity, onRemoveItem, onCheckout, onN
     const cargarOrdenesLocales = () => {
         try {
             const guardadas = JSON.parse(localStorage.getItem('estetica_ordenes_productos') || '[]');
-            setMisOrdenes(Array.isArray(guardadas) ? guardadas : []);
+            if (!Array.isArray(guardadas)) {
+                setMisOrdenes([]);
+                return;
+            }
+            // Si no hay usuario autenticado, no exponer pedidos de otros clientes
+            if (!currentUser) {
+                setMisOrdenes([]);
+                return;
+            }
+            const filtradas = guardadas.filter((o: any) => {
+                if (currentUser.usuarioId && o.clienteId && Number(o.clienteId) === Number(currentUser.usuarioId)) {
+                    return true;
+                }
+                if (currentUser.email && o.clienteEmail && o.clienteEmail.toLowerCase() === currentUser.email.toLowerCase().trim()) {
+                    return true;
+                }
+                return false;
+            });
+            setMisOrdenes(filtradas);
         } catch {
             setMisOrdenes([]);
         }
@@ -39,7 +59,7 @@ export function Carrito({ items, onUpdateQuantity, onRemoveItem, onCheckout, onN
 
     useEffect(() => {
         cargarOrdenesLocales();
-    }, []);
+    }, [currentUser]);
 
     const subtotal = items.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
     const montoMinimoEnvio = config.montoEnvioGratis || 15000;

@@ -74,11 +74,11 @@ export function Sidebar({
     <aside className="w-64 bg-card border-r border-border h-screen flex flex-col">
       <div className="p-5 border-b border-border">
         <div className="flex items-center gap-2.5">
-          {(siteConfig.logoRedondoUrl || siteConfig.logoUrl) ? (
+          {(siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
             <img
-              src={siteConfig.logoRedondoUrl || siteConfig.logoUrl}
+              src={siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl}
               alt="Logo"
-              className="w-8 h-8 rounded-full object-cover bg-white shadow-2xs border border-border"
+              className="w-8 h-8 rounded-lg object-contain bg-white shadow-2xs border border-border p-0.5"
             />
           ) : (
             <Shield className="w-5 h-5 text-primary shrink-0" />

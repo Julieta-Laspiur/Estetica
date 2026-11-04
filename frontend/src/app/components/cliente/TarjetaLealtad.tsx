@@ -15,11 +15,12 @@ interface TarjetaLealtadProps {
 }
 
 export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
-  const clienteNombre = currentUser ? `${currentUser.nombre} ${currentUser.apellido || ''}`.trim() : 'Carla Gómez';
-  const clienteCodigo = currentUser ? `#CLI-${String(currentUser.usuarioId).padStart(3, '0')}-VIP` : '#CLI-101-VIP';
+  const clienteNombre = currentUser ? `${currentUser.nombre} ${currentUser.apellido || ''}`.trim() : 'Cliente Estética';
+  const clienteId = currentUser?.usuarioId || (currentUser?.email ? currentUser.email.toLowerCase().trim() : 'guest');
+  const clienteCodigo = currentUser?.usuarioId ? `#CLI-${String(currentUser.usuarioId).padStart(3, '0')}-VIP` : '#CLI-VIP';
 
   const [tarjetaCliente, setTarjetaCliente] = useState<TarjetaClienteLocal>(() =>
-    lealtadService.getTarjetaCliente(currentUser?.usuarioId || 101, clienteNombre)
+    lealtadService.getTarjetaCliente(clienteId, clienteNombre)
   );
   const [tiposTarjetas, setTiposTarjetas] = useState<TipoTarjetaMembresia[]>(() =>
     lealtadService.getTiposTarjetas().filter(t => t.activa)
@@ -28,8 +29,13 @@ export function TarjetaLealtad({ currentUser }: TarjetaLealtadProps) {
   const [mensajeCelebracion, setMensajeCelebracion] = useState<string | null>(null);
 
   useEffect(() => {
+    const actual = lealtadService.getTarjetaCliente(clienteId, clienteNombre);
+    setTarjetaCliente(actual);
+  }, [clienteId, clienteNombre]);
+
+  useEffect(() => {
     const handler = (e: any) => {
-      const actual = lealtadService.getTarjetaCliente(currentUser?.usuarioId || 101, clienteNombre);
+      const actual = lealtadService.getTarjetaCliente(clienteId, clienteNombre);
       setTarjetaCliente(actual);
       setNuevaEstampitaCelebracion(true);
       if (e?.detail?.tipoTarjeta?.nombre) {
