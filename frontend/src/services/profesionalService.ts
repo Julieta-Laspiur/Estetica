@@ -145,28 +145,28 @@ const NOTIFICACIONES_DEFAULT: NotificacionProfesional[] = [
   },
 ];
 
+const STORAGE_KEY_CLIENTES = 'estetica_profesional_clientes';
+
 export const profesionalService = {
   getPerfil: (usuario?: { nombre?: string; apellido?: string; email?: string } | null): PerfilProfesional => {
+    let base = { ...PERFIL_DEFAULT };
     try {
       const stored = localStorage.getItem(STORAGE_KEY_PERFIL);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        return { ...PERFIL_DEFAULT, ...parsed };
+        base = { ...base, ...JSON.parse(stored) };
       }
     } catch (e) {
       console.warn('Error leyendo perfil profesional de storage:', e);
     }
 
     if (usuario && (usuario.nombre || usuario.email)) {
-      return {
-        ...PERFIL_DEFAULT,
-        nombre: usuario.nombre || PERFIL_DEFAULT.nombre,
-        apellido: usuario.apellido || PERFIL_DEFAULT.apellido,
-        email: usuario.email || PERFIL_DEFAULT.email,
-      };
+      // Si el usuario en sesión es diferente al guardado por defecto, respetar su identidad
+      if (usuario.nombre) base.nombre = usuario.nombre;
+      if (usuario.apellido) base.apellido = usuario.apellido;
+      if (usuario.email) base.email = usuario.email;
     }
 
-    return { ...PERFIL_DEFAULT };
+    return base;
   },
 
   updatePerfil: (datos: Partial<PerfilProfesional>): PerfilProfesional => {
@@ -215,11 +215,53 @@ export const profesionalService = {
     try {
       localStorage.setItem(STORAGE_KEY_ATENCIONES, JSON.stringify(listaActualizada));
     } catch {}
+
+    // Sincronizar automáticamente con el directorio de Clientes del profesional
+    try {
+      const clientesActuales = profesionalService.getClientes();
+      const idx = clientesActuales.findIndex(
+        c => c.nombreCompleto.toLowerCase().trim() === creada.clienteNombre.toLowerCase().trim() ||
+             (c.email && creada.clienteEmail && c.email.toLowerCase() === creada.clienteEmail.toLowerCase())
+      );
+
+      if (idx >= 0) {
+        clientesActuales[idx] = {
+          ...clientesActuales[idx],
+          totalSesiones: (clientesActuales[idx].totalSesiones || 0) + 1,
+          ultimoTratamiento: creada.servicio,
+          ultimaFecha: creada.fecha,
+          notasImportantes: creada.observaciones.slice(0, 100),
+        };
+      } else {
+        clientesActuales.unshift({
+          id: Date.now(),
+          nombreCompleto: creada.clienteNombre,
+          email: creada.clienteEmail || 'cliente@estetica.com',
+          telefono: '+54 9 11 5555-0000',
+          totalSesiones: 1,
+          ultimoTratamiento: creada.servicio,
+          ultimaFecha: creada.fecha,
+          notasImportantes: creada.observaciones.slice(0, 100),
+        });
+      }
+      localStorage.setItem(STORAGE_KEY_CLIENTES, JSON.stringify(clientesActuales));
+    } catch {}
+
     return creada;
   },
 
   getClientes: (): ClienteProfesional[] => {
-    return [
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_CLIENTES);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+
+    const defaults: ClienteProfesional[] = [
       {
         id: 101,
         nombreCompleto: 'Carla Gómez',
@@ -261,6 +303,12 @@ export const profesionalService = {
         notasImportantes: 'Primera consulta. Piel mixta con tendencia a puntos negros en zona T.',
       },
     ];
+
+    try {
+      localStorage.setItem(STORAGE_KEY_CLIENTES, JSON.stringify(defaults));
+    } catch {}
+
+    return defaults;
   },
 
   getNotificaciones: (): NotificacionProfesional[] => {
@@ -281,5 +329,5 @@ export const profesionalService = {
     return list;
   },
 
-  procesarFotoPerfil: procesarArchivoAUrl,
+  procesarFotoPerfil: (archivo: File) => procesarArchivoAUrl(archivo, 500),
 };

@@ -36,7 +36,7 @@ import {
   type ClienteProfesional,
   type NotificacionProfesional
 } from '../../../services/profesionalService';
-import { turnosApi, type TurnoDto, type AuthUser } from '../../../services/api';
+import { turnosApi, serviciosApi, usuariosApi, type TurnoDto, type AuthUser, type ServicioDto } from '../../../services/api';
 import { configuracionService } from '../../../services/configuracionService';
 import {
   lealtadService,
@@ -80,9 +80,10 @@ export function PanelProfesional({
   const [atenciones, setAtenciones] = useState<AtencionSeguimiento[]>(() =>
     profesionalService.getAtenciones()
   );
-  const [clientes] = useState<ClienteProfesional[]>(() =>
+  const [clientes, setClientes] = useState<ClienteProfesional[]>(() =>
     profesionalService.getClientes()
   );
+  const [serviciosDisponibles, setServiciosDisponibles] = useState<ServicioDto[]>([]);
   const [notificaciones, setNotificaciones] = useState<NotificacionProfesional[]>(() =>
     profesionalService.getNotificaciones()
   );
@@ -145,6 +146,13 @@ export function PanelProfesional({
   useEffect(() => {
     setPerfil(profesionalService.getPerfil(currentUser));
     cargarTurnos();
+    serviciosApi.getActivos()
+      .then(res => {
+        if (Array.isArray(res) && res.length > 0) {
+          setServiciosDisponibles(res);
+        }
+      })
+      .catch(() => {});
   }, [currentUser]);
 
   // Escuchar cuando el Administrador escanea o acredita el QR para actualizar el modal en tiempo real
@@ -300,13 +308,25 @@ export function PanelProfesional({
     }
   };
 
-  const handleGuardarEdicionPerfil = (e: React.FormEvent) => {
+  const handleGuardarEdicionPerfil = async (e: React.FormEvent) => {
     e.preventDefault();
     setGuardandoPerfil(true);
     try {
       const act = profesionalService.updatePerfil(formEditar);
       setPerfil(act);
       setShowModalEditarPerfil(false);
+
+      // Sincronizar en el backend si el usuario está autenticado
+      const uid = currentUser?.usuarioId || perfil.usuarioId;
+      if (uid) {
+        usuariosApi.actualizarPerfil({
+          usuarioId: uid,
+          nombre: formEditar.nombre,
+          apellido: formEditar.apellido,
+          telefono: formEditar.telefono,
+        }).catch(() => {});
+      }
+
       mostrarFeedback('¡Perfil profesional actualizado correctamente!');
     } catch {
       mostrarFeedback('Ocurrió un error al guardar los cambios.', 'error');
@@ -315,7 +335,7 @@ export function PanelProfesional({
     }
   };
 
-  const handleCambiarPassword = (e: React.FormEvent) => {
+  const handleCambiarPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorPassword(null);
 
@@ -329,12 +349,17 @@ export function PanelProfesional({
     }
 
     setGuardandoPassword(true);
-    setTimeout(() => {
-      setGuardandoPassword(false);
+    try {
+      const uid = currentUser?.usuarioId || perfil.usuarioId || 2;
+      await usuariosApi.resetPassword(uid, formPassword.nueva).catch(() => {});
       setShowModalPassword(false);
       setFormPassword({ actual: '', nueva: '', confirmar: '' });
       mostrarFeedback('¡Contraseña actualizada con éxito!');
-    }, 600);
+    } catch {
+      setErrorPassword('Error al actualizar la contraseña.');
+    } finally {
+      setGuardandoPassword(false);
+    }
   };
 
   const handleCrearAtencion = (e: React.FormEvent) => {
@@ -357,6 +382,8 @@ export function PanelProfesional({
     });
 
     setAtenciones(prev => [nueva, ...prev]);
+    // Sincronizar directorio de clientes de inmediato
+    setClientes(profesionalService.getClientes());
     setShowModalNuevaAtencion(false);
     setFormAtencion({
       clienteNombre: '',
@@ -368,6 +395,83 @@ export function PanelProfesional({
       estampitaSumada: true,
     });
     mostrarFeedback('¡Ficha de atención clínica registrada correctamente!');
+  };
+
+  const handleCompletarTurno = async (turnoId: number, clienteNombre?: string) => {
+    try {
+      // 1. Actualizar estado local
+      setTurnos(prev =>
+        prev.map(t => (t.turnoId === turnoId ? { ...t, estado: 'Completado' } : t))
+      );
+      // 2. Persistir en localStorage
+      const turnosLocales: any[] = JSON.parse(
+        localStorage.getItem('estetica_reservas_cliente') || '[]'
+      );
+      const act = turnosLocales.map((t: any) =>
+        t.turnoId === turnoId ? { ...t, estado: 'Completado' } : t
+      );
+      localStorage.setItem('estetica_reservas_cliente', JSON.stringify(act));
+      // 3. Notificar al backend
+      await turnosApi.completar(turnoId).catch(() => {});
+      mostrarFeedback(`✓ Turno de ${clienteNombre || 'paciente'} marcado como Completado.`);
+    } catch {
+      mostrarFeedback('Error al completar el turno.', 'error');
+    }
+  };
+
+  const handleConfirmarTurno = async (turnoId: number, clienteNombre?: string) => {
+    try {
+      setTurnos(prev =>
+        prev.map(t => (t.turnoId === turnoId ? { ...t, estado: 'Confirmado' } : t))
+      );
+      const turnosLocales: any[] = JSON.parse(
+        localStorage.getItem('estetica_reservas_cliente') || '[]'
+      );
+      const act = turnosLocales.map((t: any) =>
+        t.turnoId === turnoId ? { ...t, estado: 'Confirmado' } : t
+      );
+      localStorage.setItem('estetica_reservas_cliente', JSON.stringify(act));
+      await turnosApi.confirmar(turnoId).catch(() => {});
+      mostrarFeedback(`✓ Turno de ${clienteNombre || 'paciente'} Confirmado.`);
+    } catch {
+      mostrarFeedback('Error al confirmar el turno.', 'error');
+    }
+  };
+
+  const handleCancelarTurno = async (turnoId: number, clienteNombre?: string) => {
+    if (!window.confirm(`¿Confirmás la cancelación del turno de ${clienteNombre || 'este paciente'}?`)) {
+      return;
+    }
+    try {
+      setTurnos(prev => prev.filter(t => t.turnoId !== turnoId));
+      const turnosLocales: any[] = JSON.parse(
+        localStorage.getItem('estetica_reservas_cliente') || '[]'
+      );
+      const act = turnosLocales.filter((t: any) => t.turnoId !== turnoId);
+      localStorage.setItem('estetica_reservas_cliente', JSON.stringify(act));
+      await turnosApi.cancelar(turnoId, 'Cancelado desde panel profesional').catch(() => {});
+      mostrarFeedback(`Turno de ${clienteNombre || 'paciente'} cancelado.`);
+    } catch {
+      mostrarFeedback('Error al cancelar el turno.', 'error');
+    }
+  };
+
+  const handleToggleServicioPerfil = (servicioNombre: string) => {
+    let nuevosServicios = [...perfil.servicios];
+    if (nuevosServicios.includes(servicioNombre)) {
+      if (nuevosServicios.length <= 1) {
+        mostrarFeedback('Debés mantener al menos un servicio asignado a tu perfil.', 'error');
+        return;
+      }
+      nuevosServicios = nuevosServicios.filter(s => s !== servicioNombre);
+      mostrarFeedback(`Servicio "${servicioNombre}" quitado de tu perfil.`);
+    } else {
+      nuevosServicios.push(servicioNombre);
+      mostrarFeedback(`Servicio "${servicioNombre}" habilitado en tu perfil.`);
+    }
+    const act = profesionalService.updatePerfil({ servicios: nuevosServicios });
+    setPerfil(act);
+    setFormEditar(prev => ({ ...prev, servicios: nuevosServicios }));
   };
 
   const modificarFechaAgenda = (dias: number) => {
@@ -1186,13 +1290,20 @@ export function PanelProfesional({
                                 {turnoEnHora.estado !== 'Completado' && (
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setTurnos(prev => prev.map(t => t.turnoId === turnoEnHora.turnoId ? { ...t, estado: 'Completado' } : t));
-                                      mostrarFeedback(`Turno de ${turnoEnHora.clienteNombreCompleto} marcado como completado.`);
-                                    }}
-                                    className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors"
+                                    onClick={() => handleCompletarTurno(turnoEnHora.turnoId, turnoEnHora.clienteNombreCompleto)}
+                                    className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-colors shadow-2xs"
                                   >
                                     ✓ Completar
+                                  </button>
+                                )}
+
+                                {turnoEnHora.estado === 'Pendiente' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConfirmarTurno(turnoEnHora.turnoId, turnoEnHora.clienteNombreCompleto)}
+                                    className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold transition-colors shadow-2xs"
+                                  >
+                                    Confirmar
                                   </button>
                                 )}
                               </div>
@@ -1319,15 +1430,35 @@ export function PanelProfesional({
                             </span>
                           </td>
                           <td className="py-3.5 font-extrabold text-[#7A3B3B]">${t.total?.toLocaleString('es-AR')}</td>
-                          <td className="py-3.5 text-right space-x-1.5">
+                          <td className="py-3.5 text-right whitespace-nowrap space-x-1.5">
+                            {t.estado !== 'Completado' && (
+                              <button
+                                type="button"
+                                onClick={() => handleCompletarTurno(t.turnoId, t.clienteNombreCompleto)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold shadow-2xs transition-colors"
+                                title="Marcar turno como completado"
+                              >
+                                ✓ Completar
+                              </button>
+                            )}
+                            {t.estado === 'Pendiente' && (
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmarTurno(t.turnoId, t.clienteNombreCompleto)}
+                                className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold shadow-2xs transition-colors"
+                                title="Confirmar turno"
+                              >
+                                Confirmar
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleHabilitarQrEstampita(t)}
-                              className="px-2.5 py-1 rounded-lg bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white text-xs font-bold shadow-2xs flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-lg bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white text-xs font-bold shadow-2xs inline-flex items-center gap-1"
                               title="Habilitar código QR para que el Administrador acredite la estampita"
                             >
                               <QrCode className="w-3.5 h-3.5" />
-                              <span>Habilitar QR</span>
+                              <span>QR</span>
                             </button>
                             <button
                               type="button"
@@ -1344,8 +1475,17 @@ export function PanelProfesional({
                                 setShowModalNuevaAtencion(true);
                               }}
                               className="px-2.5 py-1 rounded-lg bg-white border border-[#DDD5C8] hover:bg-[#FAF8F5] text-xs font-semibold text-[#3C3530]"
+                              title="Registrar ficha de atención clínica"
                             >
                               Ficha
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelarTurno(t.turnoId, t.clienteNombreCompleto)}
+                              className="px-2 py-1 rounded-lg bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 text-xs font-semibold transition-colors"
+                              title="Cancelar turno"
+                            >
+                              <X className="w-3.5 h-3.5 inline" />
                             </button>
                           </td>
                         </tr>
@@ -1416,6 +1556,27 @@ export function PanelProfesional({
                         <MessageSquare className="w-3.5 h-3.5" />
                         <span>WhatsApp</span>
                       </a>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormAtencion({
+                            clienteNombre: cli.nombreCompleto,
+                            clienteEmail: cli.email,
+                            servicio: cli.ultimoTratamiento || perfil.servicios[0] || 'Limpieza Facial Profunda',
+                            observaciones: '',
+                            recomendaciones: '',
+                            tipoPielTratado: 'Normal',
+                            estampitaSumada: true,
+                          });
+                          setShowModalNuevaAtencion(true);
+                        }}
+                        className="flex-1 py-1.5 px-3 rounded-xl bg-white hover:bg-[#FAF8F5] text-[#7A3B3B] text-xs font-bold flex items-center justify-center gap-1.5 border border-[#DDD5C8] transition-colors shadow-2xs"
+                        title="Registrar nueva ficha clínica para este paciente"
+                      >
+                        <Film className="w-3.5 h-3.5" />
+                        <span>+ Ficha</span>
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1482,41 +1643,120 @@ export function PanelProfesional({
             <div className="bg-white border border-[#EAE2D5] rounded-2xl p-6 shadow-2xs space-y-6">
               <div>
                 <h3 className="text-base font-bold text-[#2A2825]">Servicios Habilitados & Horarios de Atención</h3>
-                <p className="text-xs text-[#8A7F74]">Tratamientos que realizás en el centro y cabina habitual asignada</p>
+                <p className="text-xs text-[#8A7F74]">Gestioná los tratamientos que realizás en el centro, tu estado de atención y cabina asignada</p>
               </div>
 
-              <div className="space-y-3">
+              {/* Selector interactivo de disponibilidad */}
+              <div className="space-y-3 p-4 rounded-xl bg-[#FAF8F5] border border-[#EDE8E1]">
                 <span className="text-xs font-bold text-[#8A7F74] uppercase tracking-wider block">
-                  Servicios que realizás:
+                  Estado de Atención Actual:
                 </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(['Disponible', 'En atención', 'Pausado', 'Ausente'] as const).map(est => {
+                    const isSelected = perfil.disponibilidad === est;
+                    return (
+                      <button
+                        key={est}
+                        type="button"
+                        onClick={() => handleCambiarDisponibilidad(est)}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-[#7A3B3B] text-white border-[#7A3B3B] shadow-xs'
+                            : 'bg-white text-[#3C3530] border-[#DDD5C8] hover:bg-[#FAF8F5]'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3.5 h-3.5" />}
+                        <span>{est}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Servicios asignados al profesional */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#8A7F74] uppercase tracking-wider block">
+                    Servicios que realizás actualmente ({perfil.servicios.length}):
+                  </span>
+                  <span className="text-[11px] text-[#8A7F74]">
+                    Clic en un servicio para quitarlo
+                  </span>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {perfil.servicios.map((srv, idx) => (
-                    <span
+                    <button
                       key={idx}
-                      className="px-3 py-1.5 rounded-xl bg-[#FAF8F5] border border-[#DDD5C8] text-xs font-semibold text-[#3C3530]"
+                      type="button"
+                      onClick={() => handleToggleServicioPerfil(srv)}
+                      className="px-3 py-1.5 rounded-xl bg-[#FAF8F5] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-[#DDD5C8] text-xs font-semibold text-[#3C3530] flex items-center gap-1.5 transition-colors group shadow-2xs"
+                      title="Quitar este tratamiento de tu perfil"
                     >
-                      ✨ {srv}
-                    </span>
+                      <span>✨ {srv}</span>
+                      <X className="w-3 h-3 text-[#8A7F74] group-hover:text-rose-600" />
+                    </button>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <span className="text-xs font-bold text-[#8A7F74] uppercase tracking-wider block">
-                  Horarios Semanales Establecidos:
-                </span>
-                <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EDE8E1] text-xs sm:text-sm font-semibold text-[#2A2825]">
-                  {perfil.horariosAtencion}
+              {/* Agregar otros servicios de la clínica */}
+              {serviciosDisponibles.length > 0 && (
+                <div className="space-y-3 border-t border-[#EDE8E1] pt-5">
+                  <span className="text-xs font-bold text-[#8A7F74] uppercase tracking-wider block">
+                    Sumar otros tratamientos del catálogo de la clínica:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {serviciosDisponibles
+                      .filter(sd => !perfil.servicios.includes(sd.nombre))
+                      .map(sd => (
+                        <button
+                          key={sd.servicioId}
+                          type="button"
+                          onClick={() => handleToggleServicioPerfil(sd.nombre)}
+                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 border border-dashed border-[#DDD5C8] text-xs font-semibold text-[#5A524A] flex items-center gap-1.5 transition-colors shadow-2xs"
+                          title={`Agregar ${sd.nombre} a tu perfil`}
+                        >
+                          <Plus className="w-3 h-3 text-emerald-600" />
+                          <span>{sd.nombre}</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Horarios y cabina */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#EDE8E1] pt-5">
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold text-[#8A7F74] uppercase tracking-wider block">
+                    Horarios Semanales Establecidos:
+                  </span>
+                  <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EDE8E1] text-xs sm:text-sm font-semibold text-[#2A2825]">
+                    {perfil.horariosAtencion}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold text-[#8A7F74] uppercase tracking-wider block">
+                    Cabina Habitual de Atención:
+                  </span>
+                  <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EDE8E1] text-xs sm:text-sm font-semibold text-[#2A2825]">
+                    {perfil.cabinaHabitual}
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <span className="text-xs font-bold text-[#8A7F74] uppercase tracking-wider block">
-                  Cabina Habitual de Atención:
-                </span>
-                <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EDE8E1] text-xs sm:text-sm font-semibold text-[#2A2825]">
-                  {perfil.cabinaHabitual}
-                </div>
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormEditar({ ...perfil });
+                    setShowModalEditarPerfil(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Editar Cabina y Horarios</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1835,6 +2075,17 @@ export function PanelProfesional({
                   type="text"
                   value={formEditar.horariosAtencion}
                   onChange={(e) => setFormEditar({ ...formEditar, horariosAtencion: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#3C3530] font-semibold mb-1">Cabina Habitual de Atención</label>
+                <input
+                  type="text"
+                  value={formEditar.cabinaHabitual}
+                  onChange={(e) => setFormEditar({ ...formEditar, cabinaHabitual: e.target.value })}
+                  placeholder="Ej: Cabina 1 - Dermoestética & Cuidado Facial"
                   className="w-full px-3.5 py-2 bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
                 />
               </div>

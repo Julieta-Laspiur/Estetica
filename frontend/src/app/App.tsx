@@ -556,6 +556,9 @@ export default function App() {
             setVistaActual('cliente');
             setActiveSection('inicio');
           }}
+          onSwitchToProfesional={() => {
+            setVistaActual('profesional');
+          }}
           onLogout={handleLogout}
         />
         <main className="flex-1 overflow-y-auto p-8">
@@ -585,10 +588,9 @@ export default function App() {
             : undefined
         }
         onSwitchToProfesional={
-          currentUser?.rol === 'Profesional'
+          currentUser?.rol === 'Profesional' || currentUser?.rol === 'Administrador'
             ? () => {
                 setVistaActual('profesional');
-                setActiveSection('perfil');
               }
             : undefined
         }

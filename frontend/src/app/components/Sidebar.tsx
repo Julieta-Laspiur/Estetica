@@ -9,6 +9,7 @@ interface SidebarProps {
   onSectionChange: (section: string) => void;
   currentUser?: AuthUser | null;
   onSwitchToCliente?: () => void;
+  onSwitchToProfesional?: () => void;
   onLogout?: () => void;
 }
 
@@ -17,6 +18,7 @@ export function Sidebar({
   onSectionChange,
   currentUser,
   onSwitchToCliente,
+  onSwitchToProfesional,
   onLogout
 }: SidebarProps) {
   const [siteConfig, setSiteConfig] = useState<ConfiguracionGeneral>(() => configuracionService.get());
@@ -146,6 +148,17 @@ export function Sidebar({
             >
               <Store className="w-4 h-4 text-primary shrink-0" />
               <span>Ver Tienda (Vista Cliente)</span>
+            </button>
+          )}
+
+          {onSwitchToProfesional && (
+            <button
+              onClick={onSwitchToProfesional}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#7A3B3B] hover:bg-accent transition-colors text-left"
+              title="Abrir Panel Profesional"
+            >
+              <UserCheck className="w-4 h-4 text-[#7A3B3B] shrink-0" />
+              <span>Ver Panel Profesional</span>
             </button>
           )}
 

@@ -194,8 +194,8 @@ export function NavbarCliente({
                 </button>
             )}
 
-            {/* Acceso rápido directo al Panel Profesional (exclusivo para rol Profesional, nunca para Administrador) */}
-            {!isAdmin && onSwitchToProfesional && (
+            {/* Acceso rápido directo al Panel Profesional */}
+            {onSwitchToProfesional && (
                 <button
                     onClick={onSwitchToProfesional}
                     className="ml-1 px-3 py-1.5 bg-[#3C3530] hover:bg-[#2A2825] text-white text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 shadow-2xs"

@@ -400,6 +400,20 @@ export const turnosApi = {
     return request<{ message: string }>(`/turnos/${id}/confirmar`, { method: 'PUT' });
   },
 
+  completar: (id: number): Promise<{ message: string }> => {
+    return request<{ message: string }>(`/turnos/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ nuevoEstado: 3 }), // 3 = EstadoTurno.Completado
+    });
+  },
+
+  cambiarEstado: (id: number, nuevoEstado: number | string): Promise<{ message: string }> => {
+    return request<{ message: string }>(`/turnos/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ nuevoEstado }),
+    });
+  },
+
   cancelar: (turnoId: number, motivo?: string): Promise<void> => {
     return request<void>(`/turnos/${turnoId}/cancelar`, {
       method: 'PUT',
@@ -436,13 +450,6 @@ export const turnosApi = {
 
   marcarAusente: (id: number): Promise<{ message: string }> => {
     return request<{ message: string }>(`/turnos/${id}/ausente`, { method: 'PUT' });
-  },
-
-  cambiarEstado: (id: number, nuevoEstado: number): Promise<{ message: string }> => {
-    return request<{ message: string }>(`/turnos/${id}/estado`, {
-      method: 'PUT',
-      body: JSON.stringify({ nuevoEstado }),
-    });
   },
 };
 
