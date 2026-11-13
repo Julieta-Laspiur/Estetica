@@ -47,10 +47,10 @@ export function CalendarioTurnos() {
 
       // Combinar con turnos locales agendados en el navegador
       const turnosLocales: any[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
-      const idsExistentes = new Set(data.map(d => d.turnoId));
+      const idsExistentes = new Set(data.map(d => String(d.turnoId)));
       const combinados = [...data];
       turnosLocales.forEach((tl: any) => {
-        if (!idsExistentes.has(tl.turnoId)) {
+        if (!idsExistentes.has(String(tl.turnoId))) {
           combinados.unshift(tl);
         }
       });
@@ -111,9 +111,12 @@ export function CalendarioTurnos() {
       try {
         const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
         const actualizados = turnosLocales.map((tl: any) =>
-          tl.turnoId === turnoId ? { ...tl, estado: 'Confirmado' } : tl
+          String(tl.turnoId) === String(turnoId) ? { ...tl, estado: 'Confirmado' } : tl
         );
         localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
+        try {
+          window.dispatchEvent(new CustomEvent('estetica_turno_creado'));
+        } catch {}
       } catch {}
       await cargarTurnosCalendario();
       alert(`¡Turno #${turnoId} confirmado con éxito!`);
@@ -124,6 +127,17 @@ export function CalendarioTurnos() {
 
   useEffect(() => {
     cargarTurnosCalendario();
+
+    const handleActualizar = () => {
+      cargarTurnosCalendario();
+    };
+
+    window.addEventListener('storage', handleActualizar);
+    window.addEventListener('estetica_turno_creado', handleActualizar);
+    return () => {
+      window.removeEventListener('storage', handleActualizar);
+      window.removeEventListener('estetica_turno_creado', handleActualizar);
+    };
   }, []);
 
   const getDaysInMonth = (date: Date) => {

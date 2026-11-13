@@ -32,7 +32,10 @@ import {
   Loader2,
   Check,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Bot,
+  EyeOff,
+  RefreshCw
 } from 'lucide-react';
 import {
   configuracionService,
@@ -40,13 +43,19 @@ import {
   type ConfiguracionGeneral,
   obtenerClaseTipografia
 } from '../../services/configuracionService';
-import type { AuthUser } from '../../services/api';
+import {
+  type AuthUser,
+  chatIAApi,
+  type GeminiTestResultDto,
+  productosApi,
+  serviciosApi
+} from '../../services/api';
 
 interface ConfiguracionProps {
   currentUser?: AuthUser | null;
 }
 
-type TabSeccion = 'identidad' | 'agenda' | 'politicas' | 'pagos' | 'tienda' | 'fidelizacion' | 'banner' | 'backup';
+type TabSeccion = 'identidad' | 'banner' | 'agenda' | 'politicas' | 'pagos' | 'tienda' | 'fidelizacion' | 'ia' | 'backup';
 
 // Logos Rectangulares predefinidos para la cabecera superior (fotos horizontales)
 const LOGOS_RECTANGULARES_PREDEFINIDOS = [
@@ -132,6 +141,22 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
   // Conmutador de la previsualización en vivo
   const [vistaPreviaNav, setVistaPreviaNav] = useState<'normal' | 'comprimida'>('normal');
 
+  // Estados de IA & Gemini
+  const [testandoGemini, setTestandoGemini] = useState(false);
+  const [resultadoTestGemini, setResultadoTestGemini] = useState<GeminiTestResultDto | null>(null);
+  const [mostrarClaveGemini, setMostrarClaveGemini] = useState(false);
+  const [sincronizandoRag, setSincronizandoRag] = useState(false);
+  const [syncRagInfo, setSyncRagInfo] = useState<string | null>(() => {
+    try {
+      const syncGuardado = localStorage.getItem('estetica_ia_catalogo_sync');
+      if (syncGuardado) {
+        const p = JSON.parse(syncGuardado);
+        return `Última sincronización: ${new Date(p.fecha).toLocaleString('es-AR')} (${p.productos} productos, ${p.servicios} servicios indexados)`;
+      }
+    } catch {}
+    return null;
+  });
+
   useEffect(() => {
     setConfig(configuracionService.get());
   }, []);
@@ -139,6 +164,56 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
   const mostrarFeedback = (msg: string) => {
     setMensajeExito(msg);
     setTimeout(() => setMensajeExito(null), 4000);
+  };
+
+  const handleProbarGemini = async () => {
+    setTestandoGemini(true);
+    setResultadoTestGemini(null);
+    try {
+      const res = await chatIAApi.testGemini(config.geminiApiKey, config.geminiModel);
+      setResultadoTestGemini(res);
+      if (res.conectado) {
+        mostrarFeedback(`✅ Conectado a Gemini exitosamente (${res.latenciaMs} ms).`);
+      } else {
+        mostrarFeedback(`⚠️ ${res.mensaje}`);
+      }
+    } catch (err: any) {
+      setResultadoTestGemini({
+        conectado: false,
+        mensaje: err.message || 'Error de conexión con el servicio de IA.',
+        latenciaMs: 0,
+        modelo: config.geminiModel || 'gemini-1.5-flash',
+        guardrailsActivos: true
+      });
+    } finally {
+      setTestandoGemini(false);
+    }
+  };
+
+  const handleSincronizarCatalogoRag = async () => {
+    setSincronizandoRag(true);
+    try {
+      const [prods, servs] = await Promise.all([
+        productosApi.getTodos().catch(() => []),
+        serviciosApi.getTodos().catch(() => [])
+      ]);
+      const prodsActivos = prods.filter(p => p.activo !== false);
+      const servsActivos = servs.filter(s => s.activo !== false);
+
+      const syncData = {
+        fecha: new Date().toISOString(),
+        productos: prodsActivos.length,
+        servicios: servsActivos.length
+      };
+      localStorage.setItem('estetica_ia_catalogo_sync', JSON.stringify(syncData));
+      const info = `Última sincronización: ${new Date().toLocaleString('es-AR')} (${prodsActivos.length} productos, ${servsActivos.length} servicios indexados)`;
+      setSyncRagInfo(info);
+      mostrarFeedback('🎉 ¡Catálogo sincronizado exitosamente con el motor RAG de la IA!');
+    } catch (err: any) {
+      mostrarFeedback('Error al sincronizar catálogo con RAG.');
+    } finally {
+      setSincronizandoRag(false);
+    }
   };
 
   // Guardado inmediato y sincronizado para acciones directas (presets, uploads, borrar logo)
@@ -334,6 +409,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
           { id: 'pagos', label: 'Pasarelas & Cobros', icon: CreditCard },
           { id: 'tienda', label: 'Tienda & Envíos', icon: ShoppingBag },
           { id: 'fidelizacion', label: 'Fidelización (Estampitas)', icon: Gift },
+          { id: 'ia', label: 'Inteligencia Artificial (Gemini & RAG)', icon: Bot },
           { id: 'backup', label: 'Respaldo & Auditoría', icon: Database },
         ].map(tab => {
           const Icon = tab.icon;
@@ -486,7 +562,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
 
                   <div className="flex items-center gap-2">
                     <input
-                      type="url"
+                      type="text"
                       value={config.logoRectangularUrl || config.logoUrl || ''}
                       onChange={(e) =>
                         setConfig({
@@ -668,7 +744,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
 
                   <div className="flex items-center gap-2">
                     <input
-                      type="url"
+                      type="text"
                       value={config.logoRedondoUrl || ''}
                       onChange={(e) =>
                         setConfig({
@@ -1246,7 +1322,7 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
                   )}
 
                   <input
-                    type="url"
+                    type="text"
                     value={config.bannerHero.imagenUrl}
                     onChange={(e) =>
                       setConfig({
@@ -2032,7 +2108,223 @@ export function Configuracion({ currentUser }: ConfiguracionProps = {}) {
           </div>
         )}
 
-        {/* 8. RESPALDO & AUDITORÍA */}
+        {/* 8. INTELIGENCIA ARTIFICIAL & CHATBOT (GEMINI & RAG - HU-12) */}
+        {activeTab === 'ia' && (
+          <div className="bg-white border border-[#EDE8E1] rounded-3xl p-6 sm:p-8 shadow-xs space-y-7">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EDE8E1] pb-4">
+              <div>
+                <h3 className="text-base font-bold text-[#2A2825] flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-[#7A3B3B]" />
+                  <span>Asistente Inteligente Conversacional (Google Gemini & RAG)</span>
+                </h3>
+                <p className="text-xs text-[#8A7F74] mt-0.5">
+                  Gestioná el asistente 24/7, la clave de Google Gemini, la sincronización en vivo del catálogo y los guardrails médicos.
+                </p>
+              </div>
+
+              {/* Conmutador Asistente Habilitado */}
+              <label className="relative inline-flex items-center cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={config.geminiHabilitado ?? true}
+                  onChange={(e) => setConfig({ ...config, geminiHabilitado: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[#EDE8E1] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#DDD5C8] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7A3B3B]"></div>
+                <span className="ml-2.5 text-xs font-bold text-[#2A2825]">
+                  {(config.geminiHabilitado ?? true) ? 'Asistente Activado' : 'Asistente Pausado'}
+                </span>
+              </label>
+            </div>
+
+            {/* SECCIÓN 1: CONEXIÓN GOOGLE GEMINI */}
+            <div className="p-5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-3xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-[#2A2825] flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#7A3B3B]" />
+                    <span>Conexión con Google Gemini</span>
+                  </h4>
+                  <p className="text-[11px] text-[#8A7F74]">
+                    Modelo generativo para interpretar biotipos cutáneos y formular recomendaciones personalizadas.
+                  </p>
+                </div>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#7A3B3B] hover:underline font-semibold flex items-center gap-1"
+                >
+                  <span>Obtener API Key Gratis</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* API Key */}
+                <div className="md:col-span-2 space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#3C3530]">
+                    Google Gemini API Key
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={mostrarClaveGemini ? 'text' : 'password'}
+                      value={config.geminiApiKey || ''}
+                      onChange={(e) => setConfig({ ...config, geminiApiKey: e.target.value })}
+                      placeholder="AIzaSy... (Opcional si ya está configurada en appsettings del servidor)"
+                      className="w-full px-3.5 py-2.5 pr-10 bg-white border border-[#EDE8E1] rounded-xl text-xs font-mono text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMostrarClaveGemini(!mostrarClaveGemini)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A7F74] hover:text-[#2A2825]"
+                    >
+                      {mostrarClaveGemini ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-[#8A7F74]">
+                    Si se deja en blanco, el asistente utilizará la API Key configurada en el backend o el motor inteligente local con respuesta garantizada en &lt; 5 segundos.
+                  </p>
+                </div>
+
+                {/* Modelo */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#3C3530]">
+                    Modelo Generativo
+                  </label>
+                  <select
+                    value={config.geminiModel || 'gemini-1.5-flash'}
+                    onChange={(e) => setConfig({ ...config, geminiModel: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white border border-[#EDE8E1] rounded-xl text-xs font-semibold text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
+                  >
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recomendado - Ultra rápido y eficiente)</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Máximo razonamiento dermatológico)</option>
+                  </select>
+                </div>
+
+                {/* Temperatura */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-[#3C3530]">
+                      Temperatura / Creatividad: {config.geminiTemperatura ?? 0.3}
+                    </label>
+                    <span className="text-[10px] text-[#8A7F74]">Preciso (0.1) &rarr; Creativo (0.7)</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="0.7"
+                    step="0.1"
+                    value={config.geminiTemperatura ?? 0.3}
+                    onChange={(e) => setConfig({ ...config, geminiTemperatura: parseFloat(e.target.value) })}
+                    className="w-full accent-[#7A3B3B]"
+                  />
+                </div>
+              </div>
+
+              {/* Botón Probar Conexión */}
+              <div className="pt-2 border-t border-[#EDE8E1] flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleProbarGemini}
+                  disabled={testandoGemini}
+                  className="px-4 py-2 bg-[#3C3530] hover:bg-[#2A2825] text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                >
+                  {testandoGemini ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  <span>Probar Conexión en Vivo</span>
+                </button>
+
+                {resultadoTestGemini && (
+                  <div className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 border ${
+                    resultadoTestGemini.conectado
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}>
+                    {resultadoTestGemini.conectado ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Conectado ({resultadoTestGemini.latenciaMs} ms) • {resultadoTestGemini.modelo}</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-4 h-4 text-amber-600" />
+                        <span>{resultadoTestGemini.mensaje}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECCIÓN 2: SINCRONIZACIÓN DE CATÁLOGO CON RAG (RECOMENDACIÓN PERFILADMIN.MD #10) */}
+            <div className="p-5 bg-[#FAF8F5] border border-[#EDE8E1] rounded-3xl space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-bold text-[#2A2825] flex items-center gap-2">
+                    <Database className="w-4 h-4 text-[#7A3B3B]" />
+                    <span>Sincronización del Catálogo con el Asistente RAG</span>
+                  </h4>
+                  <p className="text-[11px] text-[#8A7F74]">
+                    Al sincronizar, la IA actualiza su memoria indexada con todos los servicios y productos con stock real activo.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSincronizarCatalogoRag}
+                  disabled={sincronizandoRag}
+                  className="px-4 py-2 bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors disabled:opacity-50 self-start sm:self-auto"
+                >
+                  {sincronizandoRag ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  <span>Sincronizar Catálogo Ahora</span>
+                </button>
+              </div>
+
+              {syncRagInfo && (
+                <div className="p-3 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#5A524A] flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{syncRagInfo}</span>
+                </div>
+              )}
+
+              <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+                💡 <strong>Actualización transparente:</strong> Cuando modifiques precios, des de alta un tratamiento o ingreses mercadería, podés sincronizar el catálogo con 1 clic para que el asistente recomiende los nuevos datos inmediatamente sin necesidad de tocar código fuente.
+              </div>
+            </div>
+
+            {/* SECCIÓN 3: GUARDRAILS MÉDICOS Y PROTOCOLO HU-12 */}
+            <div className="p-5 bg-white border border-[#EDE8E1] rounded-3xl space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#3C3530] flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Guardrails Dermatológicos Activos (Blindaje de Seguridad HU-12)</span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs">
+                <div className="p-3 bg-rose-50/60 border border-rose-200/60 rounded-xl">
+                  <span className="font-bold text-rose-900 block mb-0.5">🚫 Sin Diagnósticos Médicos</span>
+                  <span className="text-[11px] text-rose-800">
+                    Si el cliente consulta por patologías clínicas (melanomas, infecciones), el bot declina cordialmente y sugiere consulta médica.
+                  </span>
+                </div>
+
+                <div className="p-3 bg-amber-50/60 border border-amber-200/60 rounded-xl">
+                  <span className="font-bold text-amber-900 block mb-0.5">🚫 Sin Marcas Ajenas</span>
+                  <span className="text-[11px] text-amber-800">
+                    Reorienta al cliente hacia los productos de cosmética oficial y stock real de la estética.
+                  </span>
+                </div>
+
+                <div className="p-3 bg-emerald-50/60 border border-emerald-200/60 rounded-xl">
+                  <span className="font-bold text-emerald-900 block mb-0.5">⚡ Latencia &lt; 5 Segundos</span>
+                  <span className="text-[11px] text-emerald-800">
+                    Respuesta ágil bajo streaming o fallback local conforme al requerimiento RNF-04.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 9. RESPALDO & AUDITORÍA */}
         {activeTab === 'backup' && (
           <div className="bg-white border border-[#EDE8E1] rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
             <div>

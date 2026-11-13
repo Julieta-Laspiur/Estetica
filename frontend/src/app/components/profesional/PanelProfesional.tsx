@@ -29,7 +29,9 @@ import {
   CalendarDays,
   Scissors,
   Trash2,
-  Inbox
+  Inbox,
+  Menu,
+  Store
 } from 'lucide-react';
 import {
   profesionalService,
@@ -70,6 +72,7 @@ export function PanelProfesional({
   onSwitchToAdmin,
 }: PanelProfesionalProps) {
   const [seccionActiva, setSeccionActiva] = useState<SeccionProfesional>('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [siteConfig] = useState(() => configuracionService.get());
   const [perfil, setPerfil] = useState<PerfilProfesional>(() =>
     profesionalService.getPerfil(currentUser)
@@ -155,10 +158,10 @@ export function PanelProfesional({
     try {
       const data = await turnosApi.getTurnos();
       const turnosLocales: TurnoDto[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
-      const ids = new Set((data || []).map(d => d.turnoId));
+      const ids = new Set((data || []).map(d => String(d.turnoId)));
       const combinados = [...(data || [])];
       turnosLocales.forEach((tl: TurnoDto) => {
-        if (!ids.has(tl.turnoId)) {
+        if (!ids.has(String(tl.turnoId))) {
           combinados.unshift(tl);
         }
       });
@@ -234,14 +237,24 @@ export function PanelProfesional({
       currentUserRef.current = currentUser;
       setPerfil(profesionalService.getPerfil(currentUser));
     }
-    cargarTurnos();
-    serviciosApi.getActivos()
-      .then(res => {
-        if (Array.isArray(res) && res.length > 0) {
-          setServiciosDisponibles(res);
-        }
-      })
-      .catch(() => {});
+      cargarTurnos();
+      serviciosApi.getActivos()
+        .then(res => {
+          if (Array.isArray(res) && res.length > 0) {
+            setServiciosDisponibles(res);
+          }
+        })
+        .catch(() => {});
+
+      const handleRecargar = () => {
+        cargarTurnos();
+      };
+      window.addEventListener('storage', handleRecargar);
+      window.addEventListener('estetica_turno_creado', handleRecargar);
+      return () => {
+        window.removeEventListener('storage', handleRecargar);
+        window.removeEventListener('estetica_turno_creado', handleRecargar);
+      };
   }, [currentUser, cargarTurnos]);
 
   // Escuchar cuando el Administrador escanea o acredita el QR para actualizar el modal en tiempo real
@@ -678,12 +691,129 @@ export function PanelProfesional({
     { id: 'notificaciones', label: 'Notificaciones', icon: Bell, badge: notificaciones.filter(n => !n.leida).length || undefined },
   ];
 
+  const renderSidebarContent = (isMobile?: boolean) => (
+    <>
+      <div className="space-y-6">
+        {/* Logo y Nombre del Panel */}
+        <div className="px-2 pt-1 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            {(siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
+              <img
+                src={siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl}
+                alt="Logo"
+                className="w-10 h-10 rounded-xl object-contain bg-white shadow-2xs border border-[#DDD5C8] p-0.5 shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-[#7A3B3B] text-white flex items-center justify-center font-bold text-sm shadow-2xs shrink-0">
+                {siteConfig.nombreCentro.charAt(0)}
+              </div>
+            )}
+            <div className="min-w-0">
+              <h2 className="text-base font-extrabold text-[#3C3530] leading-tight truncate">
+                {siteConfig.nombreCentro}
+              </h2>
+              <p className="text-[11px] font-semibold text-[#8A7F74] tracking-wide">
+                Panel Profesional
+              </p>
+            </div>
+          </div>
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="p-1.5 rounded-lg text-[#8A7F74] hover:text-[#3C3530] hover:bg-[#EAE1D3] transition-colors"
+              aria-label="Cerrar menú"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        {/* Lista de navegación con botones tipo píldora (pill) como en la captura */}
+        <nav className="space-y-1">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = seccionActiva === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setSeccionActiva(item.id as SeccionProfesional);
+                  if (isMobile) setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  isActive
+                    ? 'bg-[#C28A5B] text-white shadow-sm'
+                    : 'text-[#4A423A] hover:bg-[#EAE1D3] hover:text-[#2A2825]'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </div>
+                {item.badge && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#7A3B3B] text-white shrink-0">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Botón inferior: Salir / Cerrar Sesión */}
+      <div className="pt-4 border-t border-[#E8DFD1] space-y-2">
+        {onSwitchToAdmin && (
+          <button
+            type="button"
+            onClick={() => {
+              if (isMobile) setMobileMenuOpen(false);
+              onSwitchToAdmin();
+            }}
+            className="w-full py-2 px-3 rounded-xl bg-white/80 hover:bg-white border border-[#DDD5C8] text-xs font-bold text-[#7A3B3B] flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+          >
+            <span>← Volver al Panel Admin</span>
+          </button>
+        )}
+
+        {onSwitchToCliente && (
+          <button
+            type="button"
+            onClick={() => {
+              if (isMobile) setMobileMenuOpen(false);
+              onSwitchToCliente();
+            }}
+            className="w-full py-2 px-3 rounded-xl bg-white/80 hover:bg-white border border-[#DDD5C8] text-xs font-bold text-[#3C3530] flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+          >
+            <span>← Volver a la Tienda</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            if (isMobile) setMobileMenuOpen(false);
+            if (window.confirm('¿Confirmás que querés cerrar la sesión del panel profesional?')) {
+              if (onLogout) onLogout();
+            }
+          }}
+          className="w-full py-2.5 px-4 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Cerrar sesión</span>
+        </button>
+      </div>
+    </>
+  );
+
   return (
-    <div className="flex h-screen bg-[#FAF7F2] text-[#2A2825] font-sans overflow-hidden selection:bg-[#7A3B3B] selection:text-white">
+    <div className="flex flex-col lg:flex-row h-screen bg-[#FAF7F2] text-[#2A2825] font-sans overflow-hidden selection:bg-[#7A3B3B] selection:text-white">
       {/* Toast Feedback */}
       {feedback && (
         <div
-          className={`fixed top-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 border animate-in fade-in slide-in-from-top-4 ${
+          className={`fixed top-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 border animate-in fade-in slide-from-top-4 ${
             feedback.tipo === 'exito'
               ? 'bg-[#3C3530] text-white border-emerald-500/40'
               : 'bg-[#3C3530] text-white border-red-500/40'
@@ -698,102 +828,76 @@ export function PanelProfesional({
         </div>
       )}
 
-      {/* ── SIDEBAR LATERAL IDÉNTICO A LA CAPTURA DE REFERENCIA (ESTÉTICA CÁLIDA TIPO ADMIN) ── */}
-      <aside className="w-64 bg-[#F4ECE1] border-r border-[#E8DFD1] h-screen flex flex-col justify-between p-4 shrink-0 overflow-y-auto">
-        <div className="space-y-6">
-          {/* Logo y Nombre del Panel */}
-          <div className="px-2 pt-1 flex items-center gap-3">
+      {/* Mobile Top Header para pantallas pequeñas */}
+      <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-[#F4ECE1] border-b border-[#E8DFD1] shrink-0 z-20">
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-1.5 -ml-1.5 rounded-lg text-[#3C3530] hover:bg-[#EAE1D3] transition-colors"
+            aria-label="Abrir menú profesional"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2 min-w-0">
             {(siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
               <img
                 src={siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl}
                 alt="Logo"
-                className="w-10 h-10 rounded-xl object-contain bg-white shadow-2xs border border-[#DDD5C8] p-0.5"
+                className="w-7 h-7 rounded-lg object-contain bg-white border border-[#DDD5C8] p-0.5 shrink-0"
               />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-[#7A3B3B] text-white flex items-center justify-center font-bold text-sm shadow-2xs">
+              <div className="w-7 h-7 rounded-lg bg-[#7A3B3B] text-white flex items-center justify-center font-bold text-xs shrink-0">
                 {siteConfig.nombreCentro.charAt(0)}
               </div>
             )}
             <div className="min-w-0">
-              <h2 className="text-base font-extrabold text-[#3C3530] leading-tight truncate">
-                {siteConfig.nombreCentro}
-              </h2>
-              <p className="text-[11px] font-semibold text-[#8A7F74] tracking-wide">
+              <span className="font-bold text-xs text-[#2A2825] truncate block leading-tight">
                 Panel Profesional
-              </p>
+              </span>
+              <span className="text-[10px] text-[#8A7F74] truncate block">
+                {perfil.nombre}
+              </span>
             </div>
           </div>
-
-          {/* Lista de navegación con botones tipo píldora (pill) como en la captura */}
-          <nav className="space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = seccionActiva === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSeccionActiva(item.id as SeccionProfesional)}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-[#C28A5B] text-white shadow-sm'
-                      : 'text-[#4A423A] hover:bg-[#EAE1D3] hover:text-[#2A2825]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-4 h-4 shrink-0" />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.badge && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#7A3B3B] text-white">
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
         </div>
 
-        {/* Botón inferior: Salir / Cerrar Sesión */}
-        <div className="pt-4 border-t border-[#E8DFD1] space-y-2">
-          {onSwitchToAdmin && (
-            <button
-              type="button"
-              onClick={onSwitchToAdmin}
-              className="w-full py-2 px-3 rounded-xl bg-white/80 hover:bg-white border border-[#DDD5C8] text-xs font-bold text-[#7A3B3B] flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
-            >
-              <span>← Volver al Panel Admin</span>
-            </button>
-          )}
-
+        <div className="flex items-center gap-2">
           {onSwitchToCliente && (
             <button
               type="button"
               onClick={onSwitchToCliente}
-              className="w-full py-2 px-3 rounded-xl bg-white/80 hover:bg-white border border-[#DDD5C8] text-xs font-bold text-[#3C3530] flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/70 hover:bg-white text-[#3C3530] transition-colors flex items-center gap-1 shadow-2xs"
+              title="Ver Tienda"
             >
-              <span>← Volver a la Tienda</span>
+              <Store className="w-3.5 h-3.5 text-[#7A3B3B]" />
+              <span className="text-[11px]">Tienda</span>
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm('¿Confirmás que querés cerrar la sesión del panel profesional?')) {
-                if (onLogout) onLogout();
-              }
-            }}
-            className="w-full py-2.5 px-4 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Cerrar sesión</span>
-          </button>
         </div>
+      </header>
+
+      {/* ── SIDEBAR LATERAL IDÉNTICO A LA COMPUTADORA (100% PRESERVADO EN lg:) ── */}
+      <aside className="hidden lg:flex w-64 bg-[#F4ECE1] border-r border-[#E8DFD1] h-screen flex-col justify-between p-4 shrink-0 overflow-y-auto">
+        {renderSidebarContent(false)}
       </aside>
 
+      {/* ── MOBILE DRAWER EN PANTALLAS PEQUEÑAS ── */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <aside className="relative w-72 max-w-[85vw] bg-[#F4ECE1] border-r border-[#E8DFD1] h-full flex flex-col justify-between p-4 overflow-y-auto z-10 shadow-2xl animate-in slide-in-from-left duration-200">
+            {renderSidebarContent(true)}
+          </aside>
+        </div>
+      )}
+
       {/* ── ÁREA PRINCIPAL DE CONTENIDO (ESTÉTICA CÁLIDA, TARJETAS BLANCAS CON BORDES SUAVES) ── */}
-      <main className="flex-1 h-screen overflow-y-auto p-6 lg:p-8 space-y-6">
+      <main className="flex-1 h-full overflow-y-auto p-3 sm:p-6 lg:p-8 space-y-6 min-w-0">
         
         {/* Cabecera superior con saludo, disponibilidad y fecha en español */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EAE2D5]">

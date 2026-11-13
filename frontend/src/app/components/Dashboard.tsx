@@ -82,8 +82,8 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
         try {
           const locales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
           if (Array.isArray(locales) && locales.length > 0) {
-            const apiIds = new Set(apiTurnos.map(t => t.turnoId));
-            const nuevosLocales = locales.filter((t: any) => !apiIds.has(t.turnoId));
+            const apiIds = new Set(apiTurnos.map(t => String(t.turnoId)));
+            const nuevosLocales = locales.filter((t: any) => !apiIds.has(String(t.turnoId)));
             return [...apiTurnos, ...nuevosLocales];
           }
         } catch {
@@ -218,11 +218,15 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
     window.addEventListener(EVENTO_QR_SOLICITUD_CREADA, handleQrs);
     window.addEventListener(EVENTO_ESTAMPITA_ACREDITADA, handleQrs);
     window.addEventListener('estetica_qr_solicitud_actualizada', handleQrs);
+    window.addEventListener('estetica_turno_creado', cargarDatosDashboard);
+    window.addEventListener('storage', cargarDatosDashboard);
 
     return () => {
       window.removeEventListener(EVENTO_QR_SOLICITUD_CREADA, handleQrs);
       window.removeEventListener(EVENTO_ESTAMPITA_ACREDITADA, handleQrs);
       window.removeEventListener('estetica_qr_solicitud_actualizada', handleQrs);
+      window.removeEventListener('estetica_turno_creado', cargarDatosDashboard);
+      window.removeEventListener('storage', cargarDatosDashboard);
     };
   }, []);
 

@@ -23,7 +23,8 @@ import {
   UserX,
   CalendarSync,
   Ban,
-  Lock
+  Lock,
+  Building2
 } from 'lucide-react';
 import {
   turnosApi,
@@ -108,10 +109,10 @@ export function Turnos() {
       const data = await turnosApi.getTurnos();
       // Combinar con reservas locales de clientes para reflejo en tiempo real
       const turnosLocales: any[] = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
-      const idsExistentes = new Set(data.map(d => d.turnoId));
+      const idsExistentes = new Set(data.map(d => String(d.turnoId)));
       const combinados = [...data];
       turnosLocales.forEach((tl: any) => {
-        if (!idsExistentes.has(tl.turnoId)) {
+        if (!idsExistentes.has(String(tl.turnoId))) {
           combinados.unshift(tl);
         }
       });
@@ -166,6 +167,17 @@ export function Turnos() {
   useEffect(() => {
     cargarTurnos();
     cargarDatosAuxiliares();
+
+    const handleActualizar = () => {
+      cargarTurnos();
+    };
+
+    window.addEventListener('storage', handleActualizar);
+    window.addEventListener('estetica_turno_creado', handleActualizar);
+    return () => {
+      window.removeEventListener('storage', handleActualizar);
+      window.removeEventListener('estetica_turno_creado', handleActualizar);
+    };
   }, []);
 
   // Temporizador para el código QR dinámico (5 minutos de vigencia)
@@ -243,9 +255,12 @@ export function Turnos() {
       try {
         const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
         const actualizados = turnosLocales.map((tl: any) =>
-          tl.turnoId === turnoId ? { ...tl, estado: 'Confirmado' } : tl
+          String(tl.turnoId) === String(turnoId) ? { ...tl, estado: 'Confirmado' } : tl
         );
         localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
+        try {
+          window.dispatchEvent(new CustomEvent('estetica_turno_creado'));
+        } catch {}
       } catch {}
 
       await cargarTurnos();
@@ -267,9 +282,12 @@ export function Turnos() {
       try {
         const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
         const actualizados = turnosLocales.map((tl: any) =>
-          tl.turnoId === turnoACancelar.turnoId ? { ...tl, estado: 'Cancelado' } : tl
+          String(tl.turnoId) === String(turnoACancelar.turnoId) ? { ...tl, estado: 'Cancelado' } : tl
         );
         localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
+        try {
+          window.dispatchEvent(new CustomEvent('estetica_turno_creado'));
+        } catch {}
       } catch {}
       await cargarTurnos();
       setTurnoACancelar(null);
@@ -608,8 +626,14 @@ export function Turnos() {
         </div>
         {turnosPendientes > 0 && (
           <button
-            onClick={() => setFiltroEstado('pendiente')}
-            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 shadow-2xs"
+            onClick={() => {
+              setFiltroEstado('pendiente');
+              setSelectedDate('');
+              setSearchTerm('');
+              setFiltroProfesional('todos');
+              setFiltroCabina('todos');
+            }}
+            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 shadow-2xs cursor-pointer"
           >
             <Clock className="w-3.5 h-3.5" />
             <span>Revisar {turnosPendientes} Pendiente(s)</span>
@@ -865,6 +889,7 @@ export function Turnos() {
                     const horaStr = dateObj.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
                     const pagoInfo = getTurnoPagoInfo(turno);
                     const esMP = pagoInfo.metodo === 'mercadopago';
+                    const esTransferencia = pagoInfo.metodo === 'transferencia' || String(pagoInfo.detalle).toLowerCase().includes('transferencia');
 
                     return (
                       <tr key={turno.turnoId} className={`transition-colors ${normEstado === 'pendiente' ? 'bg-amber-50/30 hover:bg-amber-50/60' : 'hover:bg-[#FAF8F5]/80'}`}>
@@ -914,6 +939,11 @@ export function Turnos() {
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#009EE3]/10 text-[#009EE3] border border-[#009EE3]/25" title={pagoInfo.detalle}>
                                 <CreditCard className="w-3 h-3" />
                                 <span>Mercado Pago</span>
+                              </span>
+                            ) : esTransferencia ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200" title={pagoInfo.detalle}>
+                                <Building2 className="w-3 h-3" />
+                                <span>Transferencia (Validar)</span>
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200" title="Cobro presencial">

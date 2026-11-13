@@ -631,7 +631,7 @@ export function Productos() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProducto} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSaveProducto} noValidate className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               {productFormError && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
@@ -862,19 +862,34 @@ export function Productos() {
                   className="hidden"
                 />
 
-                {/* URL directa opcional */}
-                <div>
-                  <label className="block text-[11px] font-medium text-[#8A7F74] mb-1">
-                    O pegá directamente una URL de imagen:
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://ejemplo.com/imagen.jpg o /uploads/productos/..."
-                    value={formImagenUrl}
-                    onChange={(e) => setFormImagenUrl(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
-                  />
-                </div>
+                {/* URL directa opcional: solo si no hay imagen ya cargada */}
+                {!formImagenUrl ? (
+                  <div>
+                    <label className="block text-[11px] font-medium text-[#8A7F74] mb-1">
+                      O pegá directamente una URL de imagen (opcional):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://ejemplo.com/imagen.jpg o /uploads/productos/..."
+                      value={formImagenUrl}
+                      onChange={(e) => setFormImagenUrl(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-[11px] text-[#8A7F74] pt-1">
+                    <span className="truncate max-w-[360px]">
+                      Origen: <code className="text-[#7A3B3B] bg-white px-1.5 py-0.5 rounded border border-[#EDE8E1] font-mono text-[10px]">{formImagenUrl}</code>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFormImagenUrl('')}
+                      className="text-red-600 hover:underline font-semibold"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Fila 6: Estado Activo */}

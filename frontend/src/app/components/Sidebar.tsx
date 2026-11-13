@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Calendar, Users, UserCheck, Scissors, ShoppingBag, Gift, Settings, Store, LogOut, Shield, Wallet, PackageCheck } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, UserCheck, Scissors, ShoppingBag, Gift, Settings, Store, LogOut, Shield, Wallet, PackageCheck, X } from 'lucide-react';
 import type { AuthUser } from '../../services/api';
 import { configuracionService, EVENTO_CONFIG_ACTUALIZADA, type ConfiguracionGeneral } from '../../services/configuracionService';
 import { lealtadService, EVENTO_QR_SOLICITUD_CREADA, EVENTO_ESTAMPITA_ACREDITADA } from '../../services/lealtadService';
@@ -11,6 +11,8 @@ interface SidebarProps {
   onSwitchToCliente?: () => void;
   onSwitchToProfesional?: () => void;
   onLogout?: () => void;
+  isOpenMobile?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export function Sidebar({
@@ -19,7 +21,9 @@ export function Sidebar({
   currentUser,
   onSwitchToCliente,
   onSwitchToProfesional,
-  onLogout
+  onLogout,
+  isOpenMobile,
+  onCloseMobile
 }: SidebarProps) {
   const [siteConfig, setSiteConfig] = useState<ConfiguracionGeneral>(() => configuracionService.get());
   const [qrsPendientes, setQrsPendientes] = useState<number>(() => lealtadService.getPendientes().length);
@@ -72,15 +76,15 @@ export function Sidebar({
     { id: 'configuracion', label: 'Configuración', icon: Settings },
   ];
 
-  return (
-    <aside className="w-64 bg-card border-r border-border h-screen flex flex-col">
-      <div className="p-5 border-b border-border">
-        <div className="flex items-center gap-2.5">
+  const renderSidebarContent = (isMobile?: boolean) => (
+    <>
+      <div className="p-5 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2.5 min-w-0">
           {(siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl) ? (
             <img
               src={siteConfig.logoRedondoUrl || siteConfig.logoRectangularUrl || siteConfig.logoUrl}
               alt="Logo"
-              className="w-8 h-8 rounded-lg object-contain bg-white shadow-2xs border border-border p-0.5"
+              className="w-8 h-8 rounded-lg object-contain bg-white shadow-2xs border border-border p-0.5 shrink-0"
             />
           ) : (
             <Shield className="w-5 h-5 text-primary shrink-0" />
@@ -92,6 +96,16 @@ export function Sidebar({
             <p className="text-[10px] text-muted-foreground mt-0.5 font-medium tracking-wide">Panel Administrativo</p>
           </div>
         </div>
+        {isMobile && onCloseMobile && (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            aria-label="Cerrar menú"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 p-4 overflow-y-auto">
@@ -103,7 +117,11 @@ export function Sidebar({
             return (
               <li key={item.id}>
                 <button
-                  onClick={() => onSectionChange(item.id)}
+                  type="button"
+                  onClick={() => {
+                    onSectionChange(item.id);
+                    if (isMobile && onCloseMobile) onCloseMobile();
+                  }}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
                     ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
                     : 'text-foreground hover:bg-accent hover:text-accent-foreground'
@@ -142,7 +160,11 @@ export function Sidebar({
         <div className="space-y-1 pt-1 border-t border-border/50">
           {onSwitchToCliente && (
             <button
-              onClick={onSwitchToCliente}
+              type="button"
+              onClick={() => {
+                onSwitchToCliente();
+                if (isMobile && onCloseMobile) onCloseMobile();
+              }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-foreground hover:bg-accent transition-colors text-left"
               title="Ir a la tienda y vista cliente"
             >
@@ -153,7 +175,11 @@ export function Sidebar({
 
           {onSwitchToProfesional && (
             <button
-              onClick={onSwitchToProfesional}
+              type="button"
+              onClick={() => {
+                onSwitchToProfesional();
+                if (isMobile && onCloseMobile) onCloseMobile();
+              }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#7A3B3B] hover:bg-accent transition-colors text-left"
               title="Abrir Panel Profesional"
             >
@@ -164,7 +190,11 @@ export function Sidebar({
 
           {onLogout && (
             <button
-              onClick={onLogout}
+              type="button"
+              onClick={() => {
+                if (isMobile && onCloseMobile) onCloseMobile();
+                onLogout();
+              }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors text-left"
               title="Cerrar sesión de administrador"
             >
@@ -174,6 +204,29 @@ export function Sidebar({
           )}
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar (100% idéntico a la vista de computadora) */}
+      <aside className="hidden lg:flex w-64 bg-card border-r border-border h-screen flex-col shrink-0">
+        {renderSidebarContent(false)}
+      </aside>
+
+      {/* Mobile Drawer (overlay suave accesible desde el botón menú en celular) */}
+      {isOpenMobile && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+            onClick={onCloseMobile}
+            aria-hidden="true"
+          />
+          <aside className="relative w-72 max-w-[85vw] bg-card border-r border-border h-full flex flex-col z-10 shadow-2xl animate-in slide-in-from-left duration-200">
+            {renderSidebarContent(true)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

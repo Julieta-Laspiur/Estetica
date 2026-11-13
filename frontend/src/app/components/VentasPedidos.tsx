@@ -17,7 +17,9 @@ import {
   Check,
   RefreshCw,
   Phone,
-  Mail
+  Mail,
+  Store,
+  MapPin
 } from 'lucide-react';
 import { ordenesApi, type OrdenCompraDto } from '../../services/api';
 import { configuracionService, type ConfiguracionGeneral } from '../../services/configuracionService';
@@ -81,11 +83,18 @@ export function VentasPedidos() {
             clienteTelefono: ol.clienteTelefono || '',
             fecha: ol.fecha || new Date().toISOString(),
             total: ol.total || 0,
-            estado: ol.estado || 'Pendiente',
-            medioPago: ol.medioPago || 'MercadoPago',
-            estadoPago: ol.estado === 'Pagada' || ol.estado === 1 ? 'Aprobado' : (ol.estado === 'Cancelada' ? 'Rechazado' : 'Pendiente'),
+            estado: normalizarEstadoPedido(ol.estado || 'Pendiente'),
+            medioPago: ol.medioPago || (ol.metodoPago === 'transferencia' ? 'Transferencia' : (ol.metodoPago === 'efectivo' ? 'Efectivo' : 'Mercado Pago')),
+            estadoPago: ol.estadoPago !== undefined
+              ? normalizarEstadoPago(ol.estadoPago, ol.estado || 'Pendiente')
+              : (String(ol.estado).toLowerCase().includes('pag') && !String(ol.estado).toLowerCase().includes('pend')
+                  ? 'Aprobado'
+                  : (String(ol.estado).toLowerCase().includes('canc') ? 'Rechazado' : 'Pendiente')),
             referenciaExterna: ol.codigoOperacion || ol.referenciaExterna || `ORD-${ol.ordenId}`,
             motivoDevolucion: ol.motivoDevolucion,
+            tipoEntrega: ol.tipoEntrega || (String(ol.medioDetalle || '').toLowerCase().includes('retiro') ? 'retiro' : 'envio'),
+            costoEnvio: ol.costoEnvio !== undefined ? ol.costoEnvio : 0,
+            direccionEntrega: ol.direccionEntrega || '',
             detalles: (ol.detalles || []).map((d: any) => ({
               detalleId: d.detalleId || Math.floor(Math.random() * 10000),
               productoId: d.productoId,
@@ -113,23 +122,23 @@ export function VentasPedidos() {
 
   // Normalizar estados para evitar discrepancias numéricas o de string
   const normalizarEstadoPedido = (estado: number | string): string => {
-    const s = String(estado).toLowerCase();
+    const s = String(estado ?? '').toLowerCase().trim();
     if (s === '0' || s.includes('pend')) return 'Pendiente';
-    if (s === '1' || s.includes('pag')) return 'Pagada';
+    if (s === '5' || s.includes('canc')) return 'Cancelada';
+    if (s === '6' || s.includes('dev')) return 'Devuelta';
+    if (s === '1' || s === 'pagada' || s === 'pagado' || s === 'pag') return 'Pagada';
     if (s === '2' || s.includes('prep')) return 'EnPreparacion';
     if (s === '3' || s.includes('env') || s.includes('desp')) return 'Enviada';
     if (s === '4' || s.includes('entreg')) return 'Entregada';
-    if (s === '5' || s.includes('canc')) return 'Cancelada';
-    if (s === '6' || s.includes('dev')) return 'Devuelta';
     return String(estado);
   };
 
   const normalizarEstadoPago = (estado: number | string | undefined, estadoPedido: number | string): string => {
-    if (estado !== undefined) {
-      const s = String(estado).toLowerCase();
-      if (s === '1' || s.includes('aprob') || s.includes('pag')) return 'Aprobado';
-      if (s === '2' || s.includes('rech') || s.includes('fall')) return 'Rechazado';
+    if (estado !== undefined && estado !== null) {
+      const s = String(estado).toLowerCase().trim();
       if (s === '0' || s.includes('pend')) return 'Pendiente';
+      if (s === '2' || s.includes('rech') || s.includes('fall') || s.includes('canc')) return 'Rechazado';
+      if (s === '1' || s.includes('aprob') || s === 'pagada' || s === 'pagado') return 'Aprobado';
     }
     const ep = normalizarEstadoPedido(estadoPedido);
     if (ep === 'Pagada' || ep === 'EnPreparacion' || ep === 'Enviada' || ep === 'Entregada') return 'Aprobado';
@@ -148,13 +157,15 @@ export function VentasPedidos() {
         console.warn('No se pudo actualizar vía API, sincronizando localmente:', err);
       }
 
+      const nuevoEstadoPago = nuevoEstado === 'Cancelada' ? 'Rechazado' : (nuevoEstado === 'Pendiente' ? 'Pendiente' : 'Aprobado');
+
       // 2. Actualizar estado en memoria
       setOrdenes(prev => prev.map(o => {
         if (o.ordenId === ordenId) {
           return {
             ...o,
             estado: nuevoEstado,
-            estadoPago: nuevoEstado === 'Cancelada' ? 'Rechazado' : (nuevoEstado === 'Pendiente' ? 'Pendiente' : 'Aprobado')
+            estadoPago: nuevoEstadoPago
           };
         }
         return o;
@@ -165,7 +176,11 @@ export function VentasPedidos() {
         const locales = JSON.parse(localStorage.getItem('estetica_ordenes_productos') || '[]');
         const actualizadas = locales.map((ol: any) => {
           if (ol.ordenId === ordenId) {
-            return { ...ol, estado: nuevoEstado };
+            return {
+              ...ol,
+              estado: nuevoEstado,
+              estadoPago: nuevoEstadoPago
+            };
           }
           return ol;
         });
@@ -173,7 +188,7 @@ export function VentasPedidos() {
       } catch {}
 
       if (ordenSeleccionada && ordenSeleccionada.ordenId === ordenId) {
-        setOrdenSeleccionada(prev => prev ? { ...prev, estado: nuevoEstado } : null);
+        setOrdenSeleccionada(prev => prev ? { ...prev, estado: nuevoEstado, estadoPago: nuevoEstadoPago } : null);
       }
     } catch (e) {
       console.error('Error al actualizar estado:', e);
@@ -678,6 +693,17 @@ export function VentasPedidos() {
                             <Phone className="w-3 h-3" /> {orden.clienteTelefono}
                           </a>
                         )}
+                        <div className="mt-1">
+                          {orden.tipoEntrega === 'retiro' || String(orden.medioPago || '').toLowerCase().includes('retiro') ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                              <Store className="w-3 h-3" /> Retiro en local
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200" title={orden.direccionEntrega || 'Envío a domicilio'}>
+                              <Truck className="w-3 h-3" /> Envío a domicilio
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Productos Comprados */}
@@ -746,6 +772,27 @@ export function VentasPedidos() {
                           </button>
 
                           {/* Acciones rápidas de ciclo logístico */}
+                          {estNorm === 'Pendiente' && (
+                            <>
+                              <button
+                                onClick={() => handleCambiarEstado(orden.ordenId, 'Pagada')}
+                                disabled={procesandoAccion}
+                                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors flex items-center gap-1 shadow-2xs"
+                                title="Aprobar pago acreditado (Transferencia / Efectivo / MP)"
+                              >
+                                <Check className="w-3 h-3" /> Aprobar Pago
+                              </button>
+                              <button
+                                onClick={() => handleCambiarEstado(orden.ordenId, 'Cancelada')}
+                                disabled={procesandoAccion}
+                                className="px-2 py-1 rounded-md text-xs font-medium bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors flex items-center gap-1"
+                                title="Cancelar orden pendiente"
+                              >
+                                <XCircle className="w-3 h-3" /> Cancelar
+                              </button>
+                            </>
+                          )}
+
                           {estNorm === 'Pagada' && (
                             <button
                               onClick={() => handleCambiarEstado(orden.ordenId, 'EnPreparacion')}
@@ -864,6 +911,33 @@ export function VentasPedidos() {
                 </div>
               </div>
 
+              {/* Información de Entrega / Retiro */}
+              <div className="p-4 rounded-xl bg-muted/20 border border-border/60 text-xs">
+                <span className="text-muted-foreground font-medium block mb-1.5">Modalidad de Entrega</span>
+                {ordenSeleccionada.tipoEntrega === 'retiro' || String(ordenSeleccionada.medioPago || '').toLowerCase().includes('retiro') ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <Store className="w-3.5 h-3.5 text-emerald-700" /> Retiro en Local (Gratis)
+                    </span>
+                    <span className="text-muted-foreground">El cliente retira los productos en la sucursal.</span>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                        <Truck className="w-3.5 h-3.5 text-blue-700" /> Envío a Domicilio {ordenSeleccionada.costoEnvio ? `($${Number(ordenSeleccionada.costoEnvio).toLocaleString('es-AR')} ARS)` : '(Bonificado)'}
+                      </span>
+                    </div>
+                    {ordenSeleccionada.direccionEntrega && (
+                      <div className="text-foreground flex items-center gap-1.5 font-medium pt-0.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#7A3B3B] shrink-0" />
+                        <span>Dirección: <strong>{ordenSeleccionada.direccionEntrega}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Lista de Productos Comprados */}
               <div>
                 <h4 className="font-bold text-sm text-foreground mb-3 flex items-center gap-2">
@@ -921,6 +995,39 @@ export function VentasPedidos() {
                     <RotateCcw className="w-4 h-4 text-purple-700" /> Motivo de la Devolución Registrada:
                   </div>
                   <p className="italic">{ordenSeleccionada.motivoDevolucion}</p>
+                </div>
+              )}
+
+              {/* Banner de Acción Rápida para Pedidos Pendientes */}
+              {normalizarEstadoPedido(ordenSeleccionada.estado) === 'Pendiente' && (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div>
+                    <div className="font-bold flex items-center gap-1.5 text-sm text-amber-950">
+                      <Clock className="w-4 h-4 text-amber-700" />
+                      Pedido en Espera de Acreditación de Pago
+                    </div>
+                    <p className="mt-1 text-amber-800 leading-relaxed">
+                      El cliente seleccionó <strong>{ordenSeleccionada.medioPago || 'Transferencia / Efectivo'}</strong>. Cuando verifiques la recepción de fondos o el comprobante enviado, aprobá el pago aquí:
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleCambiarEstado(ordenSeleccionada.ordenId, 'Pagada')}
+                      disabled={procesandoAccion}
+                      className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors flex items-center gap-1.5 shadow-xs"
+                      title="Confirmar acreditación de pago"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Aprobar Pago
+                    </button>
+                    <button
+                      onClick={() => handleCambiarEstado(ordenSeleccionada.ordenId, 'Cancelada')}
+                      disabled={procesandoAccion}
+                      className="px-3 py-2 rounded-lg bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 font-semibold transition-colors"
+                      title="Cancelar este pedido"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
                 </div>
               )}
 

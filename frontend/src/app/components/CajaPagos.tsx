@@ -16,6 +16,7 @@ import {
   User,
   Check,
   X,
+  XCircle,
   RefreshCw,
   PlusCircle
 } from 'lucide-react';
@@ -63,12 +64,12 @@ export function CajaPagos() {
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
   // Filtros
-  const [filtroPeriodo, setFiltroPeriodo] = useState<'hoy' | 'semana' | 'mes' | 'personalizado'>('hoy');
+  const [filtroPeriodo, setFiltroPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'personalizado'>('todos');
   const [fechaDesde, setFechaDesde] = useState<string>('');
   const [fechaHasta, setFechaHasta] = useState<string>('');
   const [filtroMedio, setFiltroMedio] = useState<'todos' | 'mercadopago' | 'efectivo' | 'transferencia'>('todos');
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'servicio' | 'producto'>('todos');
-  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'Aprobado' | 'Pendiente'>('todos');
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'Aprobado' | 'Pendiente' | 'Cancelado'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modales
@@ -113,26 +114,54 @@ export function CajaPagos() {
 
             // Mapear medio de pago si existe
             let medio: TransaccionCobro['medioPago'] = 'efectivo';
-            if (t.motivo && t.motivo.toLowerCase().includes('mercadopago')) {
-              medio = 'mercadopago';
-            }
+            let medioDetalle = 'Efectivo en recepción';
+            try {
+              const pagosGuardados = JSON.parse(localStorage.getItem('estetica_turnos_pagos') || '{}');
+              const pagoInfo = pagosGuardados[String(t.turnoId)];
+              if (pagoInfo && pagoInfo.metodo) {
+                const m = String(pagoInfo.metodo).toLowerCase();
+                if (m.includes('mercado') || m.includes('mp')) {
+                  medio = 'mercadopago';
+                  medioDetalle = pagoInfo.detalle || 'Mercado Pago Checkout';
+                } else if (m.includes('transf')) {
+                  medio = 'transferencia';
+                  medioDetalle = pagoInfo.detalle || 'Transferencia Bancaria';
+                } else {
+                  medio = 'efectivo';
+                  medioDetalle = pagoInfo.detalle || 'Efectivo en mostrador';
+                }
+              } else if (t.motivo && t.motivo.toLowerCase().includes('mercadopago')) {
+                medio = 'mercadopago';
+                medioDetalle = 'Mercado Pago';
+              }
+            } catch {}
 
             const estadoStr: TransaccionCobro['estado'] =
               t.estado === 1 || t.estado === 'Confirmado' || t.estado === 'Completado'
                 ? 'Aprobado'
-                : 'Pendiente';
+                : (t.estado === 4 || t.estado === 'Cancelado' ? 'Cancelado' : 'Pendiente');
+
+            const fechaTx = t.fechaCreacion || new Date().toISOString();
+            const fechaCitaStr = t.fechaHoraInicio
+              ? new Date(t.fechaHoraInicio).toLocaleDateString('es-AR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              : '';
 
             itemsConsolidados.push({
               id: `TRN-${t.turnoId}`,
               codigoOperacion: `TRN-${t.turnoId}`,
               tipo: 'servicio',
               concepto: `Turno: ${servicioNombre}`,
-              detalleAdicional: `Profesional: ${t.profesionalNombreCompleto} • ${t.cabinaNombre || 'Cabina'}`,
+              detalleAdicional: `Cita: ${fechaCitaStr} hs • Prof: ${t.profesionalNombreCompleto} • ${t.cabinaNombre || 'Cabina'}`,
               clienteNombre: t.clienteNombreCompleto || 'Cliente Registrado',
-              fecha: t.fechaHoraInicio || new Date().toISOString(),
+              fecha: fechaTx,
               monto: t.total || 0,
               medioPago: medio,
-              medioDetalle: medio === 'mercadopago' ? 'Mercado Pago' : 'Efectivo en mostrador',
+              medioDetalle: medioDetalle,
               estado: estadoStr,
               turnoId: t.turnoId,
             });
@@ -153,20 +182,44 @@ export function CajaPagos() {
               ? tl.servicios[0].nombre
               : (tl.servicio?.nombre || 'Tratamiento');
 
-            const medio = tl.metodoPago === 'mercadopago' ? 'mercadopago' : 'efectivo';
+            const metodoRaw = (tl.metodoPagoGuardado || tl.metodoPago || '').toLowerCase();
+            let medio: TransaccionCobro['medioPago'] = 'efectivo';
+            let medioDetalle = tl.detallePagoGuardado || tl.medioDetalle || 'Efectivo en recepción';
+
+            if (metodoRaw.includes('mercado') || metodoRaw.includes('mp')) {
+              medio = 'mercadopago';
+              if (!tl.detallePagoGuardado && !tl.medioDetalle) medioDetalle = 'Mercado Pago Checkout';
+            } else if (metodoRaw.includes('transf')) {
+              medio = 'transferencia';
+              if (!tl.detallePagoGuardado && !tl.medioDetalle) medioDetalle = 'Transferencia Bancaria';
+            } else {
+              medio = 'efectivo';
+              if (!tl.detallePagoGuardado && !tl.medioDetalle) medioDetalle = 'Efectivo en mostrador';
+            }
+
+            const estadoStr: TransaccionCobro['estado'] =
+              tl.estado === 1 || tl.estado === 'Confirmado' || tl.estado === 'Completado'
+                ? 'Aprobado'
+                : (tl.estado === 4 || tl.estado === 'Cancelado' ? 'Cancelado' : 'Pendiente');
+
+            const fechaTx = tl.fechaRegistro || tl.fechaCreacion || new Date().toISOString();
+            const fechaCitaStr = tl.fechaHoraInicio
+              ? new Date(tl.fechaHoraInicio).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+              : (tl.fecha ? `${tl.fecha} ${tl.hora || ''}` : '');
+
             itemsConsolidados.push({
               id: `TRN-${tl.turnoId}`,
-              codigoOperacion: tl.codigoOperacion || `MP-${Math.floor(100000000 + Math.random() * 900000000)}`,
+              codigoOperacion: tl.codigoOperacion || `OP-${tl.turnoId}`,
               tipo: 'servicio',
               concepto: `Turno: ${servNombre}`,
-              detalleAdicional: `Profesional: ${tl.profesionalNombreCompleto || tl.profesional?.nombre || 'Especialista'}`,
+              detalleAdicional: `Cita: ${fechaCitaStr} hs • Prof: ${tl.profesionalNombreCompleto || tl.profesional?.nombre || 'Especialista'}`,
               clienteNombre: tl.clienteNombreCompleto || 'Cliente Web',
-              fecha: tl.fechaHoraInicio || (tl.fecha ? `${tl.fecha}T${tl.hora || '12:00'}:00` : new Date().toISOString()),
+              fecha: fechaTx,
               monto: tl.total || 0,
               medioPago: medio,
-              medioDetalle: tl.detallePagoGuardado || tl.medioDetalle || (medio === 'mercadopago' ? 'Mercado Pago Checkout' : 'Efectivo en mostrador'),
-              estado: tl.estado === 'Confirmado' || tl.estado === 'Completado' ? 'Aprobado' : 'Pendiente',
-              turnoId: typeof tl.turnoId === 'number' ? tl.turnoId : undefined,
+              medioDetalle: medioDetalle,
+              estado: estadoStr,
+              turnoId: typeof tl.turnoId === 'number' ? tl.turnoId : parseInt(String(tl.turnoId)) || undefined,
             });
           }
         });
@@ -183,22 +236,33 @@ export function CajaPagos() {
               ? o.detalles.map(d => `${d.nombreProducto} (x${d.cantidad})`).join(', ')
               : 'Productos cosméticos';
 
-            const estNorm = String(o.estado).toLowerCase();
-            const esPagado = o.estado === 1 || o.estado === '1' || estNorm.includes('pag') || estNorm.includes('entreg') || estNorm.includes('env') || estNorm.includes('aprob');
-            const esCancelado = o.estado === 5 || o.estado === '5' || estNorm.includes('canc');
+            const estNorm = String(o.estado ?? '').toLowerCase().trim();
+            const pagoNorm = String(o.estadoPago ?? '').toLowerCase().trim();
+            const esPendiente = o.estado === 0 || o.estado === '0' || estNorm === 'pendiente' || estNorm.includes('pend') || pagoNorm.includes('pend');
+            const esCancelado = !esPendiente && (o.estado === 5 || o.estado === '5' || estNorm.includes('canc') || pagoNorm.includes('rech'));
+            const esPagado = !esPendiente && !esCancelado && (
+              o.estado === 1 || o.estado === '1' || 
+              estNorm === 'pagada' || estNorm === 'pagado' || 
+              estNorm.includes('entreg') || estNorm.includes('env') || estNorm.includes('prep') ||
+              pagoNorm.includes('aprob') || pagoNorm === '1'
+            );
+
+            const mPago = String(o.medioPago || '').toLowerCase();
+            const medioNormalizado: 'mercadopago' | 'efectivo' | 'transferencia' = 
+              mPago.includes('efect') ? 'efectivo' : (mPago.includes('transf') ? 'transferencia' : 'mercadopago');
 
             itemsConsolidados.push({
               id: `ORD-${o.ordenId}`,
-              codigoOperacion: `ORD-${o.ordenId}`,
+              codigoOperacion: o.referenciaExterna || `ORD-${o.ordenId}`,
               tipo: 'producto',
               concepto: `Venta: ${prodsNombre}`,
-              detalleAdicional: `${o.detalles?.length || 1} producto(s) entregado(s)`,
+              detalleAdicional: `${o.detalles?.length || 1} producto(s) • Entrega: ${o.tipoEntrega === 'retiro' ? 'Retiro en Local' : 'Envío'}`,
               clienteNombre: o.clienteNombre || 'Cliente Tienda',
               clienteEmail: o.clienteEmail,
               fecha: o.fecha || new Date().toISOString(),
               monto: o.total || 0,
-              medioPago: 'mercadopago',
-              medioDetalle: 'Mercado Pago Tienda',
+              medioPago: medioNormalizado,
+              medioDetalle: o.medioPago || (medioNormalizado === 'transferencia' ? 'Transferencia Bancaria' : (medioNormalizado === 'efectivo' ? 'Efectivo Mostrador' : 'Mercado Pago')),
               estado: esPagado ? 'Aprobado' : (esCancelado ? 'Cancelado' : 'Pendiente'),
               ordenId: o.ordenId,
             });
@@ -218,9 +282,20 @@ export function CajaPagos() {
               ? ol.detalles.map((d: any) => `${d.nombreProducto} (x${d.cantidad})`).join(', ')
               : 'Productos cosméticos';
 
-            const estNorm = String(ol.estado).toLowerCase();
-            const esPagado = ol.estado === 1 || ol.estado === '1' || estNorm.includes('pag') || estNorm.includes('entreg') || estNorm.includes('env') || estNorm.includes('aprob');
-            const esCancelado = ol.estado === 5 || ol.estado === '5' || estNorm.includes('canc');
+            const estNorm = String(ol.estado ?? '').toLowerCase().trim();
+            const pagoNorm = String(ol.estadoPago ?? '').toLowerCase().trim();
+            const esPendiente = ol.estado === 0 || ol.estado === '0' || estNorm === 'pendiente' || estNorm.includes('pend') || pagoNorm.includes('pend');
+            const esCancelado = !esPendiente && (ol.estado === 5 || ol.estado === '5' || estNorm.includes('canc') || pagoNorm.includes('rech'));
+            const esPagado = !esPendiente && !esCancelado && (
+              ol.estado === 1 || ol.estado === '1' || 
+              estNorm === 'pagada' || estNorm === 'pagado' || 
+              estNorm.includes('entreg') || estNorm.includes('env') || estNorm.includes('prep') ||
+              pagoNorm.includes('aprob') || pagoNorm === '1'
+            );
+
+            const mPago = String(ol.medioPago || ol.metodoPago || '').toLowerCase();
+            const medioNormalizado: 'mercadopago' | 'efectivo' | 'transferencia' = 
+              mPago.includes('efect') ? 'efectivo' : (mPago.includes('transf') ? 'transferencia' : 'mercadopago');
 
             itemsConsolidados.push({
               id: `ORD-${ol.ordenId}`,
@@ -231,8 +306,8 @@ export function CajaPagos() {
               clienteNombre: ol.clienteNombre || 'Cliente Web',
               fecha: ol.fecha || new Date().toISOString(),
               monto: ol.total || 0,
-              medioPago: ol.medioPago || 'mercadopago',
-              medioDetalle: ol.medioDetalle || 'Mercado Pago',
+              medioPago: medioNormalizado,
+              medioDetalle: ol.medioDetalle || (medioNormalizado === 'transferencia' ? 'Transferencia Bancaria' : (medioNormalizado === 'efectivo' ? 'Efectivo Mostrador' : 'Mercado Pago')),
               estado: esPagado ? 'Aprobado' : (esCancelado ? 'Cancelado' : 'Pendiente'),
               ordenId: typeof ol.ordenId === 'number' ? ol.ordenId : undefined,
             });
@@ -271,6 +346,19 @@ export function CajaPagos() {
       const historicos = JSON.parse(localStorage.getItem('estetica_cierres_caja') || '[]');
       setHistorialCierres(historicos);
     } catch {}
+
+    const handleActualizar = () => {
+      cargarTransacciones();
+    };
+
+    window.addEventListener('storage', handleActualizar);
+    window.addEventListener('estetica_turno_creado', handleActualizar);
+    window.addEventListener('estetica_orden_creada', handleActualizar);
+    return () => {
+      window.removeEventListener('storage', handleActualizar);
+      window.removeEventListener('estetica_turno_creado', handleActualizar);
+      window.removeEventListener('estetica_orden_creada', handleActualizar);
+    };
   }, [cargarTransacciones]);
 
   // Filtrado de transacciones
@@ -305,6 +393,7 @@ export function CajaPagos() {
           if (fechaT > dHasta) return false;
         }
       }
+      // 'todos' no excluye por fecha
 
       // Filtro de medio de pago
       if (filtroMedio !== 'todos') {
@@ -393,11 +482,24 @@ export function CajaPagos() {
     };
   }, [transacciones, transaccionesFiltradas]);
 
-  // Acción: Confirmar cobro pendiente (ej: turno pagado por MP o en mostrador)
+  // Acción: Confirmar cobro pendiente (ej: turno pagado por MP o en mostrador, u orden de tienda)
   const handleConfirmarCobro = async (transaccion: TransaccionCobro) => {
     try {
       if (transaccion.turnoId) {
-        await turnosApi.confirmar(transaccion.turnoId);
+        await turnosApi.confirmar(transaccion.turnoId).catch(() => {});
+      }
+
+      if (transaccion.ordenId) {
+        try {
+          await ordenesApi.actualizarEstado(transaccion.ordenId, 'Pagada');
+        } catch {}
+        try {
+          const ordenesLocales = JSON.parse(localStorage.getItem('estetica_ordenes_productos') || '[]');
+          const actualizadas = ordenesLocales.map((ol: any) =>
+            ol.ordenId === transaccion.ordenId ? { ...ol, estado: 'Pagada', estadoPago: 'Aprobado' } : ol
+          );
+          localStorage.setItem('estetica_ordenes_productos', JSON.stringify(actualizadas));
+        } catch {}
       }
 
       // Actualizar estado local
@@ -405,14 +507,20 @@ export function CajaPagos() {
         prev.map(t => (t.id === transaccion.id ? { ...t, estado: 'Aprobado' } : t))
       );
 
-      // Actualizar en localStorage si corresponde
-      try {
-        const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
-        const actualizados = turnosLocales.map((tl: any) =>
-          `TRN-${tl.turnoId}` === transaccion.id ? { ...tl, estado: 'Confirmado' } : tl
-        );
-        localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
-      } catch {}
+      // Actualizar en localStorage turnos si corresponde
+      if (transaccion.turnoId || transaccion.id.startsWith('TRN-')) {
+        const idBuscado = transaccion.turnoId ? String(transaccion.turnoId) : transaccion.id.replace('TRN-', '');
+        try {
+          const turnosLocales = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+          const actualizados = turnosLocales.map((tl: any) =>
+            String(tl.turnoId) === idBuscado ? { ...tl, estado: 'Confirmado' } : tl
+          );
+          localStorage.setItem('estetica_reservas_cliente', JSON.stringify(actualizados));
+          try {
+            window.dispatchEvent(new CustomEvent('estetica_turno_creado'));
+          } catch {}
+        } catch {}
+      }
 
       notificar(`Cobro de ${transaccion.concepto} confirmado exitosamente.`);
     } catch {
@@ -570,6 +678,38 @@ export function CajaPagos() {
         </div>
       </div>
 
+      {/* Banner Informativo de Cobros Pendientes si existen */}
+      {transacciones.some(t => t.estado === 'Pendiente') && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-amber-900 block">
+                Cobros pendientes de validación ({transacciones.filter(t => t.estado === 'Pendiente').length} operaciones):
+              </span>
+              <p className="text-amber-800 mt-0.5">
+                Hay reservas de turnos o pedidos de productos pendientes de confirmación o acreditación de comprobante bancario.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setFiltroEstado('Pendiente');
+              setFiltroPeriodo('todos');
+              setSearchTerm('');
+              setFiltroMedio('todos');
+              setFiltroTipo('todos');
+            }}
+            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap shadow-2xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>Ver Cobros Pendientes</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* TARJETAS DE CIERRE DE CAJA & MÉTRICAS PRINCIPALES */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Tarjeta 1: Total Recaudado Hoy */}
@@ -687,8 +827,9 @@ export function CajaPagos() {
         {/* Fila 1: Pestañas de Período y Buscador */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Selector de Período */}
-          <div className="inline-flex bg-[#FAF8F5] p-1.5 rounded-2xl border border-[#EDE8E1] self-start">
+          <div className="inline-flex bg-[#FAF8F5] p-1.5 rounded-2xl border border-[#EDE8E1] self-start flex-wrap gap-1">
             {[
+              { id: 'todos', label: 'Todos los períodos' },
               { id: 'hoy', label: 'Hoy' },
               { id: 'semana', label: 'Esta Semana' },
               { id: 'mes', label: 'Este Mes' },
@@ -802,13 +943,14 @@ export function CajaPagos() {
               { id: 'todos', label: 'Todos' },
               { id: 'Aprobado', label: 'Aprobados' },
               { id: 'Pendiente', label: 'Pendientes' },
+              { id: 'Cancelado', label: 'Cancelados' },
             ].map(e => (
               <button
                 key={e.id}
                 onClick={() => setFiltroEstado(e.id as any)}
                 className={`px-3 py-1 rounded-xl font-medium transition-all ${
                   filtroEstado === e.id
-                    ? 'bg-emerald-700 text-white font-bold shadow-2xs'
+                    ? (e.id === 'Aprobado' ? 'bg-emerald-700 text-white font-bold shadow-2xs' : e.id === 'Cancelado' ? 'bg-rose-700 text-white font-bold shadow-2xs' : e.id === 'Pendiente' ? 'bg-amber-600 text-white font-bold shadow-2xs' : 'bg-[#3C3530] text-white font-bold shadow-2xs')
                     : 'bg-[#FAF8F5] text-[#5A524A] hover:bg-[#EDE8E1]'
                 }`}
               >
@@ -964,6 +1106,7 @@ export function CajaPagos() {
                     const isMercadoPago = t.medioPago === 'mercadopago';
                     const isEfectivo = t.medioPago === 'efectivo';
                     const isAprobado = t.estado === 'Aprobado';
+                    const isCancelado = t.estado === 'Cancelado';
 
                     return (
                       <tr key={t.id} className="hover:bg-[#FAF8F5]/80 transition-colors">
@@ -1038,6 +1181,10 @@ export function CajaPagos() {
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                               <Check className="w-3 h-3" /> Aprobado
                             </span>
+                          ) : isCancelado ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                              <XCircle className="w-3 h-3" /> Cancelado
+                            </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                               <Clock className="w-3 h-3" /> Pendiente
@@ -1056,7 +1203,7 @@ export function CajaPagos() {
                         {/* Acciones */}
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1.5">
-                            {!isAprobado && (
+                            {!isAprobado && !isCancelado && (
                               <button
                                 onClick={() => handleConfirmarCobro(t)}
                                 className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] transition-colors shadow-2xs"
