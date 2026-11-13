@@ -5,5 +5,6 @@ public enum EstadoPago
     Pendiente,
     Aprobado,
     Rechazado,
-    Reembolsado
+    Reembolsado,
+    Cancelado
 }

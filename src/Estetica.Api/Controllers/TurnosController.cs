@@ -80,6 +80,10 @@ public class TurnosController : ControllerBase
     [HttpPost("reservar")]
     public async Task<ActionResult<TurnoDto>> ReservarTurno([FromBody] AgendarTurnoCommand command)
     {
+        if (command.UsuarioId <= 0 && _currentUserService.UsuarioId.HasValue)
+        {
+            command = command with { UsuarioId = _currentUserService.UsuarioId.Value };
+        }
         var turno = await _mediator.Send(command);
         return CreatedAtAction(nameof(GetTurnoById), new { id = turno.TurnoId }, turno);
     }

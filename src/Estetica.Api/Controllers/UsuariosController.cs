@@ -67,7 +67,7 @@ public class UsuariosController : ControllerBase
     /// <summary>
     /// Listar todos los profesionales registrados con sus especialidades y métricas.
     /// </summary>
-    [Authorize(Roles = "Administrador,Recepcionista")]
+    [AllowAnonymous]
     [HttpGet("profesionales")]
     public async Task<ActionResult<IReadOnlyList<ProfesionalDto>>> GetProfesionales()
     {

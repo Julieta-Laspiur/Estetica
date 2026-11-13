@@ -51,13 +51,28 @@ public class AgendarTurnoCommandHandler : IRequestHandler<AgendarTurnoCommand, T
         var totalPrecio = servicios.Sum(s => s.Precio);
         var fechaHoraFin = request.FechaHoraInicio.AddMinutes(duracionTotalMin);
 
-        // Validación de disponibilidad de cabina
+        // Validación de disponibilidad de cabina con auto-asignación inteligente
+        var cabinaIdAsignada = request.CabinaId;
         var cabinaDisponible = await _unitOfWork.Turnos.IsCabinaAvailableAsync(
-            request.CabinaId, request.FechaHoraInicio, fechaHoraFin, null, cancellationToken);
+            cabinaIdAsignada, request.FechaHoraInicio, fechaHoraFin, null, cancellationToken);
 
         if (!cabinaDisponible)
         {
-            throw new BusinessRuleException("La cabina seleccionada ya tiene un turno reservado en ese rango horario.");
+            var todasCabinas = await _unitOfWork.Cabinas.GetAllAsync(cancellationToken);
+            foreach (var otraCabina in todasCabinas.Where(c => c.Estado == EstadoCabina.Disponible && c.CabinaId != request.CabinaId))
+            {
+                if (await _unitOfWork.Turnos.IsCabinaAvailableAsync(otraCabina.CabinaId, request.FechaHoraInicio, fechaHoraFin, null, cancellationToken))
+                {
+                    cabinaIdAsignada = otraCabina.CabinaId;
+                    cabinaDisponible = true;
+                    break;
+                }
+            }
+        }
+
+        if (!cabinaDisponible)
+        {
+            throw new BusinessRuleException("No hay cabinas disponibles para el horario seleccionado. Por favor elegí otro horario.");
         }
 
         // Validación de disponibilidad de profesional
@@ -73,7 +88,7 @@ public class AgendarTurnoCommandHandler : IRequestHandler<AgendarTurnoCommand, T
         {
             UsuarioId = request.UsuarioId,
             ProfesionalId = request.ProfesionalId,
-            CabinaId = request.CabinaId,
+            CabinaId = cabinaIdAsignada,
             FechaHoraInicio = request.FechaHoraInicio,
             FechaHoraFin = fechaHoraFin,
             Estado = EstadoTurno.Pendiente,
