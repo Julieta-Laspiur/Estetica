@@ -26,9 +26,11 @@ public class PasarelaPagoService : IPasarelaPagoService
         {
             try
             {
-                var requestPayload = new
+                var webhookUrl = _configuration["MercadoPago:WebhookUrl"];
+
+                var requestPayload = new Dictionary<string, object>
                 {
-                    items = new[]
+                    ["items"] = new[]
                     {
                         new
                         {
@@ -38,15 +40,26 @@ public class PasarelaPagoService : IPasarelaPagoService
                             unit_price = monto
                         }
                     },
-                    external_reference = referenciaExterna,
-                    back_urls = new
+                    ["external_reference"] = referenciaExterna,
+                    ["back_urls"] = new
                     {
                         success = $"{_configuration["MercadoPago:FrontendBaseUrl"] ?? "http://localhost:5173"}/?pago_status=approved",
                         failure = $"{_configuration["MercadoPago:FrontendBaseUrl"] ?? "http://localhost:5173"}/?pago_status=failure",
                         pending = $"{_configuration["MercadoPago:FrontendBaseUrl"] ?? "http://localhost:5173"}/?pago_status=pending"
-                    },
-                    auto_return = "approved"
+                    }
                 };
+
+                // auto_return solo es válido en Mercado Pago si la URL de retorno es HTTPS pública (no localhost)
+                var frontendUrl = _configuration["MercadoPago:FrontendBaseUrl"] ?? "http://localhost:5173";
+                if (frontendUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) && !frontendUrl.Contains("localhost"))
+                {
+                    requestPayload["auto_return"] = "approved";
+                }
+
+                if (!string.IsNullOrWhiteSpace(webhookUrl))
+                {
+                    requestPayload["notification_url"] = webhookUrl;
+                }
 
                 var json = JsonSerializer.Serialize(requestPayload);
                 using var requestMessage = new HttpRequestMessage(HttpMethod.Post, "https://api.mercadopago.com/checkout/preferences");
@@ -67,10 +80,19 @@ public class PasarelaPagoService : IPasarelaPagoService
                         return sandboxElem.GetString() ?? string.Empty;
                     }
                 }
+                else
+                {
+                    var errorDetails = await response.Content.ReadAsStringAsync(cancellationToken);
+                    throw new Estetica.Application.Common.Exceptions.BusinessRuleException($"Mercado Pago devolvió un error al crear la preferencia: {errorDetails}");
+                }
             }
-            catch
+            catch (Estetica.Application.Common.Exceptions.BusinessRuleException)
             {
-                // Fallback a URL estándar si falla la llamada de red a Mercado Pago
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new Estetica.Application.Common.Exceptions.BusinessRuleException($"Fallo de comunicación con la pasarela de Mercado Pago: {ex.Message}");
             }
         }
 

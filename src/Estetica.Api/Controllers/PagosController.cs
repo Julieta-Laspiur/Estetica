@@ -17,10 +17,17 @@ namespace Estetica.Api.Controllers;
 public class PagosController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IConfiguration _configuration;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public PagosController(IMediator mediator)
+    public PagosController(
+        IMediator mediator,
+        IConfiguration configuration,
+        IHttpClientFactory httpClientFactory)
     {
         _mediator = mediator;
+        _configuration = configuration;
+        _httpClientFactory = httpClientFactory;
     }
 
     /// <summary>
@@ -58,6 +65,7 @@ public class PagosController : ControllerBase
         [FromQuery] string? type,
         [FromBody] JsonElement? body)
     {
+        // 1. Caso A: Payload directo del frontend o simulador con ReferenciaExterna
         if (body.HasValue && body.Value.ValueKind == JsonValueKind.Object)
         {
             if (body.Value.TryGetProperty("referenciaExterna", out var refProp) && refProp.GetString() is { Length: > 0 } refExt)
@@ -85,7 +93,58 @@ public class PagosController : ControllerBase
             }
         }
 
+        // 2. Caso B: Webhook oficial nativo de Mercado Pago con ID de pago (query o body)
         var paymentId = id ?? dataId;
+        if (string.IsNullOrWhiteSpace(paymentId) && body.HasValue && body.Value.ValueKind == JsonValueKind.Object)
+        {
+            if (body.Value.TryGetProperty("data", out var dataObj) && dataObj.ValueKind == JsonValueKind.Object)
+            {
+                if (dataObj.TryGetProperty("id", out var idProp))
+                {
+                    paymentId = idProp.GetString();
+                }
+            }
+        }
+
+        var accessToken = _configuration["MercadoPago:AccessToken"];
+        if (!string.IsNullOrWhiteSpace(paymentId) && !string.IsNullOrWhiteSpace(accessToken) && !accessToken.Contains("TU_ACCESS_TOKEN"))
+        {
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                using var requestMsg = new HttpRequestMessage(HttpMethod.Get, $"https://api.mercadopago.com/v1/payments/{paymentId}");
+                requestMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+                var mpResponse = await client.SendAsync(requestMsg);
+                if (mpResponse.IsSuccessStatusCode)
+                {
+                    var mpJson = await mpResponse.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(mpJson);
+
+                    var extRef = doc.RootElement.TryGetProperty("external_reference", out var er) ? er.GetString() : null;
+                    var status = doc.RootElement.TryGetProperty("status", out var st) ? st.GetString() : null;
+
+                    if (!string.IsNullOrWhiteSpace(extRef))
+                    {
+                        var estado = status switch
+                        {
+                            "approved" => EstadoPago.Aprobado,
+                            "rejected" => EstadoPago.Rechazado,
+                            "cancelled" => EstadoPago.Cancelado,
+                            _ => EstadoPago.Pendiente
+                        };
+
+                        await _mediator.Send(new ConfirmarPagoWebhookCommand(extRef, estado, paymentId));
+                        return Ok(new { message = $"Pago {paymentId} sincronizado con éxito. Estado: {estado}." });
+                    }
+                }
+            }
+            catch
+            {
+                // Devolvemos 200 OK a Mercado Pago para evitar reintentos continuos si hay un fallo transitorio de red
+            }
+        }
+
         return Ok(new { message = $"Notificación recibida exitosamente{(paymentId != null ? $" para el pago {paymentId}" : "")}." });
     }
 
