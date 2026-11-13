@@ -20,7 +20,8 @@ import {
     type RecomendacionPersonalizadaDto,
     type ProductoDto,
     type ServicioDto,
-    type AuthUser
+    type AuthUser,
+    type GeminiEstadoDto
 } from '../../../services/api';
 
 interface MessageUI {
@@ -77,7 +78,21 @@ export function ChatIA({ currentUser, onAddToCart, onSelectService, wishlistIds 
     const [inputMessage, setInputMessage] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [addedCartIds, setAddedCartIds] = useState<Record<string, boolean>>({});
+    const [geminiEstado, setGeminiEstado] = useState<GeminiEstadoDto | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Consultar estado en vivo de Google Gemini
+    useEffect(() => {
+        let mounted = true;
+        chatIAApi.getEstadoGemini()
+            .then(data => {
+                if (mounted) setGeminiEstado(data);
+            })
+            .catch(() => {});
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     // Estado de Recomendaciones Personalizadas (HU-11)
     const [recomendacion, setRecomendacion] = useState<RecomendacionPersonalizadaDto | null>(null);
@@ -344,6 +359,17 @@ Cuento con acceso en tiempo real a nuestro catálogo de servicios, inventario ve
                             <span className="font-semibold text-[#3C3530]">
                                 Asistente IA Conectado
                             </span>
+                            <span className="text-[#DDD5C8]">|</span>
+                            {geminiEstado?.configurado ? (
+                                <span className="text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 font-semibold flex items-center gap-1 shadow-2xs">
+                                    <Sparkles className="w-3 h-3 text-emerald-600" />
+                                    Google Gemini ({geminiEstado.modelo})
+                                </span>
+                            ) : (
+                                <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 font-medium">
+                                    Motor RAG Local
+                                </span>
+                            )}
                             <span className="text-[#DDD5C8]">|</span>
                             <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-medium">
                                 Guardrails HU-12 Activos

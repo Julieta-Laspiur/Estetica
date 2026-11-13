@@ -50,6 +50,21 @@ public class IAService : IIAService
         return Task.FromResult(respuesta);
     }
 
+    private static string NormalizarModelo(string? modelo)
+    {
+        if (string.IsNullOrWhiteSpace(modelo))
+            return "gemini-3.5-flash-lite";
+
+        var m = modelo.Trim().ToLowerInvariant();
+        if (m.Contains("gemini-1.5") || m.Contains("gemini-2.5-flash") || m.Contains("gemini-2.0"))
+            return "gemini-3.5-flash-lite";
+
+        if (m.Contains("gemini-2.5-pro"))
+            return "gemini-3.1-pro-preview";
+
+        return modelo.Trim();
+    }
+
     public async Task<RagResultadoGeneracion> GenerarRespuestaRagAsync(RagConsultaContexto contexto, CancellationToken cancellationToken = default)
     {
         var preguntaLower = contexto.Pregunta.ToLowerInvariant();
@@ -69,16 +84,18 @@ public class IAService : IIAService
             ? contexto.ApiKeyOverride.Trim()
             : _configuration["Gemini:ApiKey"] ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY");
 
-        var modelo = !string.IsNullOrWhiteSpace(contexto.ModeloOverride)
+        var modeloConfig = !string.IsNullOrWhiteSpace(contexto.ModeloOverride)
             ? contexto.ModeloOverride.Trim()
-            : _configuration["Gemini:Model"] ?? "gemini-1.5-flash";
+            : _configuration["Gemini:Model"] ?? "gemini-3.5-flash-lite";
+
+        var modelo = NormalizarModelo(modeloConfig);
 
         // 3. Intentar inferencia en vivo con Google Gemini si la API Key está configurada
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
             try
             {
-                var resultadoGemini = await InvocarGeminiAsync(apiKey, modelo, contexto, esAclaracionMedicaOExterna, cancellationToken);
+                var resultadoGemini = await InvocarGeminiConFallbackAsync(apiKey, modelo, contexto, esAclaracionMedicaOExterna, cancellationToken);
                 if (resultadoGemini != null)
                 {
                     return resultadoGemini;
@@ -96,6 +113,28 @@ public class IAService : IIAService
 
         // 4. Fallback transparente y robusto: Motor heurístico RAG local con estricta adherencia a los guardrails
         return GenerarRespuestaLocalRag(contexto, esAclaracionMedicaOExterna, contieneMarcaAjena);
+    }
+
+    private async Task<RagResultadoGeneracion?> InvocarGeminiConFallbackAsync(
+        string apiKey,
+        string modeloPrimario,
+        RagConsultaContexto contexto,
+        bool esAclaracionMedicaOExterna,
+        CancellationToken cancellationToken)
+    {
+        // Intento 1: Modelo Primario
+        var res = await InvocarGeminiAsync(apiKey, modeloPrimario, contexto, esAclaracionMedicaOExterna, cancellationToken);
+        if (res != null) return res;
+
+        // Intento 2 (Fallback si el primario no es gemini-3.1-flash-lite):
+        if (!modeloPrimario.Equals("gemini-3.1-flash-lite", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("Reintentando inferencia con modelo de respaldo Google Gemini (gemini-3.1-flash-lite)...");
+            res = await InvocarGeminiAsync(apiKey, "gemini-3.1-flash-lite", contexto, esAclaracionMedicaOExterna, cancellationToken);
+            if (res != null) return res;
+        }
+
+        return null;
     }
 
     private async Task<RagResultadoGeneracion?> InvocarGeminiAsync(
@@ -195,13 +234,13 @@ public class IAService : IIAService
         var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(4.5));
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
 
         var response = await client.PostAsync(url, content, cts.Token);
         if (!response.IsSuccessStatusCode)
         {
             var errText = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogWarning("Gemini API retornó código {StatusCode}: {Error}", response.StatusCode, errText);
+            _logger.LogWarning("Gemini API ({Modelo}) retornó código {StatusCode}: {Error}", modelo, response.StatusCode, errText);
             return null;
         }
 
@@ -221,7 +260,20 @@ public class IAService : IIAService
             return null;
         }
 
-        var textoGenerado = partsElem[0].GetProperty("text").GetString();
+        var sbTexto = new StringBuilder();
+        foreach (var part in partsElem.EnumerateArray())
+        {
+            if (part.TryGetProperty("text", out var textProp))
+            {
+                var fragment = textProp.GetString();
+                if (!string.IsNullOrWhiteSpace(fragment))
+                {
+                    sbTexto.Append(fragment);
+                }
+            }
+        }
+
+        var textoGenerado = sbTexto.ToString().Trim();
         if (string.IsNullOrWhiteSpace(textoGenerado))
         {
             return null;
@@ -429,9 +481,11 @@ public class IAService : IIAService
             ? apiKey.Trim()
             : _configuration["Gemini:ApiKey"] ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY");
 
-        var modelToUse = !string.IsNullOrWhiteSpace(model)
+        var modelConfig = !string.IsNullOrWhiteSpace(model)
             ? model.Trim()
-            : _configuration["Gemini:Model"] ?? "gemini-1.5-flash";
+            : _configuration["Gemini:Model"] ?? "gemini-3.5-flash-lite";
+
+        var modelToUse = NormalizarModelo(modelConfig);
 
         if (string.IsNullOrWhiteSpace(keyToUse))
         {
