@@ -46,6 +46,10 @@ coverage/
 .env
 .env.*
 !.env.example
+appsettings.Local.json
+appsettings.*.local.json
+**/appsettings.Local.json
+**/appsettings.*.local.json
 
 # =========================
 # Bases de datos locales
@@ -86,4 +90,18 @@ Thumbs.db
 desktop.ini
 proyecto.md
 perfiladmin.md
+DOCUMENTACION_GENERAL_SISTEMA.md
 scratch/
+
+# =========================
+# Archivos subidos por usuarios / uploads
+# =========================
+**/wwwroot/uploads/*
+!**/wwwroot/uploads/**/.gitkeep
+**/uploads/*
+*.webp
+*.jpg
+*.jpeg
+*.png
+!frontend/src/assets/**
+!frontend/public/**
