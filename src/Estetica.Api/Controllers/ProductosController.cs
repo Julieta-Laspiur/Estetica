@@ -17,10 +17,12 @@ namespace Estetica.Api.Controllers;
 public class ProductosController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IWebHostEnvironment _environment;
 
-    public ProductosController(IMediator mediator)
+    public ProductosController(IMediator mediator, IWebHostEnvironment environment)
     {
         _mediator = mediator;
+        _environment = environment;
     }
 
     /// <summary>
@@ -166,7 +168,8 @@ public class ProductosController : ControllerBase
             return BadRequest(new { message = "Formato de imagen no permitido. Utilice JPG, PNG o WEBP." });
         }
 
-        var uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "productos");
+        var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var uploadDir = Path.Combine(webRoot, "uploads", "productos");
         if (!Directory.Exists(uploadDir))
         {
             Directory.CreateDirectory(uploadDir);

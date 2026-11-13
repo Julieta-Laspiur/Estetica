@@ -18,10 +18,12 @@ namespace Estetica.Api.Controllers;
 public class ServiciosController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IWebHostEnvironment _environment;
 
-    public ServiciosController(IMediator mediator)
+    public ServiciosController(IMediator mediator, IWebHostEnvironment environment)
     {
         _mediator = mediator;
+        _environment = environment;
     }
 
     /// <summary>
@@ -146,7 +148,8 @@ public class ServiciosController : ControllerBase
             return BadRequest(new { message = "El tamaño de la imagen no puede superar los 5MB." });
         }
 
-        var uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "servicios");
+        var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var uploadDir = Path.Combine(webRoot, "uploads", "servicios");
         if (!Directory.Exists(uploadDir))
         {
             Directory.CreateDirectory(uploadDir);
