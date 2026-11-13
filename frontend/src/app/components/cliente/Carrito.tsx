@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import {
     Trash2, Plus, Minus, ShoppingBag, ShieldCheck, Truck, Sparkles,
     ArrowRight, Package, CheckCircle, ExternalLink, RotateCcw,
-    Clock, AlertTriangle, FileText
+    Clock, AlertTriangle, FileText, Store, MapPin, CreditCard,
+    Building2, Banknote, Check, Copy, CheckCheck, MessageCircle
 } from 'lucide-react';
 import type { AuthUser } from '../../../services/api';
 import { configuracionService } from '../../../services/configuracionService';
@@ -16,12 +17,19 @@ interface ProductoCarrito {
     imagen: string;
 }
 
+export interface DatosEntregaCarrito {
+    tipoEntrega: 'retiro' | 'envio';
+    costoEnvio: number;
+    direccion?: string;
+    metodoPago?: 'mercadopago' | 'transferencia' | 'efectivo';
+}
+
 interface CarritoProps {
     items: ProductoCarrito[];
     currentUser?: AuthUser | null;
     onUpdateQuantity: (productId: string, newQuantity: number) => void;
     onRemoveItem: (productId: string) => void;
-    onCheckout: () => void;
+    onCheckout: (datosEntrega?: DatosEntregaCarrito) => void;
     onNavigate?: (section: string) => void;
 }
 
@@ -29,6 +37,16 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
     const config = configuracionService.get();
     const [activeTab, setActiveTab] = useState<'carrito' | 'mis_pedidos'>('carrito');
     const [misOrdenes, setMisOrdenes] = useState<any[]>([]);
+    const [tipoEntrega, setTipoEntrega] = useState<'retiro' | 'envio'>('retiro');
+    const [direccionEnvio, setDireccionEnvio] = useState<string>('');
+    const [metodoPago, setMetodoPago] = useState<'mercadopago' | 'transferencia' | 'efectivo'>('mercadopago');
+    const [copiadoTipo, setCopiadoTipo] = useState<string | null>(null);
+
+    const handleCopiarTexto = (texto: string, tipo: string) => {
+        navigator.clipboard.writeText(texto);
+        setCopiadoTipo(tipo);
+        setTimeout(() => setCopiadoTipo(null), 2000);
+    };
 
     const cargarOrdenesLocales = () => {
         try {
@@ -63,9 +81,21 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
 
     const subtotal = items.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
     const montoMinimoEnvio = config.montoEnvioGratis || 15000;
-    const costoEnvio = config.costoEnvioEstandar || 1200;
-    const envio = subtotal >= montoMinimoEnvio ? 0 : costoEnvio;
-    const total = subtotal + envio;
+    const costoEnvioBase = config.costoEnvioEstandar || 1200;
+    
+    // Si el cliente elige Retiro en Local, el envío es $0 siempre.
+    // Si elige Envío a Domicilio, es $0 si supera el mínimo de envío gratis, o el costo estándar.
+    const envio = tipoEntrega === 'retiro' 
+        ? 0 
+        : (subtotal >= montoMinimoEnvio ? 0 : costoEnvioBase);
+
+    // Descuento en efectivo si está configurado
+    const descuentoEfectivoPct = config.descuentoEfectivoPorcentaje || 0;
+    const descuentoEfectivoMonto = (metodoPago === 'efectivo' && descuentoEfectivoPct > 0)
+        ? Math.round((subtotal * descuentoEfectivoPct) / 100)
+        : 0;
+        
+    const total = Math.max(0, subtotal - descuentoEfectivoMonto + envio);
 
     return (
         <div className="min-h-screen bg-[#F7F4F0] py-10 px-4 sm:px-6 lg:px-8">
@@ -269,12 +299,252 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
 
                                 {/* Resumen del Pedido */}
                                 <div className="lg:col-span-1">
-                                    <div className="bg-white rounded-3xl border border-[#EDE8E1] p-6 shadow-xs sticky top-24 space-y-6">
+                                    <div className="bg-white rounded-3xl border border-[#EDE8E1] p-6 shadow-xs sticky top-24 space-y-5">
                                         <h2 className="font-bold text-lg text-[#2A2825] pb-3 border-b border-[#EDE8E1]">
                                             Resumen del Pedido
                                         </h2>
 
-                                        <div className="space-y-3.5 text-sm">
+                                        {/* Selector de Método de Entrega: Retiro en Local vs Envío */}
+                                        <div className="space-y-2.5">
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-[#3C3530]">
+                                                Forma de Entrega
+                                            </label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setTipoEntrega('retiro')}
+                                                    className={`p-3 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
+                                                        tipoEntrega === 'retiro'
+                                                            ? 'border-[#7A3B3B] bg-[#7A3B3B]/5 ring-1 ring-[#7A3B3B]/20 shadow-xs'
+                                                            : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8]'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <Store className="w-4 h-4 text-[#7A3B3B]" />
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                                            Gratis
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-[#2A2825] block">Retiro en Local</span>
+                                                    <span className="text-[10px] text-[#8A7F74]">Paso a retirar</span>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setTipoEntrega('envio')}
+                                                    className={`p-3 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
+                                                        tipoEntrega === 'envio'
+                                                            ? 'border-[#7A3B3B] bg-[#7A3B3B]/5 ring-1 ring-[#7A3B3B]/20 shadow-xs'
+                                                            : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8]'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <Truck className="w-4 h-4 text-[#7A3B3B]" />
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                                            subtotal >= montoMinimoEnvio
+                                                                ? 'bg-emerald-100 text-emerald-800'
+                                                                : 'bg-amber-100 text-amber-900'
+                                                        }`}>
+                                                            {subtotal >= montoMinimoEnvio ? '¡Gratis!' : `$${costoEnvioBase.toLocaleString('es-AR')}`}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-[#2A2825] block">Envío a Domicilio</span>
+                                                    <span className="text-[10px] text-[#8A7F74]">A tu dirección</span>
+                                                </button>
+                                            </div>
+
+                                            {/* Detalles según el método de entrega seleccionado */}
+                                            {tipoEntrega === 'retiro' ? (
+                                                <div className="p-3 bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl text-[11px] text-[#5A524A] flex items-start gap-2 animate-in fade-in">
+                                                    <Store className="w-4 h-4 text-[#7A3B3B] shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <strong className="text-[#2A2825] block">Retiro en Recepción (Sin costo de envío)</strong>
+                                                        <p className="mt-0.5 text-[#8A7F74] leading-relaxed">
+                                                            {config.direccion || 'Av. Santa Fe 1234'}, {config.ciudad || 'CABA'}. Podés pasar a retirar tu pedido en nuestros horarios de atención.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2 animate-in fade-in">
+                                                    {subtotal >= montoMinimoEnvio ? (
+                                                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-800 font-medium flex items-center gap-1.5">
+                                                            <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                                            <span>¡Tu compra califica para Envío a Domicilio Gratis!</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-xl p-3">
+                                                            <p className="text-xs text-[#5A524A] leading-relaxed">
+                                                                Sumá <span className="font-bold text-[#7A3B3B]">${(montoMinimoEnvio - subtotal).toLocaleString('es-AR')}</span> más para obtener <span className="font-semibold text-emerald-700">envío gratis</span>.
+                              </p>
+                                                            <div className="w-full bg-[#EDE8E1] h-1.5 rounded-full mt-2 overflow-hidden">
+                                                                <div
+                                                                    className="bg-[#7A3B3B] h-full rounded-full transition-all duration-300"
+                                                                    style={{ width: `${Math.min(100, (subtotal / montoMinimoEnvio) * 100)}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div>
+                                                        <label className="flex items-center gap-1.5 text-[11px] font-medium text-[#8A7F74] mb-1">
+                                                            <MapPin className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                                                            Dirección de Entrega (Calle, Altura, Ciudad):
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Ej. Av. Corrientes 1500, Piso 3, CABA"
+                                                            value={direccionEnvio}
+                                                            onChange={(e) => setDireccionEnvio(e.target.value)}
+                                                            className="w-full px-3 py-1.5 bg-white border border-[#EDE8E1] rounded-xl text-xs text-[#2A2825] focus:ring-2 focus:ring-[#7A3B3B]"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Selector de Método de Pago */}
+                                        <div className="space-y-2.5 pt-2 border-t border-[#EDE8E1]">
+                                            <div className="flex items-center justify-between">
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-[#3C3530]">
+                                                    Forma de Pago
+                                                </label>
+                                                {metodoPago === 'efectivo' && descuentoEfectivoPct > 0 && (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 animate-pulse">
+                                                        {descuentoEfectivoPct}% OFF en Efectivo
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                {/* Opción 1: Mercado Pago */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMetodoPago('mercadopago')}
+                                                    className={`p-3 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
+                                                        metodoPago === 'mercadopago'
+                                                            ? 'border-[#009EE3] bg-[#009EE3]/5 ring-1 ring-[#009EE3]/30 shadow-xs'
+                                                            : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8]'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <CreditCard className="w-4 h-4 text-[#009EE3]" />
+                                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                                            metodoPago === 'mercadopago' ? 'border-[#009EE3] bg-[#009EE3]' : 'border-[#DDD5C8]'
+                                                        }`}>
+                                                            {metodoPago === 'mercadopago' && <Check className="w-2.5 h-2.5 text-white" />}
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-[#2A2825] block">Mercado Pago</span>
+                                                    <span className="text-[10px] text-[#8A7F74]">Tarjetas o Dinero</span>
+                                                </button>
+
+                                                {/* Opción 2: Transferencia Bancaria */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMetodoPago('transferencia')}
+                                                    className={`p-3 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
+                                                        metodoPago === 'transferencia'
+                                                            ? 'border-purple-600 bg-purple-500/5 ring-1 ring-purple-600/30 shadow-xs'
+                                                            : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8]'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <Building2 className="w-4 h-4 text-purple-700" />
+                                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                                            metodoPago === 'transferencia' ? 'border-purple-600 bg-purple-600' : 'border-[#DDD5C8]'
+                                                        }`}>
+                                                            {metodoPago === 'transferencia' && <Check className="w-2.5 h-2.5 text-white" />}
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-[#2A2825] block">Transferencia</span>
+                                                    <span className="text-[10px] text-[#8A7F74]">CBU o Alias</span>
+                                                </button>
+
+                                                {/* Opción 3: Efectivo en Mostrador */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMetodoPago('efectivo')}
+                                                    className={`p-3 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
+                                                        metodoPago === 'efectivo'
+                                                            ? 'border-emerald-600 bg-emerald-500/5 ring-1 ring-emerald-600/30 shadow-xs'
+                                                            : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8]'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <Banknote className="w-4 h-4 text-emerald-700" />
+                                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                                            metodoPago === 'efectivo' ? 'border-emerald-600 bg-emerald-600' : 'border-[#DDD5C8]'
+                                                        }`}>
+                                                            {metodoPago === 'efectivo' && <Check className="w-2.5 h-2.5 text-white" />}
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-[#2A2825] block">Efectivo</span>
+                                                    <span className="text-[10px] text-[#8A7F74]">En mostrador</span>
+                                                </button>
+                                            </div>
+
+                                            {/* Detalles bancarios si selecciona Transferencia */}
+                                            {metodoPago === 'transferencia' && (
+                                                <div className="p-3.5 bg-purple-50/70 border border-purple-200 rounded-2xl text-[11px] text-purple-950 space-y-2 animate-in fade-in">
+                                                    <div className="flex items-center justify-between border-b border-purple-200/80 pb-1.5">
+                                                        <span className="font-bold flex items-center gap-1.5">
+                                                            <Building2 className="w-3.5 h-3.5 text-purple-700" />
+                                                            Datos para la Transferencia:
+                                                        </span>
+                                                        <span className="text-[10px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">
+                                                            Abonar: ${total.toLocaleString('es-AR')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+                                                        <p>Banco: <strong>{config.transferenciaBanco || 'Banco Santander'}</strong></p>
+                                                        <p>Titular: <strong>{config.transferenciaTitular || 'Centro Estético'}</strong></p>
+                                                        <p>CUIT: <strong>{config.transferenciaCuit || '30-71649281-9'}</strong></p>
+                                                    </div>
+                                                    <div className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-xl border border-purple-200">
+                                                        <span className="font-mono text-[11px] font-bold truncate">Alias: {config.transferenciaAlias || 'ESTETICA.BIENESTAR.MP'}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCopiarTexto(config.transferenciaAlias || 'ESTETICA.BIENESTAR.MP', 'alias')}
+                                                            className="text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 ml-2 shrink-0"
+                                                        >
+                                                            {copiadoTipo === 'alias' ? <CheckCheck className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                                            <span>{copiadoTipo === 'alias' ? 'Copiado' : 'Copiar'}</span>
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-xl border border-purple-200">
+                                                        <span className="font-mono text-[10px] font-bold truncate">CBU: {config.transferenciaCbuCvu || '0720182620000000948215'}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCopiarTexto(config.transferenciaCbuCvu || '0720182620000000948215', 'cbu')}
+                                                            className="text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 ml-2 shrink-0"
+                                                        >
+                                                            {copiadoTipo === 'cbu' ? <CheckCheck className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                                            <span>{copiadoTipo === 'cbu' ? 'Copiado' : 'Copiar'}</span>
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-[10px] text-purple-800 italic pt-0.5">
+                                                        Al confirmar, se abrirá WhatsApp para enviar tu comprobante al administrador.
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Nota para Efectivo en Mostrador */}
+                                            {metodoPago === 'efectivo' && (
+                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-[11px] text-emerald-900 flex items-start gap-2 animate-in fade-in">
+                                                    <Banknote className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <strong className="block font-bold">Pago en mostrador al retirar</strong>
+                                                        <p className="text-[10px] text-emerald-800 leading-relaxed mt-0.5">
+                                                            {descuentoEfectivoPct > 0 
+                                                                ? `¡Aprovechá un ${descuentoEfectivoPct}% de descuento directo! Abonás $${total.toLocaleString('es-AR')} en efectivo en nuestro local.` 
+                                                                : `Abonás el total de $${total.toLocaleString('es-AR')} directamente en caja al retirar tus productos.`}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-3 pt-2 border-t border-[#EDE8E1] text-sm">
                                             <div className="flex justify-between text-[#5A524A]">
                                                 <span>Subtotal productos</span>
                                                 <span className="font-semibold text-[#3C3530]">
@@ -282,10 +552,22 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                                 </span>
                                             </div>
 
-                                            <div className="flex justify-between text-[#5A524A]">
-                                                <span>Costo de Envío</span>
+                                            {descuentoEfectivoMonto > 0 && (
+                                                <div className="flex justify-between text-emerald-700 items-center font-medium">
+                                                    <span>Descuento Pago Efectivo ({descuentoEfectivoPct}%)</span>
+                                                    <span>-${descuentoEfectivoMonto.toLocaleString('es-AR')} ARS</span>
+                                                </div>
+                                            )}
+
+                                            <div className="flex justify-between text-[#5A524A] items-center">
+                                                <span className="flex items-center gap-1.5">
+                                                    {tipoEntrega === 'retiro' ? <Store className="w-3.5 h-3.5 text-[#7A3B3B]" /> : <Truck className="w-3.5 h-3.5 text-[#7A3B3B]" />}
+                                                    <span>{tipoEntrega === 'retiro' ? 'Retiro en Local' : 'Costo de Envío'}</span>
+                                                </span>
                                                 <span className="font-semibold">
-                                                    {envio === 0 ? (
+                                                    {tipoEntrega === 'retiro' ? (
+                                                        <span className="text-emerald-700 font-bold">¡Gratis ($0)!</span>
+                                                    ) : envio === 0 ? (
                                                         <span className="text-emerald-700 font-bold">¡Gratis!</span>
                                                     ) : (
                                                         `$${envio.toLocaleString('es-AR')} ARS`
@@ -293,27 +575,7 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                                 </span>
                                             </div>
 
-                                            {/* Barra o alerta de envío gratis */}
-                                            {envio > 0 ? (
-                                                <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-3.5">
-                                                    <p className="text-xs text-[#5A524A] leading-relaxed">
-                                                        Sumá <span className="font-bold text-[#7A3B3B]">${(montoMinimoEnvio - subtotal).toLocaleString('es-AR')}</span> más para obtener <span className="font-semibold text-emerald-700">envío gratis</span>.
-                                                    </p>
-                                                    <div className="w-full bg-[#EDE8E1] h-1.5 rounded-full mt-2.5 overflow-hidden">
-                                                        <div
-                                                            className="bg-[#7A3B3B] h-full rounded-full transition-all duration-300"
-                                                            style={{ width: `${Math.min(100, (subtotal / montoMinimoEnvio) * 100)}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-xs text-emerald-800 font-medium flex items-center gap-1.5">
-                                                    <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                                                    <span>¡Envío 100% bonificado!</span>
-                                                </div>
-                                            )}
-
-                                            <div className="border-t border-[#EDE8E1] pt-4">
+                                            <div className="border-t border-[#EDE8E1] pt-3">
                                                 <div className="flex items-baseline justify-between">
                                                     <span className="font-bold text-base text-[#2A2825]">Total a Pagar</span>
                                                     <div className="text-right">
@@ -326,13 +588,33 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                             </div>
                                         </div>
 
-                                        {/* Botón de Checkout */}
+                                        {/* Botón de Checkout Dinámico */}
                                         <button
-                                            onClick={onCheckout}
-                                            className="w-full bg-[#3C3530] text-white py-3.5 px-4 rounded-xl hover:bg-[#7A3B3B] active:scale-[0.99] transition-all font-semibold text-sm shadow-xs flex items-center justify-center gap-2"
+                                            onClick={() => onCheckout({ tipoEntrega, costoEnvio: envio, direccion: direccionEnvio, metodoPago })}
+                                            className={`w-full text-white py-3.5 px-4 rounded-xl active:scale-[0.99] transition-all font-semibold text-sm shadow-xs flex items-center justify-center gap-2 ${
+                                                metodoPago === 'mercadopago'
+                                                    ? 'bg-[#009EE3] hover:bg-[#0081B9]'
+                                                    : metodoPago === 'transferencia'
+                                                    ? 'bg-purple-700 hover:bg-purple-800'
+                                                    : 'bg-emerald-700 hover:bg-emerald-800'
+                                            }`}
                                         >
-                                            <Sparkles className="w-4 h-4" />
-                                            <span>Pagar con Mercado Pago</span>
+                                            {metodoPago === 'mercadopago' ? (
+                                                <>
+                                                    <CreditCard className="w-4 h-4" />
+                                                    <span>Pagar con Mercado Pago (${total.toLocaleString('es-AR')})</span>
+                                                </>
+                                            ) : metodoPago === 'transferencia' ? (
+                                                <>
+                                                    <Building2 className="w-4 h-4" />
+                                                    <span>Confirmar por Transferencia (${total.toLocaleString('es-AR')})</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Banknote className="w-4 h-4" />
+                                                    <span>Confirmar Pedido en Efectivo (${total.toLocaleString('es-AR')})</span>
+                                                </>
+                                            )}
                                         </button>
 
                                         {/* Garantías y Beneficios */}
@@ -343,7 +625,7 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Truck className="w-4 h-4 text-[#7A3B3B] flex-shrink-0" />
-                                                <span>Envío a todo el país o retiro en local</span>
+                                                <span>{tipoEntrega === 'retiro' ? 'Retiro coordinado en recepción' : 'Envío a todo el país'}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Sparkles className="w-4 h-4 text-[#7A3B3B] flex-shrink-0" />
@@ -395,10 +677,14 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                         ) : (
                             <div className="space-y-4">
                                 {misOrdenes.map((orden: any) => {
-                                    const estNorm = String(orden.estado || '').toLowerCase();
-                                    const isPagada = orden.estado === 'Pagada' || orden.estado === 'Aprobado' || orden.estado === 1 || estNorm.includes('pag') || estNorm.includes('aprob') || estNorm.includes('entreg');
-                                    const isCancelada = orden.estado === 'Cancelada' || orden.estado === 'Cancelado' || orden.estado === 5 || estNorm.includes('canc');
-                                    const isPendiente = !isPagada && !isCancelada;
+                                    const estNorm = String(orden.estado || '').toLowerCase().trim();
+                                    const pagoNorm = String(orden.estadoPago || '').toLowerCase().trim();
+                                    const isPendiente = orden.estado === 0 || orden.estado === '0' || estNorm === 'pendiente' || estNorm.includes('pend') || pagoNorm.includes('pend');
+                                    const isCancelada = !isPendiente && (orden.estado === 5 || orden.estado === '5' || estNorm.includes('canc') || pagoNorm.includes('rech'));
+                                    const isPagada = !isPendiente && !isCancelada && (orden.estado === 1 || orden.estado === '1' || estNorm === 'pagada' || estNorm.includes('entreg') || estNorm.includes('env') || estNorm.includes('prep') || pagoNorm.includes('aprob'));
+
+                                    const esTransferencia = orden.medioPago === 'Transferencia' || String(orden.medioDetalle || '').toLowerCase().includes('transferencia');
+                                    const esEfectivo = orden.medioPago === 'Efectivo' || String(orden.medioDetalle || '').toLowerCase().includes('efectivo');
 
                                     const fechaFormat = orden.fecha
                                         ? new Date(orden.fecha).toLocaleDateString('es-AR', {
@@ -410,6 +696,9 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                             minute: '2-digit',
                                         })
                                         : 'Fecha reciente';
+
+                                    const waNum = (config.transferenciaWhatsappComprobante || config.whatsapp || '+54 9 11 2345-6789').replace(/[^0-9]/g, '');
+                                    const waMsg = encodeURIComponent(`Hola! Adjunto el comprobante de pago de mi Orden #${orden.ordenId} ($${Number(orden.total || 0).toLocaleString('es-AR')} ARS) realizada en la tienda.`);
 
                                     return (
                                         <div
@@ -434,19 +723,19 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                                 {/* Badge de Estado del Pedido */}
                                                 <div>
                                                     {isPendiente && (
-                                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                                                             <Clock className="w-3.5 h-3.5" />
-                                                            <span>🟡 Pendiente de Pago (Mercado Pago)</span>
+                                                            <span>🟡 Pendiente de Pago ({orden.medioPago || 'Pendiente'})</span>
                                                         </span>
                                                     )}
                                                     {isPagada && (
-                                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                                                             <CheckCircle className="w-3.5 h-3.5" />
-                                                            <span>🟢 Pago Acreditado (En Preparación)</span>
+                                                            <span>🟢 Pago Acreditado ({orden.estado === 'EnPreparacion' ? 'En Preparación' : (orden.estado === 'Enviada' ? 'Listo / Enviado' : 'Aprobado')})</span>
                                                         </span>
                                                     )}
                                                     {isCancelada && (
-                                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200">
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200">
                                                             <span>🔴 Cancelada</span>
                                                         </span>
                                                     )}
@@ -472,13 +761,29 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                                 </div>
                                             </div>
 
-                                            {/* Total y Medio de Pago */}
+                                            {/* Total, Medio de Pago y Modalidad de Entrega */}
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#EDE8E1] text-xs">
-                                                <div className="text-[#5A524A]">
-                                                    Medio: <strong>Mercado Pago Checkout</strong> {orden.codigoOperacion ? `• Ref: ${orden.codigoOperacion}` : ''}
+                                                <div className="text-[#5A524A] space-y-1">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span>Medio: <strong>{orden.medioPago || 'Mercado Pago'}</strong> {orden.codigoOperacion ? `• Ref: ${orden.codigoOperacion}` : ''}</span>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                            orden.tipoEntrega === 'retiro' || String(orden.medioDetalle || '').toLowerCase().includes('retiro')
+                                                                ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                                                                : 'bg-blue-100 text-blue-900 border border-blue-200'
+                                                        }`}>
+                                                            {orden.tipoEntrega === 'retiro' || String(orden.medioDetalle || '').toLowerCase().includes('retiro')
+                                                                ? '🏬 Retiro en Local'
+                                                                : '🚚 Envío a Domicilio'}
+                                                        </span>
+                                                    </div>
+                                                    {orden.direccionEntrega && (
+                                                        <p className="text-[11px] text-[#8A7F74]">
+                                                            Dirección: <strong>{orden.direccionEntrega}</strong>
+                                                        </p>
+                                                    )}
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="text-[#8A7F74] mr-2">Total abonado / a pagar:</span>
+                                                    <span className="text-[#8A7F74] mr-2">Total:</span>
                                                     <span className="text-base font-extrabold text-[#2A2825]">
                                                         ${Number(orden.total || 0).toLocaleString('es-AR')} ARS
                                                     </span>
@@ -488,18 +793,52 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                             {/* Acciones y aviso si está pendiente de pago */}
                                             {isPendiente && (
                                                 <div className="space-y-2.5 pt-2">
-                                                    <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2.5">
-                                                        <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                                                        <div>
-                                                            <p className="font-bold">Pago en espera de confirmación</p>
-                                                            <p className="mt-0.5 text-amber-800 leading-relaxed">
-                                                                Si saliste de la aplicación de Mercado Pago o no completaste la operación, podés reanudar el pago con el botón a continuación. En cuanto Mercado Pago confirme la acreditación a nuestro Webhook, tu pedido pasará automáticamente a estado <strong>Pagado</strong>.
-                                                            </p>
+                                                    {esTransferencia ? (
+                                                        <div className="p-3.5 bg-purple-50 rounded-xl border border-purple-200 text-[11px] text-purple-950 flex items-start gap-2.5">
+                                                            <Building2 className="w-4 h-4 text-purple-700 shrink-0 mt-0.5" />
+                                                            <div>
+                                                                <p className="font-bold">Transferencia Bancaria - Esperando Comprobante</p>
+                                                                <p className="mt-0.5 text-purple-800 leading-relaxed">
+                                                                    Tu pedido está reservado. Si ya realizaste la transferencia bancaria, podés enviar el comprobante directamente a nuestro WhatsApp oficial para que el Administrador confirme la acreditación.
+                                                                </p>
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    ) : esEfectivo ? (
+                                                        <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-950 flex items-start gap-2.5">
+                                                            <Banknote className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                                                            <div>
+                                                                <p className="font-bold">Pago en Mostrador Pendiente</p>
+                                                                <p className="mt-0.5 text-emerald-800 leading-relaxed">
+                                                                    Podés abonar ${Number(orden.total || 0).toLocaleString('es-AR')} en efectivo directamente al retirar tu compra en la recepción del centro estético.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2.5">
+                                                            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                                                            <div>
+                                                                <p className="font-bold">Pago Mercado Pago en espera</p>
+                                                                <p className="mt-0.5 text-amber-800 leading-relaxed">
+                                                                    Si saliste de la pasarela sin completar el pago, podés reanudarlo con el botón inferior. Una vez acreditado, tu pedido pasará a preparación.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     <div className="flex flex-wrap items-center gap-2 pt-1">
-                                                        {orden.initPointUrl && (
+                                                        {esTransferencia && (
+                                                            <a
+                                                                href={`https://wa.me/${waNum}?text=${waMsg}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-all"
+                                                            >
+                                                                <MessageCircle className="w-3.5 h-3.5" />
+                                                                <span>Enviar Comprobante por WhatsApp</span>
+                                                            </a>
+                                                        )}
+
+                                                        {!esTransferencia && !esEfectivo && orden.initPointUrl && (
                                                             <a
                                                                 href={orden.initPointUrl}
                                                                 target="_blank"
@@ -510,12 +849,13 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                                                 <span>Completar Pago en Mercado Pago</span>
                                                             </a>
                                                         )}
+
                                                         <button
                                                             onClick={cargarOrdenesLocales}
                                                             className="px-3.5 py-2 rounded-xl bg-white border border-[#EDE8E1] hover:bg-[#FAF8F5] text-[#3C3530] text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs"
                                                         >
                                                             <RotateCcw className="w-3.5 h-3.5 text-[#7A3B3B]" />
-                                                            <span>Verificar si ya pagué</span>
+                                                            <span>Actualizar Estado</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -525,7 +865,7 @@ export function Carrito({ items, currentUser, onUpdateQuantity, onRemoveItem, on
                                                 <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 flex items-center gap-2">
                                                     <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                                                     <span>
-                                                        ¡Tu pago ha sido acreditado exitosamente por Mercado Pago! La administración está preparando tus productos.
+                                                        ¡Tu pago ha sido acreditado exitosamente! La administración está preparando tus productos para retiro o despacho.
                                                     </span>
                                                 </div>
                                             )}

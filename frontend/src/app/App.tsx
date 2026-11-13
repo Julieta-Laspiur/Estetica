@@ -30,7 +30,7 @@ import {
   type ProductoCarrito,
   type WishlistItem,
 } from '../services/clienteStorageService';
-import { User, Shield } from 'lucide-react';
+import { User, Shield, Menu, Store } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authApi.getCurrentUser());
@@ -41,6 +41,7 @@ export default function App() {
     return 'cliente';
   });
   const [activeSection, setActiveSection] = useState('inicio');
+  const [adminMobileMenuOpen, setAdminMobileMenuOpen] = useState(false);
   const [servicioParaReserva, setServicioParaReserva] = useState<string | null>(null);
 
   // Cargar lista de deseos del cliente activo (no expira, no se borra al cerrar sesión)
@@ -247,28 +248,52 @@ export default function App() {
     });
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (datosEntrega?: { tipoEntrega: 'retiro' | 'envio'; costoEnvio: number; direccion?: string; metodoPago?: 'mercadopago' | 'transferencia' | 'efectivo' }) => {
     if (carritoItems.length > 0) {
+      const tipo = datosEntrega?.tipoEntrega || 'retiro';
+      const metodo = datosEntrega?.metodoPago || 'mercadopago';
       const subtotal = carritoItems.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
       const cfg = configuracionService.get();
       const minGratis = cfg.montoEnvioGratis || 15000;
       const costoEnv = cfg.costoEnvioEstandar || 1200;
-      const envio = subtotal >= minGratis ? 0 : costoEnv;
-      const totalOrden = subtotal + envio;
-      const ordenId = Date.now();
-      let initPoint = `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=PREF_${ordenId}`;
-      let codigoOp = `MP-${Math.floor(100000000 + Math.random() * 900000000)}`;
+      const envio = tipo === 'retiro' ? 0 : (subtotal >= minGratis ? 0 : costoEnv);
 
-      try {
-        const resPago = await pagosApi.procesar({ ordenId: Math.floor(ordenId % 100000), proveedor: 0 });
-        if (resPago && resPago.initPointUrl) {
-          initPoint = resPago.initPointUrl;
-          if (resPago.referenciaExterna) {
-            codigoOp = resPago.referenciaExterna;
+      let descuento = 0;
+      if (metodo === 'efectivo' && cfg.descuentoEfectivoPorcentaje && cfg.descuentoEfectivoPorcentaje > 0) {
+        descuento = Math.round((subtotal * cfg.descuentoEfectivoPorcentaje) / 100);
+      }
+
+      const totalOrden = Math.max(0, subtotal - descuento + envio);
+      const ordenId = Date.now();
+      let initPoint = '';
+      let codigoOp = `ORD-${ordenId}`;
+
+      const detalleEntrega = tipo === 'retiro'
+        ? 'Retiro en Local (Gratis)'
+        : (envio === 0 ? 'Envío a Domicilio (Bonificado)' : `Envío a Domicilio ($${envio.toLocaleString('es-AR')} ARS)`);
+
+      const medioDetalle = metodo === 'transferencia'
+        ? `Transferencia Bancaria - ${detalleEntrega}`
+        : (metodo === 'efectivo' ? `Efectivo en Mostrador - ${detalleEntrega}` : `Mercado Pago - ${detalleEntrega}`);
+
+      if (metodo === 'mercadopago') {
+        initPoint = `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=PREF_${ordenId}`;
+        codigoOp = `MP-${Math.floor(100000000 + Math.random() * 900000000)}`;
+        try {
+          const resPago = await pagosApi.procesar({ ordenId: Math.floor(ordenId % 100000), proveedor: 0 });
+          if (resPago && resPago.initPointUrl) {
+            initPoint = resPago.initPointUrl;
+            if (resPago.referenciaExterna) {
+              codigoOp = resPago.referenciaExterna;
+            }
           }
+        } catch (e) {
+          console.warn('Preferencia fallback para orden:', e);
         }
-      } catch (e) {
-        console.warn('Preferencia fallback para orden:', e);
+      } else if (metodo === 'transferencia') {
+        codigoOp = `TRF-${Math.floor(100000000 + Math.random() * 900000000)}`;
+      } else {
+        codigoOp = `EFE-${Math.floor(100000000 + Math.random() * 900000000)}`;
       }
 
       const nuevaOrden = {
@@ -276,12 +301,18 @@ export default function App() {
         codigoOperacion: codigoOp,
         fecha: new Date().toISOString(),
         total: totalOrden,
-        medioPago: 'mercadopago',
-        medioDetalle: 'Mercado Pago Checkout',
-        estado: 'Pendiente', // Pendiente hasta que el webhook de Mercado Pago confirme el pago
+        medioPago: metodo === 'transferencia' ? 'Transferencia' : (metodo === 'efectivo' ? 'Efectivo' : 'Mercado Pago'),
+        medioDetalle,
+        estado: 'Pendiente',
+        estadoPago: 'Pendiente',
         clienteId: currentUser?.usuarioId || null,
         clienteEmail: currentUser?.email?.toLowerCase().trim() || null,
         clienteNombre: currentUser ? `${currentUser.nombre} ${currentUser.apellido}`.trim() : 'Cliente Web',
+        clienteTelefono: currentUser?.telefono || '',
+        tipoEntrega: tipo,
+        costoEnvio: envio,
+        descuentoAplicado: descuento,
+        direccionEntrega: datosEntrega?.direccion?.trim() || null,
         detalles: carritoItems.map(item => ({
           detalleId: Math.floor(Math.random() * 10000),
           productoId: item.id,
@@ -290,15 +321,25 @@ export default function App() {
           precioUnitario: item.precio,
           subtotal: item.precio * item.cantidad,
         })),
-        initPointUrl: initPoint,
+        initPointUrl: initPoint || undefined,
       };
+
       const ordenesLocales = JSON.parse(localStorage.getItem('estetica_ordenes_productos') || '[]');
       localStorage.setItem('estetica_ordenes_productos', JSON.stringify([nuevaOrden, ...ordenesLocales]));
 
-      // Redirigir a la ventana de Mercado Pago
-      window.open(initPoint, '_blank');
+      // Disparar según el método seleccionado
+      if (metodo === 'mercadopago') {
+        window.open(initPoint, '_blank');
+        alert(`¡Orden #${ordenId} registrada como pendiente de pago!\n\nModalidad: ${detalleEntrega}${datosEntrega?.direccion ? `\nDirección de envío: ${datosEntrega.direccion}` : ''}\nTotal: $${totalOrden.toLocaleString('es-AR')} ARS\nSe ha abierto la pasarela de Mercado Pago para abonar.`);
+      } else if (metodo === 'transferencia') {
+        const waNum = (cfg.transferenciaWhatsappComprobante || cfg.whatsapp || '+54 9 11 2345-6789').replace(/[^0-9]/g, '');
+        const waMsg = encodeURIComponent(`Hola! Realicé el pedido #${ordenId} en la tienda por $${totalOrden.toLocaleString('es-AR')} ARS (${detalleEntrega}). Adjunto el comprobante de transferencia bancaria.`);
+        window.open(`https://wa.me/${waNum}?text=${waMsg}`, '_blank');
+        alert(`¡Orden #${ordenId} registrada con éxito!\n\nTu pedido quedó en estado PENDIENTE DE PAGO por Transferencia Bancaria.\nSe abrirá WhatsApp para que envíes el comprobante al equipo de administración.`);
+      } else {
+        alert(`¡Orden #${ordenId} registrada con éxito!\n\nTu pedido quedó reservado en estado PENDIENTE DE PAGO en Mostrador.\nTotal a abonar en el local: $${totalOrden.toLocaleString('es-AR')} ARS.`);
+      }
 
-      alert(`¡Orden registrada como pendiente de pago!\n\nSe ha abierto la pasarela de Mercado Pago para abonar $${totalOrden.toLocaleString('es-AR')} ARS.\nTu pedido se confirmará automáticamente en cuanto Mercado Pago acredite la transacción.`);
       clienteStorageService.limpiarCarrito(currentUser);
       setCarritoItems([]);
       setActiveSection('inicio');
@@ -442,6 +483,30 @@ export default function App() {
           />
         );
 
+      case 'wishlist':
+        return (
+          <ListaDeseos
+            items={wishlistItems}
+            onRemoveItem={handleRemoveFromWishlist}
+            onAddToCart={handleAddToCart}
+            onClearWishlist={() => {
+              setWishlistItems([]);
+              clienteStorageService.guardarWishlist([], currentUser);
+            }}
+            onAddAllToCart={() => {
+              wishlistItems.forEach(item => {
+                handleAddToCart(item.id, {
+                  nombre: item.nombre,
+                  marca: item.marca,
+                  precio: item.precio,
+                  imagen: item.imagenUrl || '🧴'
+                });
+              });
+            }}
+            onNavigate={setActiveSection}
+          />
+        );
+
       case 'perfil':
         if (!currentUser) {
           return (
@@ -547,21 +612,63 @@ export default function App() {
     }
 
     return (
-      <div className="flex h-screen bg-background">
+      <div className="flex flex-col lg:flex-row h-screen bg-background overflow-hidden">
+        {/* Mobile Header for Admin */}
+        <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-card border-b border-border shrink-0 z-20">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setAdminMobileMenuOpen(true)}
+              className="p-1.5 -ml-1.5 rounded-lg text-foreground hover:bg-accent transition-colors"
+              aria-label="Abrir menú de navegación"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary shrink-0" />
+              <span className="font-bold text-sm text-foreground truncate max-w-[170px]">
+                Panel Admin
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setVistaActual('cliente');
+                setActiveSection('inicio');
+              }}
+              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-accent text-accent-foreground hover:bg-muted transition-colors flex items-center gap-1.5 shadow-2xs"
+              title="Ver Tienda"
+            >
+              <Store className="w-3.5 h-3.5 text-primary" />
+              <span>Tienda</span>
+            </button>
+          </div>
+        </header>
+
         <Sidebar
           activeSection={activeSection}
-          onSectionChange={setActiveSection}
+          onSectionChange={(sec) => {
+            setActiveSection(sec);
+            setAdminMobileMenuOpen(false);
+          }}
           currentUser={currentUser}
+          isOpenMobile={adminMobileMenuOpen}
+          onCloseMobile={() => setAdminMobileMenuOpen(false)}
           onSwitchToCliente={() => {
             setVistaActual('cliente');
             setActiveSection('inicio');
+            setAdminMobileMenuOpen(false);
           }}
           onSwitchToProfesional={() => {
             setVistaActual('profesional');
+            setAdminMobileMenuOpen(false);
           }}
           onLogout={handleLogout}
         />
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-8 min-w-0">
           {renderAdminSection()}
         </main>
       </div>

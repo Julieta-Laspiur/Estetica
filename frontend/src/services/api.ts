@@ -337,7 +337,7 @@ export interface TurnoDto {
   total: number;
   fechaCreacion?: string;
   motivo?: string;
-  metodoPago?: 'mercadopago' | 'efectivo' | string;
+  metodoPago?: 'mercadopago' | 'efectivo' | 'transferencia' | string;
   estaExpirado?: boolean;
   servicios?: TurnoServicioItemDto[];
 }
@@ -834,6 +834,9 @@ export interface OrdenCompraDto {
   referenciaExterna?: string;
   fechaPago?: string;
   motivoDevolucion?: string;
+  tipoEntrega?: 'retiro' | 'envio' | string;
+  costoEnvio?: number;
+  direccionEntrega?: string;
   detalles: DetalleOrdenDto[];
 }
 

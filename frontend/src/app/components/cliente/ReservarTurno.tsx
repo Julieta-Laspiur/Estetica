@@ -10,7 +10,6 @@ import {
     AlertTriangle,
     CreditCard,
     Banknote,
-    QrCode,
     Printer,
     Hourglass,
     FileText,
@@ -20,7 +19,11 @@ import {
     RotateCcw,
     ExternalLink,
     Layers,
-    DoorOpen
+    DoorOpen,
+    Building2,
+    Copy,
+    MessageSquare,
+    X
 } from 'lucide-react';
 import { serviciosApi, turnosApi, pagosApi, usuariosApi, type AuthUser } from '../../../services/api';
 import { configuracionService } from '../../../services/configuracionService';
@@ -55,7 +58,7 @@ interface ReservaCompletadaData {
     profesional: Profesional;
     fecha: string;
     hora: string;
-    metodoPago: 'mercadopago' | 'efectivo';
+    metodoPago: 'mercadopago' | 'efectivo' | 'transferencia';
     medioDetalle: string;
     total: number;
     codigoOperacion?: string;
@@ -70,11 +73,10 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
     const [selectedProfesional, setSelectedProfesional] = useState<string | null>(null);
     const [selectedFecha, setSelectedFecha] = useState<string>('');
     const [selectedHora, setSelectedHora] = useState<string | null>(null);
-    const [metodoPago, setMetodoPago] = useState<'mercadopago' | 'efectivo'>('mercadopago');
-    const [medioMercadoPago, setMedioMercadoPago] = useState<'tarjeta' | 'dinero' | 'transferencia' | 'qr'>('tarjeta');
+    const [metodoPago, setMetodoPago] = useState<'mercadopago' | 'efectivo' | 'transferencia'>('mercadopago');
     const [aceptaPolitica24h, setAceptaPolitica24h] = useState(false);
-    const [showMercadoPagoModal, setShowMercadoPagoModal] = useState(false);
-    const [procesandoPagoMP, setProcesandoPagoMP] = useState(false);
+    const [copiadoCbu, setCopiadoCbu] = useState(false);
+    const [copiadoAlias, setCopiadoAlias] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [reservaExitosa, setReservaExitosa] = useState<ReservaCompletadaData | null>(null);
     const [filtroCategoria, setFiltroCategoria] = useState<string>('todos');
@@ -83,6 +85,13 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
     // Lista de turnos del cliente
     const [misTurnos, setMisTurnos] = useState<any[]>([]);
     const [loadingMisTurnos, setLoadingMisTurnos] = useState(false);
+
+    // Modal de reprogramación autónoma del cliente (HU-04 / RN-02)
+    const [turnoParaReprogramar, setTurnoParaReprogramar] = useState<any | null>(null);
+    const [reprogramarFecha, setReprogramarFecha] = useState('');
+    const [reprogramarHora, setReprogramarHora] = useState('11:00');
+    const [reprogramando, setReprogramando] = useState(false);
+    const [errorReprogramar, setErrorReprogramar] = useState<string | null>(null);
 
     useEffect(() => {
         if (initialServicioId) {
@@ -259,14 +268,22 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
 
             // Guardar en historial asignando explícitamente el usuario actual
             const listado = JSON.parse(localStorage.getItem('estetica_reservas_cliente') || '[]');
+            const clienteNom = currentUser
+                ? `${currentUser.nombre || ''} ${currentUser.apellido || ''}`.trim() || 'Cliente Registrado'
+                : 'Cliente Web';
+
             const turnoFormateado = {
                 turnoId: nuevoTurno.turnoId,
                 usuarioId: currentUser?.usuarioId || null,
                 clienteEmail: currentUser?.email?.toLowerCase().trim() || null,
-                clienteNombreCompleto: currentUser ? `${currentUser.nombre} ${currentUser.apellido}`.trim() : 'Cliente Web',
+                clienteNombreCompleto: clienteNom,
+                profesionalId: Number(nuevoTurno.profesional.id) || 1,
                 profesionalNombreCompleto: nuevoTurno.profesional.nombre,
-                cabinaNombre: 'Cabina Principal 01',
+                cabinaId: nuevoTurno.servicio.requiereCabinaEspecifica && nuevoTurno.servicio.cabinaEspecificaId ? nuevoTurno.servicio.cabinaEspecificaId : 1,
+                cabinaNombre: nuevoTurno.servicio.cabinaEspecificaNombre || 'Cabina Principal 01',
                 fechaHoraInicio: `${nuevoTurno.fecha}T${nuevoTurno.hora}:00`,
+                fechaRegistro: nuevoTurno.fechaRegistro || new Date().toISOString(),
+                fechaCreacion: nuevoTurno.fechaRegistro || new Date().toISOString(),
                 estado: 'Pendiente', // Pendiente de confirmación del admin
                 total: nuevoTurno.total,
                 servicios: [{
@@ -275,6 +292,7 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                     duracionMin: nuevoTurno.servicio.duracion,
                     precio: nuevoTurno.servicio.precio
                 }],
+                metodoPago: nuevoTurno.metodoPago,
                 metodoPagoGuardado: nuevoTurno.metodoPago,
                 detallePagoGuardado: nuevoTurno.medioDetalle,
                 codigoOperacion: nuevoTurno.codigoOperacion,
@@ -282,13 +300,37 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
             };
             listado.unshift(turnoFormateado);
             localStorage.setItem('estetica_reservas_cliente', JSON.stringify(listado));
+
+            // Notificar a los paneles administrativos (Caja, Turnos, Calendario, Dashboard)
+            try {
+                window.dispatchEvent(new CustomEvent('estetica_turno_creado', { detail: turnoFormateado }));
+            } catch {}
         } catch (e) {
             console.error('Error al persistir turno local:', e);
         }
     };
 
-    // Confirmar y registrar reserva
-    const ejecutarRegistroReserva = async (codigoTransaccion?: string) => {
+    const handleCopiarTexto = async (texto: string, tipo: 'cbu' | 'alias') => {
+        try {
+            await navigator.clipboard.writeText(texto);
+            if (tipo === 'cbu') {
+                setCopiadoCbu(true);
+                setTimeout(() => setCopiadoCbu(false), 2000);
+            } else {
+                setCopiadoAlias(true);
+                setTimeout(() => setCopiadoAlias(false), 2000);
+            }
+        } catch {}
+    };
+
+    // Confirmar y registrar reserva (Efectivo o Transferencia)
+    const ejecutarRegistroReserva = async (metodo: 'efectivo' | 'transferencia') => {
+        if (!currentUser) {
+            alert('Por favor iniciá sesión con tu cuenta para poder reservar un turno.');
+            if (onNavigate) onNavigate('login');
+            return;
+        }
+
         const servicio = servicios.find(s => s.id === selectedServicio);
         const profesional = profesionales.find(p => p.id === selectedProfesional);
 
@@ -304,7 +346,7 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
             const fechaHoraInicio = `${selectedFecha}T${selectedHora}:00Z`;
             const payload: any = {
                 profesionalId: parseInt(profesional.id),
-                cabinaId: 1,
+                cabinaId: servicio.requiereCabinaEspecifica && servicio.cabinaEspecificaId ? servicio.cabinaEspecificaId : 1,
                 fechaHoraInicio,
                 serviciosIds: [parseInt(servicio.id)],
             };
@@ -317,19 +359,17 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                 turnoIdGenerado = res.turnoId;
             }
         } catch {
-            // En caso de que el backend no tenga sesión activa, se usa el ID simulado
+            // En caso de que el backend no tenga sesión activa, se usa el ID local
         } finally {
             setIsSubmitting(false);
 
-            let detalleMedio = 'Pago en Recepción en Mostrador';
-            if (metodoPago === 'mercadopago') {
-                switch (medioMercadoPago) {
-                    case 'tarjeta': detalleMedio = 'Tarjeta Débito/Crédito (Mercado Pago)'; break;
-                    case 'dinero': detalleMedio = 'Dinero en Cuenta (Mercado Pago)'; break;
-                    case 'transferencia': detalleMedio = 'Transferencia CVU/Alias (Mercado Pago)'; break;
-                    case 'qr': detalleMedio = 'Código QR (Mercado Pago)'; break;
-                }
-            }
+            const detalleMedio = metodo === 'transferencia'
+                ? 'Transferencia Bancaria (Pendiente de Comprobante)'
+                : 'Pago en Recepción en Mostrador';
+
+            const codigoTransaccion = metodo === 'transferencia'
+                ? `TRF-${Math.floor(100000000 + Math.random() * 900000000)}`
+                : `EF-${Math.floor(100000000 + Math.random() * 900000000)}`;
 
             const dataExito: ReservaCompletadaData = {
                 turnoId: turnoIdGenerado,
@@ -337,10 +377,10 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                 profesional,
                 fecha: selectedFecha,
                 hora: selectedHora,
-                metodoPago,
+                metodoPago: metodo,
                 medioDetalle: detalleMedio,
                 total: servicio.precio,
-                codigoOperacion: codigoTransaccion || `MP-${Math.floor(100000000 + Math.random() * 900000000)}`,
+                codigoOperacion: codigoTransaccion,
                 fechaRegistro: new Date().toISOString(),
             };
 
@@ -351,23 +391,14 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
         }
     };
 
-    // Manejador del botón principal en Paso 4
-    const handleProcederPago = () => {
-        if (!aceptaPolitica24h) {
-            alert('Debes confirmar que has leído y aceptas la política de no reembolso para cancelaciones pasadas las 24 horas.');
+    // Procesar reserva y Redirigir DIRECTAMENTE a la Aplicación / Checkout de Mercado Pago
+    const handleConfirmarMercadoPagoDirecto = async () => {
+        if (!currentUser) {
+            alert('Por favor iniciá sesión con tu cuenta para poder reservar un turno.');
+            if (onNavigate) onNavigate('login');
             return;
         }
 
-        if (metodoPago === 'mercadopago') {
-            setShowMercadoPagoModal(true);
-        } else {
-            // Efectivo en mostrador
-            ejecutarRegistroReserva();
-        }
-    };
-
-    // Procesar reserva y Redirigir a la Ventana de Mercado Pago
-    const handleConfirmarMercadoPagoModal = async () => {
         const servicio = servicios.find(s => s.id === selectedServicio);
         const profesional = profesionales.find(p => p.id === selectedProfesional);
 
@@ -376,7 +407,7 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
             return;
         }
 
-        setProcesandoPagoMP(true);
+        setIsSubmitting(true);
         let turnoIdGenerado: number | string = Math.floor(1000 + Math.random() * 9000);
         let codigoOperacion = `MP-${Math.floor(100000000 + Math.random() * 900000000)}`;
         let initPointUrl = `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=PREF_${Date.now()}`;
@@ -398,9 +429,14 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                 const resTurno = await turnosApi.reservar(payload);
                 if (resTurno && resTurno.turnoId) {
                     turnoIdGenerado = resTurno.turnoId;
+                } else {
+                    throw new Error('No se recibió el identificador del turno.');
                 }
-            } catch (errTurno) {
-                console.warn('Turno registrado en modo local:', errTurno);
+            } catch (errTurno: any) {
+                console.error('Error al reservar turno en servidor:', errTurno);
+                alert(errTurno?.message || 'No se pudo reservar el turno en el horario seleccionado. Por favor elegí otro horario.');
+                setIsSubmitting(false);
+                return;
             }
 
             // 2. Procesar preferencia con la API oficial de Mercado Pago
@@ -414,17 +450,14 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                     if (resPago.referenciaExterna) {
                         codigoOperacion = resPago.referenciaExterna;
                     }
+                } else {
+                    throw new Error('No se recibió el enlace de pago de Mercado Pago.');
                 }
-            } catch (errPago) {
-                console.warn('Preferencia de pago generada en modo contingencia:', errPago);
-            }
-
-            let detalleMedio = 'Tarjeta Débito/Crédito (Mercado Pago)';
-            switch (medioMercadoPago) {
-                case 'tarjeta': detalleMedio = 'Tarjeta Débito/Crédito (Mercado Pago)'; break;
-                case 'dinero': detalleMedio = 'Dinero en Cuenta (Mercado Pago)'; break;
-                case 'transferencia': detalleMedio = 'Transferencia CVU/Alias (Mercado Pago)'; break;
-                case 'qr': detalleMedio = 'Código QR (Mercado Pago)'; break;
+            } catch (errPago: any) {
+                console.error('Error al generar orden en Mercado Pago:', errPago);
+                alert('No se pudo generar el checkout de Mercado Pago: ' + (errPago?.message || 'Error de pasarela'));
+                setIsSubmitting(false);
+                return;
             }
 
             const dataExito: ReservaCompletadaData = {
@@ -434,7 +467,7 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                 fecha: selectedFecha,
                 hora: selectedHora,
                 metodoPago: 'mercadopago',
-                medioDetalle: detalleMedio,
+                medioDetalle: 'Mercado Pago Checkout Oficial',
                 total: servicio.precio,
                 codigoOperacion,
                 fechaRegistro: new Date().toISOString(),
@@ -444,20 +477,34 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
             guardarTurnoLocal(dataExito);
             setReservaExitosa(dataExito);
             cargarMisTurnos();
+            setStep(5); // Pantalla de Comprobante / Voucher
 
-            // 3. REDIRECCIÓN EFECTIVA A LA VENTANA DE MERCADO PAGO
+            // 3. Redirección efectiva a la aplicación / checkout de Mercado Pago
             const mpWindow = window.open(initPointUrl, '_blank');
             if (!mpWindow || mpWindow.closed || typeof mpWindow.closed === 'undefined') {
-                console.info('Apertura automática bloqueada por navegador; el usuario dispone del botón directo.');
+                window.location.href = initPointUrl;
             }
-
-            setShowMercadoPagoModal(false);
-            setStep(5); // Pantalla de Comprobante / Voucher con link a Mercado Pago
         } catch (e: any) {
             console.error('Error al procesar reserva con Mercado Pago:', e);
-            alert('Ocurrió un error al procesar el pago: ' + (e.message || 'Error de conexión'));
+            alert('Ocurrió un error al procesar el pago: ' + (e?.message || 'Error de conexión'));
         } finally {
-            setProcesandoPagoMP(false);
+            setIsSubmitting(false);
+        }
+    };
+
+    // Manejador del botón principal en Paso 4
+    const handleProcederPago = () => {
+        if (!aceptaPolitica24h) {
+            alert('Debes confirmar que has leído y aceptas la política de no reembolso para cancelaciones pasadas las 24 horas.');
+            return;
+        }
+
+        if (metodoPago === 'mercadopago') {
+            handleConfirmarMercadoPagoDirecto();
+        } else if (metodoPago === 'transferencia') {
+            ejecutarRegistroReserva('transferencia');
+        } else {
+            ejecutarRegistroReserva('efectivo');
         }
     };
 
@@ -470,6 +517,55 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
         setMetodoPago('mercadopago');
         setAceptaPolitica24h(false);
         setReservaExitosa(null);
+    };
+
+    // Abrir modal de reprogramación validando anticipación de 24 horas (HU-04 / RN-02)
+    const handleAbrirReprogramar = (turno: any) => {
+        const fechaCita = new Date(turno.fechaHoraInicio);
+        const ahora = new Date();
+        const horasRestantes = (fechaCita.getTime() - ahora.getTime()) / (1000 * 60 * 60);
+
+        if (horasRestantes < 24) {
+            alert(
+                '⚠️ POLÍTICA DE MODIFICACIÓN Y REPROGRAMACIÓN (MENOS DE 24 HORAS):\n\n' +
+                'No es posible cambiar o reprogramar este turno de forma digital porque faltan menos de 24 horas para la cita programada.\n\n' +
+                'De acuerdo a los términos y condiciones del centro de estética, las modificaciones dentro de las 24 horas previas requieren coordinación directa con la administración.\n\n' +
+                'Por favor comunicate telefónicamente o por WhatsApp con el centro de estética.'
+            );
+            return;
+        }
+
+        setTurnoParaReprogramar(turno);
+        setErrorReprogramar(null);
+        // Sugerir fecha mínima: mañana
+        const manana = new Date();
+        manana.setDate(manana.getDate() + 1);
+        setReprogramarFecha(manana.toISOString().split('T')[0]);
+        setReprogramarHora('11:00');
+    };
+
+    // Confirmar nueva fecha y hora con la API de turnos
+    const handleConfirmarReprogramar = async () => {
+        if (!turnoParaReprogramar || !reprogramarFecha || !reprogramarHora) return;
+
+        setReprogramando(true);
+        setErrorReprogramar(null);
+        const nuevaFechaHora = `${reprogramarFecha}T${reprogramarHora}:00Z`;
+
+        try {
+            await turnosApi.reprogramar(turnoParaReprogramar.turnoId, {
+                nuevaFechaHoraInicio: nuevaFechaHora,
+                motivo: 'Reprogramación solicitada autónomamente por el cliente'
+            });
+            alert(`✅ ¡Turno #${turnoParaReprogramar.turnoId} reprogramado exitosamente!\n\nNueva fecha: ${reprogramarFecha} a las ${reprogramarHora} hs.`);
+            setTurnoParaReprogramar(null);
+            cargarMisTurnos();
+        } catch (err: any) {
+            const msg = err?.message || 'Error al reprogramar el turno. Verificá la fecha y horario o contactá al centro.';
+            setErrorReprogramar(msg);
+        } finally {
+            setReprogramando(false);
+        }
     };
 
     // Cancelar turno del cliente con validación estricta de 24 horas
@@ -685,7 +781,13 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                                 <div className="flex items-center gap-1.5">
                                                     <CreditCard className="w-3.5 h-3.5 text-[#7A3B3B]" />
                                                     <span>
-                                                        Pago: <strong>{t.metodoPagoGuardado === 'mercadopago' ? 'Mercado Pago (Online)' : 'Efectivo en Recepción'}</strong>
+                                                        Pago: <strong>
+                                                            {t.metodoPagoGuardado === 'mercadopago'
+                                                                ? 'Mercado Pago (Online)'
+                                                                : t.metodoPagoGuardado === 'transferencia'
+                                                                ? 'Transferencia Bancaria'
+                                                                : 'Efectivo en Recepción'}
+                                                        </strong>
                                                     </span>
                                                 </div>
                                                 <div className="text-right sm:text-right font-bold text-[#2A2825]">
@@ -696,17 +798,29 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                             {/* Nota informativa y acciones de pago para turnos pendientes */}
                                             {isPendiente && (
                                                 <div className="space-y-2.5">
-                                                    <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2.5">
-                                                        <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                                                    <div className={`p-3.5 rounded-xl border text-[11px] flex items-start gap-2.5 ${
+                                                        t.metodoPagoGuardado === 'transferencia'
+                                                            ? 'bg-purple-50 border-purple-200 text-purple-950'
+                                                            : 'bg-amber-50 border-amber-200 text-amber-900'
+                                                    }`}>
+                                                        <Info className={`w-4 h-4 shrink-0 mt-0.5 ${
+                                                            t.metodoPagoGuardado === 'transferencia' ? 'text-purple-700' : 'text-amber-700'
+                                                        }`} />
                                                         <div>
                                                             <p className="font-bold">
                                                                 {t.metodoPagoGuardado === 'mercadopago'
                                                                     ? '🟡 Turno Pendiente de Pago (Mercado Pago)'
+                                                                    : t.metodoPagoGuardado === 'transferencia'
+                                                                    ? '🟣 Turno Pendiente de Validación de Comprobante'
                                                                     : '🟡 Turno Pendiente de Pago en Mostrador'}
-                                                            </p>
-                                                            <p className="mt-0.5 text-amber-800 leading-relaxed">
+                             </p>
+                                                            <p className={`mt-0.5 leading-relaxed ${
+                                                                t.metodoPagoGuardado === 'transferencia' ? 'text-purple-900' : 'text-amber-800'
+                                                            }`}>
                                                                 {t.metodoPagoGuardado === 'mercadopago'
                                                                     ? 'Si aún no completaste el pago o saliste de la aplicación de Mercado Pago, tu turno se encuentra reservado provisoriamente. Podés abonar con el botón a continuación. En cuanto Mercado Pago confirme la transacción mediante nuestro Webhook, el turno quedará formalmente Confirmado.'
+                                                                    : t.metodoPagoGuardado === 'transferencia'
+                                                                    ? 'Tu turno está reservado provisoriamente. Para confirmarlo, debés enviar el comprobante de transferencia al WhatsApp de la administración. Una vez verificada la acreditación, el Administrador confirmará tu turno formalmente desde su panel.'
                                                                     : 'El turno ha sido reservado para abono presencial en recepción. La administración confirmará tu cita al momento del cobro.'}
                                                             </p>
                                                         </div>
@@ -734,26 +848,160 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                                             </button>
                                                         </div>
                                                     )}
+
+                                                    {t.metodoPagoGuardado === 'transferencia' && (
+                                                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                                                            <a
+                                                                href={`https://wa.me/${(siteConfig.transferenciaWhatsappComprobante || siteConfig.whatsapp || '+54 9 11 2345-6789').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hola! Consulto por la validación de mi Turno #${t.turnoId} (${fechaFormat} - ${horaFormat} hs). Ya realicé la transferencia bancaria por $${Number(t.total || 0).toLocaleString('es-AR')} ARS y adjunto mi comprobante para que el Admin confirme el turno.`)}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="px-3.5 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-all"
+                                                            >
+                                                                <MessageSquare className="w-3.5 h-3.5" />
+                                                                <span>Enviar Comprobante por WhatsApp</span>
+                                                            </a>
+                                                            <button
+                                                                onClick={cargarMisTurnos}
+                                                                className="px-3.5 py-1.5 rounded-xl bg-white border border-[#EDE8E1] hover:bg-[#FAF8F5] text-[#3C3530] text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs"
+                                                            >
+                                                                <RotateCcw className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                                                                <span>Verificar Estado</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 
-                                            {/* Acción de cancelar con regla 24hs */}
+                                            {/* Acciones de cancelar o reprogramar con regla 24hs */}
                                             {!isCancelado && (
-                                                <div className="flex items-center justify-between pt-2">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-[#EDE8E1]">
                                                     <span className="text-[10px] text-[#8A7F74]">
-                                                        * Cancelación sin penalidad hasta 24 hs antes de la cita.
+                                                        * Modificación o cancelación sin cargo hasta 24 hs antes de la cita.
                                                     </span>
-                                                    <button
-                                                        onClick={() => handleCancelarTurnoCliente(t)}
-                                                        className="text-xs text-rose-700 hover:text-rose-900 font-semibold underline"
-                                                    >
-                                                        Cancelar Turno
-                                                    </button>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleAbrirReprogramar(t)}
+                                                            className="px-3 py-1.5 rounded-xl bg-[#FAF8F5] border border-[#7A3B3B]/40 hover:bg-[#7A3B3B] hover:text-white text-[#7A3B3B] text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
+                                                            title="Elegir otra fecha y horario para este turno"
+                                                        >
+                                                            <Calendar className="w-3.5 h-3.5" />
+                                                            <span>Cambiar Turno</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCancelarTurnoCliente(t)}
+                                                            className="text-xs text-rose-700 hover:text-rose-900 font-semibold underline px-2 py-1"
+                                                        >
+                                                            Cancelar Turno
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     );
                                 })}
+                            </div>
+                        )}
+
+                        {/* MODAL PARA QUE EL CLIENTE CAMBIE SU TURNO (REPROGRAMACIÓN) */}
+                        {turnoParaReprogramar && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+                                <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#EDE8E1] space-y-5 animate-in zoom-in-95">
+                                    <div className="flex items-center justify-between border-b border-[#EDE8E1] pb-3">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-9 h-9 rounded-xl bg-[#FAF0F0] text-[#7A3B3B] flex items-center justify-center font-bold">
+                                                <Calendar className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-base text-[#2A2825]">Cambiar Fecha y Hora</h3>
+                                                <p className="text-xs text-[#8A7F74]">Turno #{turnoParaReprogramar.turnoId}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setTurnoParaReprogramar(null)}
+                                            className="p-1.5 rounded-lg text-[#8A7F74] hover:text-[#2A2825] hover:bg-[#FAF8F5]"
+                                            aria-label="Cerrar modal"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="bg-[#FAF8F5] p-3.5 rounded-2xl border border-[#EDE8E1] text-xs space-y-1">
+                                        <p className="text-[#8A7F74]">Tratamiento:</p>
+                                        <p className="font-bold text-[#2A2825]">
+                                            {turnoParaReprogramar.servicios?.[0]?.nombre || 'Tratamiento Estético'}
+                                        </p>
+                                        <p className="text-[#8A7F74] pt-1">Especialista actual:</p>
+                                        <p className="font-semibold text-[#5A524A]">
+                                            {turnoParaReprogramar.profesionalNombreCompleto || 'Profesional asignado'}
+                                        </p>
+                                    </div>
+
+                                    {errorReprogramar && (
+                                        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
+                                            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                                            <span>{errorReprogramar}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-[#2A2825] mb-1">
+                                                Elegí la nueva fecha:
+                                            </label>
+                                            <input
+                                                type="date"
+                                                min={(() => {
+                                                    const d = new Date();
+                                                    d.setDate(d.getDate() + 1);
+                                                    return d.toISOString().split('T')[0];
+                                                })()}
+                                                value={reprogramarFecha}
+                                                onChange={(e) => setReprogramarFecha(e.target.value)}
+                                                className="w-full px-3.5 py-2.5 rounded-xl border border-[#DDD5C8] bg-white text-xs font-semibold focus:outline-none focus:border-[#7A3B3B]"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-[#2A2825] mb-1">
+                                                Elegí el nuevo horario:
+                                            </label>
+                                            <select
+                                                value={reprogramarHora}
+                                                onChange={(e) => setReprogramarHora(e.target.value)}
+                                                className="w-full px-3.5 py-2.5 rounded-xl border border-[#DDD5C8] bg-white text-xs font-semibold focus:outline-none focus:border-[#7A3B3B]"
+                                            >
+                                                {['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'].map((h) => (
+                                                    <option key={h} value={h}>{h} hs</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <p className="text-[11px] text-[#8A7F74] leading-relaxed bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                                            ℹ️ Tu turno se actualizará manteniendo la misma cabina y especialista asignado.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 pt-2 border-t border-[#EDE8E1]">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTurnoParaReprogramar(null)}
+                                            className="flex-1 py-2.5 px-4 rounded-xl border border-[#DDD5C8] text-xs font-bold text-[#5A524A] hover:bg-[#FAF8F5] transition-colors"
+                                        >
+                                            Volver
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={reprogramando || !reprogramarFecha || !reprogramarHora}
+                                            onClick={handleConfirmarReprogramar}
+                                            className="flex-1 py-2.5 px-4 rounded-xl bg-[#7A3B3B] hover:bg-[#5C2B2B] text-white text-xs font-bold transition-colors shadow-xs disabled:opacity-50"
+                                        >
+                                            {reprogramando ? 'Guardando...' : 'Confirmar Cambio'}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -1126,70 +1374,50 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                         Seleccioná el Método de Pago
                                     </label>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         {/* Opción 1: Mercado Pago */}
                                         <div
                                             onClick={() => setMetodoPago('mercadopago')}
-                                            className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                                            className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                                                 metodoPago === 'mercadopago'
-                                                    ? 'border-[#009EE3] bg-[#009EE3]/5 shadow-sm'
+                                                    ? 'border-[#009EE3] bg-[#009EE3]/5 shadow-sm ring-1 ring-[#009EE3]/30'
                                                     : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8]'
                                             }`}
                                         >
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-[#009EE3] flex items-center justify-center text-white shadow-2xs font-bold">
-                                                        <CreditCard className="w-5 h-5" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <h4 className="font-bold text-sm text-[#2A2825]">Mercado Pago</h4>
-                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#009EE3] text-white">
-                                                                Online
-                                                            </span>
+                                            <div>
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-[#009EE3] flex items-center justify-center text-white shadow-2xs font-bold">
+                                                            <CreditCard className="w-5 h-5" />
                                                         </div>
-                                                        <p className="text-xs text-[#8A7F74] mt-0.5">
-                                                            Tarjetas de débito/crédito, dinero en cuenta o QR
-                                                        </p>
+                                                        <div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <h4 className="font-bold text-sm text-[#2A2825]">Mercado Pago</h4>
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#009EE3] text-white">
+                                                                    Online
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[11px] text-[#8A7F74] mt-0.5">
+                                                                Tarjetas, dinero en cuenta o QR
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                                                        metodoPago === 'mercadopago' ? 'border-[#009EE3] bg-[#009EE3]' : 'border-[#DDD5C8]'
+                                                    }`}>
+                                                        {metodoPago === 'mercadopago' && <Check className="w-3 h-3 text-white" />}
                                                     </div>
                                                 </div>
-                                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                                                    metodoPago === 'mercadopago' ? 'border-[#009EE3] bg-[#009EE3]' : 'border-[#DDD5C8]'
-                                                }`}>
-                                                    {metodoPago === 'mercadopago' && <Check className="w-3 h-3 text-white" />}
-                                                </div>
+
+                                                <p className="text-xs text-[#5A524A] mt-3 leading-relaxed">
+                                                    Pagá de forma segura redirigiéndote directamente a la aplicación oficial de Mercado Pago.
+                                                </p>
                                             </div>
 
-                                            {/* Sub-opciones de Mercado Pago */}
                                             {metodoPago === 'mercadopago' && (
-                                                <div className="mt-4 pt-3 border-t border-[#009EE3]/20 space-y-2">
-                                                    <span className="text-[11px] font-bold text-[#009EE3] block">
-                                                        Medio preferido en Mercado Pago:
-                                                    </span>
-                                                    <div className="grid grid-cols-2 gap-2 text-xs">
-                                                        {[
-                                                            { id: 'tarjeta', label: 'Tarjeta Débito/Crédito' },
-                                                            { id: 'dinero', label: 'Dinero en Cuenta MP' },
-                                                            { id: 'transferencia', label: 'Transferencia CVU' },
-                                                            { id: 'qr', label: 'Escanear QR' }
-                                                        ].map(medio => (
-                                                            <button
-                                                                key={medio.id}
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setMedioMercadoPago(medio.id as any);
-                                                                }}
-                                                                className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-medium text-left transition-colors ${
-                                                                    medioMercadoPago === medio.id
-                                                                        ? 'border-[#009EE3] bg-[#009EE3] text-white'
-                                                                        : 'border-[#EDE8E1] bg-white text-[#5A524A] hover:bg-[#FAF8F5]'
-                                                                }`}
-                                                            >
-                                                                {medio.label}
-                                                            </button>
-                                                        ))}
-                                                    </div>
+                                                <div className="mt-4 pt-3 border-t border-[#009EE3]/20 text-[11px] text-[#009EE3] font-medium flex items-center gap-1.5">
+                                                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                                                    <span>Redirección directa a Mercado Pago al confirmar</span>
                                                 </div>
                                             )}
                                         </div>
@@ -1197,48 +1425,179 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                         {/* Opción 2: Efectivo */}
                                         <div
                                             onClick={() => setMetodoPago('efectivo')}
-                                            className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                                            className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                                                 metodoPago === 'efectivo'
-                                                    ? 'border-emerald-600 bg-emerald-500/5 shadow-sm'
+                                                    ? 'border-emerald-600 bg-emerald-500/5 shadow-sm ring-1 ring-emerald-600/30'
                                                     : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8]'
                                             }`}
                                         >
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-2xs font-bold">
-                                                        <Banknote className="w-5 h-5" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <h4 className="font-bold text-sm text-[#2A2825]">Pago en Efectivo</h4>
-                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-700 text-white">
-                                                                En Recepción
-                                                            </span>
+                                            <div>
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-2xs font-bold">
+                                                            <Banknote className="w-5 h-5" />
                                                         </div>
-                                                        <p className="text-xs text-[#8A7F74] mt-0.5">
-                                                            Abonás al llegar al centro estético el día del turno
-                                                        </p>
+                                                        <div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <h4 className="font-bold text-sm text-[#2A2825]">Pago en Efectivo</h4>
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-700 text-white">
+                                                                    En Recepción
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[11px] text-[#8A7F74] mt-0.5">
+                                                                Abonás el día del turno
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                                                        metodoPago === 'efectivo' ? 'border-emerald-600 bg-emerald-600' : 'border-[#DDD5C8]'
+                                                    }`}>
+                                                        {metodoPago === 'efectivo' && <Check className="w-3 h-3 text-white" />}
                                                     </div>
                                                 </div>
-                                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                                                    metodoPago === 'efectivo' ? 'border-emerald-600 bg-emerald-600' : 'border-[#DDD5C8]'
-                                                }`}>
-                                                    {metodoPago === 'efectivo' && <Check className="w-3 h-3 text-white" />}
-                                                </div>
+
+                                                <p className="text-xs text-[#5A524A] mt-3 leading-relaxed">
+                                                    Abonás en el mostrador del centro estético al presentarte a tu sesión.
+                                                </p>
                                             </div>
 
                                             {metodoPago === 'efectivo' && (
                                                 <div className="mt-4 pt-3 border-t border-emerald-200 text-[11px] text-emerald-800 space-y-1">
                                                     <p>
-                                                        ✓ Abonarás <strong>${servicioSeleccionadoObj?.precio.toLocaleString('es-AR')} ARS</strong> directamente en recepción.
-                                                    </p>
-                                                    <p className="text-[10px] text-[#8A7F74]">
-                                                        * Solicitamos presentarse 10 minutos antes del horario acordado.
+                                                        ✓ Abonarás <strong>${servicioSeleccionadoObj?.precio.toLocaleString('es-AR')} ARS</strong> al llegar.
                                                     </p>
                                                 </div>
                                             )}
                                         </div>
+
+                                        {/* Opción 3: Transferencia Bancaria */}
+                                        <div
+                                            onClick={() => setMetodoPago('transferencia')}
+                                            className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                                                metodoPago === 'transferencia'
+                                                    ? 'border-purple-600 bg-purple-500/5 shadow-sm ring-1 ring-purple-600/30'
+                                                    : 'border-[#EDE8E1] bg-white hover:border-[#DDD5C8]'
+                                            }`}
+                                        >
+                                            <div>
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-purple-700 flex items-center justify-center text-white shadow-2xs font-bold">
+                                                            <Building2 className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <h4 className="font-bold text-sm text-[#2A2825]">Transferencia</h4>
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-700 text-white">
+                                                                    CBU / Alias
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[11px] text-[#8A7F74] mt-0.5">
+                                                                Banco o Billetera Virtual
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                                                        metodoPago === 'transferencia' ? 'border-purple-600 bg-purple-600' : 'border-[#DDD5C8]'
+                                                    }`}>
+                                                        {metodoPago === 'transferencia' && <Check className="w-3 h-3 text-white" />}
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-xs text-[#5A524A] mt-3 leading-relaxed">
+                                                    Transferí a nuestra cuenta bancaria y enviá el comprobante para que el Admin confirme el turno.
+                                                </p>
+                                            </div>
+
+                                            {metodoPago === 'transferencia' && (
+                                                <div className="mt-4 pt-3 border-t border-purple-200 text-[11px] text-purple-900 font-medium">
+                                                    ✓ Datos bancarios disponibles abajo
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
+
+                                    {/* DETALLES DE TRANSFERENCIA BANCARIA (Se muestra cuando se selecciona Transferencia) */}
+                                    {metodoPago === 'transferencia' && (
+                                        <div className="p-5 bg-gradient-to-br from-purple-50/60 to-purple-100/30 border-2 border-purple-200 rounded-3xl space-y-4 animate-in fade-in">
+                                            <div className="flex items-center justify-between pb-3 border-b border-purple-200">
+                                                <div className="flex items-center gap-2">
+                                                    <Building2 className="w-5 h-5 text-purple-800" />
+                                                    <h4 className="font-bold text-sm text-purple-950">
+                                                        Datos para realizar la Transferencia Bancaria
+                                                    </h4>
+                                                </div>
+                                                <span className="text-xs font-bold text-purple-800 bg-purple-100 px-3 py-1 rounded-full border border-purple-200">
+                                                    Monto a transferir: ${servicioSeleccionadoObj?.precio.toLocaleString('es-AR')} ARS
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                                <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-1">
+                                                    <span className="text-[10px] uppercase font-bold text-purple-600 block">Banco</span>
+                                                    <span className="font-bold text-[#2A2825]">{siteConfig.transferenciaBanco || 'Banco Santander Río'}</span>
+                                                </div>
+                                                <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-1">
+                                                    <span className="text-[10px] uppercase font-bold text-purple-600 block">Titular de la Cuenta</span>
+                                                    <span className="font-bold text-[#2A2825]">{siteConfig.transferenciaTitular || 'Centro Estético S.R.L.'}</span>
+                                                </div>
+                                                <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-1">
+                                                    <span className="text-[10px] uppercase font-bold text-purple-600 block">CUIT / CUIL</span>
+                                                    <span className="font-mono font-bold text-[#2A2825]">{siteConfig.transferenciaCuit || '30-71649281-9'}</span>
+                                                </div>
+                                                <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-1 flex items-center justify-between">
+                                                    <div>
+                                                        <span className="text-[10px] uppercase font-bold text-purple-600 block">Alias</span>
+                                                        <span className="font-mono font-bold text-[#7A3B3B] text-sm">
+                                                            {siteConfig.transferenciaAlias || 'ESTETICA.BIENESTAR.MP'}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopiarTexto(siteConfig.transferenciaAlias || 'ESTETICA.BIENESTAR.MP', 'alias')}
+                                                        className="px-2.5 py-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-800 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                                                    >
+                                                        {copiadoAlias ? <Check className="w-3 h-3 text-emerald-700" /> : <Copy className="w-3 h-3" />}
+                                                        <span>{copiadoAlias ? 'Copiado' : 'Copiar'}</span>
+                                                    </button>
+                                                </div>
+                                                <div className="sm:col-span-2 p-3 bg-white rounded-xl border border-purple-100 flex items-center justify-between">
+                                                    <div>
+                                                        <span className="text-[10px] uppercase font-bold text-purple-600 block">CBU / CVU</span>
+                                                        <span className="font-mono font-bold text-[#2A2825] text-xs sm:text-sm">
+                                                            {siteConfig.transferenciaCbuCvu || '0720182620000000948215'}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopiarTexto(siteConfig.transferenciaCbuCvu || '0720182620000000948215', 'cbu')}
+                                                        className="px-2.5 py-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-800 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                                                    >
+                                                        {copiadoCbu ? <Check className="w-3 h-3 text-emerald-700" /> : <Copy className="w-3 h-3" />}
+                                                        <span>{copiadoCbu ? 'Copiado' : 'Copiar'}</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Indicación obligatoria de envío de comprobante */}
+                                            <div className="bg-purple-100/80 border border-purple-300 rounded-2xl p-4 text-xs text-purple-950 space-y-1.5">
+                                                <div className="flex items-center gap-2 font-bold text-purple-900">
+                                                    <MessageSquare className="w-4 h-4 text-purple-800 shrink-0" />
+                                                    <span>Paso obligatorio luego de transferir:</span>
+                                                </div>
+                                                <p className="leading-relaxed text-purple-900">
+                                                    Una vez realizada la transferencia, deberás enviar el comprobante de pago por WhatsApp al número{' '}
+                                                    <strong className="underline text-purple-950">
+                                                        {siteConfig.transferenciaWhatsappComprobante || siteConfig.whatsapp || '+54 9 11 2345-6789'}
+                                                    </strong>{' '}
+                                                    especificando el código de tu turno.
+                                                </p>
+                                                <p className="text-[11px] text-purple-800">
+                                                    👉 <strong>El Administrador</strong> verificará la acreditación en la cuenta y <strong>confirmará el turno desde su perfil</strong> para asegurar tu sesión.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* RECORDATORIO OBLIGATORIO: POLÍTICA DE NO REEMBOLSO < 24 HORAS */}
@@ -1306,6 +1665,8 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                         className={`px-8 py-3.5 rounded-xl font-bold text-sm shadow-xs transition-all flex items-center gap-2 ${
                                             metodoPago === 'mercadopago'
                                                 ? 'bg-[#009EE3] text-white hover:bg-[#0089C7]'
+                                                : metodoPago === 'transferencia'
+                                                ? 'bg-purple-700 text-white hover:bg-purple-800'
                                                 : 'bg-[#3C3530] text-white hover:bg-[#7A3B3B]'
                                         } disabled:opacity-40 disabled:cursor-not-allowed`}
                                     >
@@ -1315,6 +1676,8 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                                 ? 'Procesando Reserva...'
                                                 : metodoPago === 'mercadopago'
                                                 ? `Pagar con Mercado Pago ($${servicioSeleccionadoObj?.precio.toLocaleString('es-AR')})`
+                                                : metodoPago === 'transferencia'
+                                                ? `Confirmar Reserva por Transferencia ($${servicioSeleccionadoObj?.precio.toLocaleString('es-AR')})`
                                                 : 'Confirmar Reserva en Efectivo'
                                             }
                                         </span>
@@ -1333,9 +1696,15 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                             <div className="w-16 h-16 bg-amber-50 border-2 border-amber-200 text-amber-700 rounded-full flex items-center justify-center mx-auto shadow-xs">
                                 <Hourglass className="w-8 h-8 animate-pulse" />
                             </div>
-                            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold border ${
+                                reservaExitosa.metodoPago === 'transferencia'
+                                    ? 'bg-purple-100 text-purple-900 border-purple-300'
+                                    : 'bg-amber-100 text-amber-900 border-amber-300'
+                            }`}>
                                 {reservaExitosa.metodoPago === 'mercadopago'
                                     ? '🟡 Pendiente de Pago - Esperando Acreditación de Mercado Pago (Webhook)'
+                                    : reservaExitosa.metodoPago === 'transferencia'
+                                    ? '🟣 Pendiente de Validación - Enviá tu Comprobante de Transferencia'
                                     : '🟡 Pendiente de Pago en Recepción'}
                             </span>
                             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#2A2825]">
@@ -1344,6 +1713,8 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                             <p className="text-xs sm:text-sm text-[#8A7F74] max-w-lg mx-auto">
                                 {reservaExitosa.metodoPago === 'mercadopago'
                                     ? 'Tu turno quedó agendado en espera del pago. En cuanto Mercado Pago confirme la transacción a nuestro Webhook, tu cita pasará automáticamente a estado CONFIRMADO.'
+                                    : reservaExitosa.metodoPago === 'transferencia'
+                                    ? 'Tu turno quedó agendado en estado PENDIENTE. Por favor enviá el comprobante de transferencia por WhatsApp para que la Administración verifique el pago y confirme tu turno formalmente desde su perfil.'
                                     : 'Tu cita ha quedado agendada en el sistema. El Administrador verificará el pago en el local para confirmar el turno formalmente.'}
                             </p>
                         </div>
@@ -1396,7 +1767,11 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                 <div className="flex justify-between py-1 border-b border-[#EDE8E1]">
                                     <span className="text-[#8A7F74]">Método de Pago:</span>
                                     <span className="font-semibold text-[#2A2825]">
-                                        {reservaExitosa.metodoPago === 'mercadopago' ? '💳 Mercado Pago' : '💵 Efectivo en Recepción'}
+                                        {reservaExitosa.metodoPago === 'mercadopago'
+                                            ? '💳 Mercado Pago Online'
+                                            : reservaExitosa.metodoPago === 'transferencia'
+                                            ? '🏛️ Transferencia Bancaria'
+                                            : '💵 Efectivo en Recepción'}
                                     </span>
                                 </div>
                                 <div className="flex justify-between py-1 border-b border-[#EDE8E1]">
@@ -1426,6 +1801,72 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                 </p>
                             </div>
                         </div>
+
+                        {/* ACCIÓN DESTACADA DE TRANSFERENCIA BANCARIA */}
+                        {reservaExitosa.metodoPago === 'transferencia' && (() => {
+                            const numWa = (siteConfig.transferenciaWhatsappComprobante || siteConfig.whatsapp || '+54 9 11 2345-6789').replace(/[^0-9]/g, '');
+                            const msgWa = `Hola! Acabo de registrar la reserva del Turno #${reservaExitosa.turnoId} para ${reservaExitosa.servicio.nombre} el día ${reservaExitosa.fecha} a las ${reservaExitosa.hora} hs (Total: $${reservaExitosa.total.toLocaleString('es-AR')} ARS). Adjunto en este chat el comprobante de transferencia bancaria para que puedan validarlo y confirmar el turno. ¡Muchas gracias!`;
+                            const waUrl = `https://wa.me/${numWa}?text=${encodeURIComponent(msgWa)}`;
+
+                            return (
+                                <div className="bg-purple-50/70 border-2 border-purple-200 rounded-3xl p-6 text-center space-y-4 max-w-xl mx-auto shadow-xs">
+                                    <div className="inline-flex items-center gap-2 bg-purple-700 text-white px-3.5 py-1 rounded-full text-xs font-bold shadow-xs">
+                                        <MessageSquare className="w-3.5 h-3.5" />
+                                        <span>Envío Obligatorio de Comprobante</span>
+                                    </div>
+
+                                    <h4 className="text-base font-bold text-purple-950">
+                                        Enviá tu comprobante para confirmar el turno
+                                    </h4>
+
+                                    <p className="text-xs text-[#5A524A] max-w-md mx-auto leading-relaxed">
+                                        Tu turno se encuentra guardado en estado <strong>Pendiente</strong>. Para que el Administrador compruebe la acreditación de <strong>${reservaExitosa.total.toLocaleString('es-AR')} ARS</strong> y confirme el turno desde su panel, enviá el comprobante por WhatsApp:
+                                    </p>
+
+                                    {/* Botón WhatsApp directo */}
+                                    <div>
+                                        <a
+                                            href={waUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-extrabold shadow-md transition-all active:scale-[0.98]"
+                                        >
+                                            <MessageSquare className="w-4 h-4" />
+                                            <span>Enviar Comprobante por WhatsApp</span>
+                                        </a>
+                                    </div>
+
+                                    {/* Resumen de cuenta bancaria para copiar */}
+                                    <div className="pt-3 border-t border-purple-200/80 text-left bg-white/70 p-4 rounded-2xl space-y-2 text-xs">
+                                        <span className="font-bold text-purple-950 block text-[11px] uppercase tracking-wider">
+                                            Recordatorio de Cuenta para Transferir:
+                                        </span>
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
+                                            <span className="text-[#5A524A]">Alias: <strong>{siteConfig.transferenciaAlias}</strong></span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopiarTexto(siteConfig.transferenciaAlias, 'alias')}
+                                                className="text-purple-700 font-bold hover:underline self-start sm:self-auto flex items-center gap-1"
+                                            >
+                                                {copiadoAlias ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                                <span>{copiadoAlias ? 'Alias Copiado' : 'Copiar Alias'}</span>
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
+                                            <span className="text-[#5A524A]">CBU/CVU: <strong className="font-mono">{siteConfig.transferenciaCbuCvu}</strong></span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopiarTexto(siteConfig.transferenciaCbuCvu, 'cbu')}
+                                                className="text-purple-700 font-bold hover:underline self-start sm:self-auto flex items-center gap-1"
+                                            >
+                                                {copiadoCbu ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                                <span>{copiadoCbu ? 'CBU Copiado' : 'Copiar CBU'}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                         {/* ACCIÓN DESTACADA DE MERCADO PAGO */}
                         {reservaExitosa.metodoPago === 'mercadopago' && reservaExitosa.initPointUrl && (
@@ -1496,103 +1937,6 @@ export function ReservarTurno({ initialServicioId, currentUser, onNavigate }: Re
                                     Volver al Inicio
                                 </button>
                             )}
-                        </div>
-                    </div>
-                )}
-
-                {/* MODAL CHECKOUT MERCADO PAGO */}
-                {showMercadoPagoModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-                        <div className="bg-white rounded-3xl max-w-md w-full border border-[#EDE8E1] shadow-2xl overflow-hidden">
-                            {/* Header Mercado Pago oficial */}
-                            <div className="bg-[#009EE3] p-6 text-white text-center space-y-1">
-                                <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-[11px] font-bold">
-                                    <CreditCard className="w-3.5 h-3.5" />
-                                    <span>Pasarela Mercado Pago Checkout</span>
-                                </div>
-                                <h3 className="text-xl font-bold">Abonar Reserva de Turno</h3>
-                                <p className="text-xs text-white/80">Estética & Bienestar - Cabina Premium</p>
-                            </div>
-
-                            <div className="p-6 space-y-5">
-                                <div className="bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl p-4 flex items-center justify-between">
-                                    <div>
-                                        <span className="text-xs text-[#8A7F74] block">Monto a abonar</span>
-                                        <span className="text-2xl font-extrabold text-[#2A2825]">
-                                            ${servicioSeleccionadoObj?.precio.toLocaleString('es-AR')} ARS
-                                        </span>
-                                    </div>
-                                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                        Pago Seguro SSL
-                                    </span>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <span className="text-xs font-bold text-[#3C3530] block">
-                                        Medio de Pago Seleccionado:
-                                    </span>
-                                    <div className="p-3.5 rounded-xl border border-[#009EE3] bg-[#009EE3]/5 flex items-center justify-between text-xs">
-                                        <div className="flex items-center gap-2 font-bold text-[#009EE3]">
-                                            {medioMercadoPago === 'qr' ? <QrCode className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
-                                            <span className="capitalize">
-                                                {medioMercadoPago === 'tarjeta' && 'Tarjeta Débito / Crédito (Hasta 3 cuotas sin interés)'}
-                                                {medioMercadoPago === 'dinero' && 'Dinero en Cuenta de Mercado Pago'}
-                                                {medioMercadoPago === 'transferencia' && 'Transferencia bancaria vía CVU'}
-                                                {medioMercadoPago === 'qr' && 'Código QR Mercado Pago'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {medioMercadoPago === 'qr' && (
-                                        <div className="text-center p-4 bg-[#FAF8F5] rounded-2xl border border-[#EDE8E1]">
-                                            <div className="w-32 h-32 bg-white border border-[#DDD5C8] rounded-xl mx-auto flex items-center justify-center p-2 shadow-2xs">
-                                                <QrCode className="w-24 h-24 text-[#009EE3]" />
-                                            </div>
-                                            <p className="text-[11px] text-[#8A7F74] mt-2">
-                                                Escaneá este código QR desde tu app de Mercado Pago
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Recordatorio 24 horas dentro del modal */}
-                                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
-                                    <AlertTriangle className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
-                                    <span>
-                                        Al abonar aceptás la política: <strong>sin reembolso</strong> si cancelás con menos de 24 horas de anticipación.
-                                    </span>
-                                </div>
-
-                                <div className="flex items-center justify-between gap-3 pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowMercadoPagoModal(false)}
-                                        disabled={procesandoPagoMP}
-                                        className="px-4 py-2.5 rounded-xl border border-[#EDE8E1] text-[#5A524A] hover:bg-[#FAF8F5] text-xs font-semibold"
-                                    >
-                                        Cancelar
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={handleConfirmarMercadoPagoModal}
-                                        disabled={procesandoPagoMP}
-                                        className="flex-1 py-3 rounded-xl bg-[#009EE3] hover:bg-[#0089C7] text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        {procesandoPagoMP ? (
-                                            <>
-                                                <Clock className="w-4 h-4 animate-spin" />
-                                                <span>Redirigiendo a Mercado Pago...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <ExternalLink className="w-4 h-4" />
-                                                <span>Abonar y Abrir Mercado Pago</span>
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 )}

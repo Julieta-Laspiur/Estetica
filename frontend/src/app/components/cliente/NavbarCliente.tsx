@@ -145,14 +145,14 @@ export function NavbarCliente({
             ) : (
                 <button
                     onClick={() => onSectionChange('auth')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all text-xs font-semibold ${activeSection === 'auth'
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border transition-all text-xs font-semibold ${activeSection === 'auth'
                         ? 'bg-[#7A3B3B] text-white border-[#7A3B3B]'
                         : 'border-[#DDD5C8] text-[#3C3530] hover:text-[#7A3B3B] hover:border-[#7A3B3B] hover:bg-[#F7F4F0]'
                         }`}
                     title="Iniciar sesión o registrarse"
                 >
                     <User className="w-3.5 h-3.5" />
-                    <span>Iniciar Sesión</span>
+                    <span className="hidden sm:inline">Iniciar Sesión</span>
                 </button>
             )}
 
@@ -340,11 +340,11 @@ export function NavbarCliente({
                 /* ── Full two-row (top of page) ── */
                 <>
                     <div className="border-b border-[#DDD5C8]">
-                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                            <div className="grid grid-cols-3 items-center h-[68px] gap-4">
+                        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+                            <div className="flex md:grid md:grid-cols-3 items-center justify-between h-[60px] sm:h-[68px] gap-2 sm:gap-4">
 
-                                {/* Left: Search */}
-                                <div className="flex items-center">
+                                {/* Left: Search (visible en desktop md:) */}
+                                <div className="hidden md:flex items-center">
                                     <form onSubmit={handleSearch} className="w-full max-w-xs">
                                         <div className="relative">
                                             <input
@@ -366,10 +366,10 @@ export function NavbarCliente({
                                 </div>
 
                                 {/* Center: Logo Rectangular de la Cabecera Superior (Foto) */}
-                                <div className="flex justify-center items-center">
+                                <div className="flex justify-start md:justify-center items-center min-w-0">
                                     <button
                                         onClick={() => onSectionChange('inicio')}
-                                        className="flex items-center justify-center group focus:outline-none"
+                                        className="flex items-center justify-start md:justify-center group focus:outline-none min-w-0"
                                         title={siteConfig.nombreCentro}
                                         aria-label="Ir al inicio"
                                     >
@@ -377,15 +377,15 @@ export function NavbarCliente({
                                             <img
                                                 src={siteConfig.logoRectangularUrl || siteConfig.logoUrl || siteConfig.logoRedondoUrl}
                                                 alt={siteConfig.nombreCentro}
-                                                className="h-12 sm:h-14 max-w-[260px] sm:max-w-[340px] object-contain group-hover:opacity-90 transition-opacity"
+                                                className="h-10 sm:h-12 md:h-14 max-w-[170px] sm:max-w-[260px] md:max-w-[340px] object-contain group-hover:opacity-90 transition-opacity"
                                             />
                                         ) : (
-                                            <div className="flex flex-col text-center">
-                                                <span className={`${obtenerClaseTipografia(siteConfig.tipografiaLogo)} text-2xl tracking-[0.04em] leading-none text-[#2A2825] group-hover:text-[#7A3B3B] transition-colors`}>
+                                            <div className="flex flex-col text-left md:text-center truncate">
+                                                <span className={`${obtenerClaseTipografia(siteConfig.tipografiaLogo)} text-lg sm:text-2xl tracking-[0.04em] leading-none text-[#2A2825] group-hover:text-[#7A3B3B] transition-colors truncate`}>
                                                     {siteConfig.nombreCentro}
                                                 </span>
                                                 {siteConfig.slogan && (
-                                                    <span className="text-[9px] tracking-[0.22em] uppercase text-[#A89E94] mt-0.5 truncate max-w-xs">
+                                                    <span className="text-[8px] sm:text-[9px] tracking-[0.22em] uppercase text-[#A89E94] mt-0.5 truncate hidden sm:block max-w-xs">
                                                         {siteConfig.slogan}
                                                     </span>
                                                 )}
@@ -395,7 +395,7 @@ export function NavbarCliente({
                                 </div>
 
                                 {/* Right: icons */}
-                                <div className="flex justify-end">{iconGroup}</div>
+                                <div className="flex justify-end shrink-0">{iconGroup}</div>
                             </div>
                         </div>
                     </div>
