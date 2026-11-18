@@ -1,0 +1,50 @@
+# Excluir Frontend completo si se despliega por separado (Vercel, Netlify, etc.)
+frontend/
+
+# Git y control de versiones
+.git
+.gitignore
+.gitattributes
+.github
+
+# Entornos de desarrollo e IDEs
+.vs
+.vscode
+.idea
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Salidas de compilación .NET
+**/bin/
+**/obj/
+bin/
+obj/
+
+# Dependencias y compilados de Node / Frontend
+frontend/node_modules/
+**/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Secretos y configuraciones locales privadas
+**/appsettings.Local.json
+**/appsettings.*.local.json
+appsettings.Local.json
+.env
+.env.*
+
+# Logs, temporales y volcados
+*.log
+scratch/
+test_gemini.json
+*.tmp
+
+# Documentación no requerida en el contenedor
+*.md
+docs/
+
+# Archivos propios de Docker
+Dockerfile*
+.dockerignore
