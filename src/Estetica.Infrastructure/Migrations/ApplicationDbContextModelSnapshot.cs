@@ -414,12 +414,18 @@ namespace Estetica.Infrastructure.Migrations
                     b.Property<string>("Descripcion")
                         .HasColumnType("text");
 
+                    b.Property<string>("ImagenUrl")
+                        .HasColumnType("text");
+
                     b.Property<string>("Marca")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParaQueSirve")
                         .HasColumnType("text");
 
                     b.Property<decimal>("Precio")
@@ -527,8 +533,14 @@ namespace Estetica.Infrastructure.Migrations
                     b.Property<int>("DuracionMin")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ImagenUrl")
+                        .HasColumnType("text");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParaQueSirve")
                         .HasColumnType("text");
 
                     b.Property<decimal>("Precio")
