@@ -2,7 +2,16 @@
  * API Service Layer para conectar el Frontend React con el Backend .NET 10 y PostgreSQL
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const resolveApiBaseUrl = (): string => {
+  const envUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (!envUrl) {
+    return '/api/v1';
+  }
+  const cleanUrl = envUrl.replace(/\/+$/, '');
+  return cleanUrl.endsWith('/api/v1') ? cleanUrl : `${cleanUrl}/api/v1`;
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 // Manejador centralizado de peticiones HTTP con inyección automática de JWT
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

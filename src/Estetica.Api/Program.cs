@@ -64,16 +64,12 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireRecepcionOAdmin", policy => policy.RequireRole("Administrador", "Recepcionista"));
 });
 
-// Configuración de CORS para el Frontend (React + Vite)
+// Configuración de CORS para el Frontend (React + Vite local y despliegues en la nube)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "http://localhost:3000",
-                "http://127.0.0.1:3000")
+        policy.SetIsOriginAllowed(origin => true)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
