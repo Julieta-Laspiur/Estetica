@@ -63,24 +63,6 @@ const FILTER_SECTIONS = [
     },
 ];
 
-function getCountForOption(section: string, option: string): number {
-    return PRODUCTOS.filter(p => {
-        if (section === 'categoria') return p.categoria === option;
-        if (section === 'tipoPiel') return p.tipoPiel.includes(option);
-        if (section === 'marca') return p.marca === option;
-        if (section === 'precio') {
-            if (option === 'Hasta $1.500') return p.precio <= 1500;
-            if (option === '$1.500 – $2.500') return p.precio > 1500 && p.precio <= 2500;
-            if (option === 'Más de $2.500') return p.precio > 2500;
-        }
-        if (section === 'stock') {
-            if (option === 'En stock') return p.stock >= 10;
-            if (option === 'Últimas unidades') return p.stock < 10;
-        }
-        return false;
-    }).length;
-}
-
 function matchesPrecio(precio: number, option: string): boolean {
     if (option === 'Hasta $1.500') return precio <= 1500;
     if (option === '$1.500 – $2.500') return precio > 1500 && precio <= 2500;
@@ -112,20 +94,38 @@ export function ProductosCliente({
         productosApi.getProductos()
             .then(apiProds => {
                 if (apiProds && apiProds.length > 0) {
-                    const mapped: Producto[] = apiProds.map(p => ({
-                        id: p.productoId.toString(),
-                        nombre: p.nombre,
-                        marca: p.marca,
-                        precio: p.precio,
-                        categoria: 'Cuidado Facial',
-                        tipoPiel: (p.tiposPiel && p.tiposPiel.length > 0) ? p.tiposPiel : (p.tiposPielAptos && p.tiposPielAptos.length > 0) ? p.tiposPielAptos : ['Normal', 'Seca'],
-                        descripcion: p.descripcion || '',
-                        paraQueSirve: p.paraQueSirve,
-                        imagenUrl: p.imagenUrl,
-                        imagen: '🧴',
-                        rating: 4.8,
-                        stock: p.stockActual,
-                    }));
+                    const metaGuardada = JSON.parse(localStorage.getItem('estetica_productos_meta') || '{}');
+                    const mapped: Producto[] = apiProds.map(p => {
+                        const meta = metaGuardada[String(p.productoId)] || {};
+                        let catDefault = 'Cuidado Facial';
+                        const full = `${p.nombre} ${p.marca} ${p.descripcion || ''} ${p.paraQueSirve || ''}`.toLowerCase();
+                        if (full.includes('solar') || full.includes('fps') || full.includes('protector')) {
+                            catDefault = 'Protección Solar';
+                        } else if (full.includes('corporal') || full.includes('piernas') || full.includes('manos') || full.includes('cuerpo') || full.includes('exfoliante corporal')) {
+                            catDefault = 'Cuidado Corporal';
+                        } else if (full.includes('aceite') || full.includes('lavanda') || full.includes('aroma')) {
+                            catDefault = 'Aromaterapia';
+                        } else if (full.includes('serum') || full.includes('sérum')) {
+                            catDefault = 'Sérums & Tratamientos';
+                        } else if (full.includes('limpiad') || full.includes('micelar')) {
+                            catDefault = 'Limpiadores & Desmaquillantes';
+                        }
+
+                        return {
+                            id: p.productoId.toString(),
+                            nombre: p.nombre,
+                            marca: p.marca,
+                            precio: p.precio,
+                            categoria: meta.categoria || p.categoria || catDefault,
+                            tipoPiel: (p.tiposPiel && p.tiposPiel.length > 0) ? p.tiposPiel : (p.tiposPielAptos && p.tiposPielAptos.length > 0) ? p.tiposPielAptos : ['Normal', 'Seca'],
+                            descripcion: p.descripcion || '',
+                            paraQueSirve: p.paraQueSirve,
+                            imagenUrl: p.imagenUrl,
+                            imagen: '🧴',
+                            rating: 4.8,
+                            stock: p.stockActual,
+                        };
+                    });
                     setProductosList(mapped);
                 }
             })
@@ -157,6 +157,42 @@ export function ProductosCliente({
     };
 
     const totalActiveFilters = Object.values(activeFilters).flat().length;
+
+    // Categorías dinámicas detectadas en los productos cargados
+    const categoriasDisponibles = Array.from(new Set([
+        'Cuidado Facial',
+        'Cuidado Corporal',
+        'Protección Solar',
+        'Aromaterapia',
+        ...productosList.map(p => p.categoria).filter(Boolean)
+    ]));
+
+    const dynamicFilterSections = [
+        {
+            id: 'categoria',
+            label: 'Categoría',
+            options: categoriasDisponibles,
+        },
+        ...FILTER_SECTIONS.filter(s => s.id !== 'categoria')
+    ];
+
+    const getDynamicCount = (section: string, option: string): number => {
+        return productosList.filter(p => {
+            if (section === 'categoria') return p.categoria === option;
+            if (section === 'tipoPiel') return p.tipoPiel.includes(option);
+            if (section === 'marca') return p.marca === option;
+            if (section === 'precio') {
+                if (option === 'Hasta $1.500') return p.precio <= 1500;
+                if (option === '$1.500 – $2.500') return p.precio > 1500 && p.precio <= 2500;
+                if (option === 'Más de $2.500') return p.precio > 2500;
+            }
+            if (section === 'stock') {
+                if (option === 'En stock') return p.stock >= 10;
+                if (option === 'Últimas unidades') return p.stock < 10;
+            }
+            return false;
+        }).length;
+    };
 
     const filteredProductos = productosList.filter(p => {
         const matchesSearch =
@@ -231,10 +267,10 @@ export function ProductosCliente({
 
             {/* Accordion sections */}
             <div className="space-y-0">
-                {FILTER_SECTIONS.map((section, idx) => {
+                {dynamicFilterSections.map((section, idx) => {
                     const isOpen = openSections.includes(section.id);
                     return (
-                        <div key={section.id} className={`border-t border-[#DDD5C8] ${idx === FILTER_SECTIONS.length - 1 ? 'border-b' : ''}`}>
+                        <div key={section.id} className={`border-t border-[#DDD5C8] ${idx === dynamicFilterSections.length - 1 ? 'border-b' : ''}`}>
                             <button
                                 onClick={() => toggleSection(section.id)}
                                 className="w-full flex items-center justify-between py-3.5 text-left hover:text-[#3C3530] transition-colors"
@@ -249,7 +285,7 @@ export function ProductosCliente({
                             {isOpen && (
                                 <div className="pb-4 space-y-2">
                                     {section.options.map(option => {
-                                        const count = getCountForOption(section.id, option);
+                                        const count = getDynamicCount(section.id, option);
                                         const checked = activeFilters[section.id]?.includes(option) ?? false;
                                         return (
                                             <label

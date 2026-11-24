@@ -27,8 +27,8 @@ import {
   type CabinaDto
 } from '../../services/api';
 
-const CATEGORIAS_VALIDAS = ['Facial', 'Corporal', 'Masajes', 'Pestañas/Cejas'] as const;
-type CategoriaServicio = typeof CATEGORIAS_VALIDAS[number];
+const CATEGORIAS_DEFAULT = ['Facial', 'Corporal', 'Masajes', 'Pestañas/Cejas'];
+type CategoriaServicio = string;
 
 export function Servicios() {
   const [servicios, setServicios] = useState<ServicioDto[]>([]);
@@ -38,6 +38,22 @@ export function Servicios() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todos');
+
+  // Categorías dinámicas (persistidas en localStorage)
+  const [categorias, setCategorias] = useState<string[]>(() => {
+    try {
+      const guardadas = localStorage.getItem('estetica_servicios_categorias');
+      if (guardadas) {
+        const parsed = JSON.parse(guardadas);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return CATEGORIAS_DEFAULT;
+  });
+  const [nuevaCategoriaInput, setNuevaCategoriaInput] = useState('');
+  const [mostrarInputNuevaCat, setMostrarInputNuevaCat] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,7 +70,7 @@ export function Servicios() {
   const [formDuracionMin, setFormDuracionMin] = useState('60');
   const [formActivo, setFormActivo] = useState(true);
 
-  // Nuevos Campos Solicitados:
+  // Campos Solicitados:
   const [formCategoria, setFormCategoria] = useState<CategoriaServicio>('Facial');
   const [formRequiereCabina, setFormRequiereCabina] = useState(false);
   const [formCabinaId, setFormCabinaId] = useState<number>(1);
@@ -71,6 +87,24 @@ export function Servicios() {
   const mostrarExito = (msg: string) => {
     setMensajeExito(msg);
     setTimeout(() => setMensajeExito(null), 4000);
+  };
+
+  const handleAgregarCategoria = (nombre: string) => {
+    const catTrimmed = nombre.trim();
+    if (!catTrimmed) return;
+
+    const existe = categorias.find(c => c.toLowerCase() === catTrimmed.toLowerCase());
+    if (existe) {
+      setFormCategoria(existe);
+      mostrarExito(`Categoría "${existe}" seleccionada.`);
+      return;
+    }
+
+    const actualizadas = [...categorias, catTrimmed];
+    setCategorias(actualizadas);
+    localStorage.setItem('estetica_servicios_categorias', JSON.stringify(actualizadas));
+    setFormCategoria(catTrimmed);
+    mostrarExito(`Categoría "${catTrimmed}" agregada con éxito.`);
   };
 
   // Cargar lista de profesionales y cabinas
@@ -140,6 +174,16 @@ export function Servicios() {
       });
 
       setServicios(enriquecidos);
+
+      // Sincronizar categorías conocidas
+      const catsDetectadas = Array.from(new Set([
+        ...categorias,
+        ...enriquecidos.map(s => s.categoria).filter(Boolean) as string[]
+      ]));
+      if (catsDetectadas.length !== categorias.length) {
+        setCategorias(catsDetectadas);
+        localStorage.setItem('estetica_servicios_categorias', JSON.stringify(catsDetectadas));
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al cargar los servicios.';
       setError(msg);
@@ -162,7 +206,9 @@ export function Servicios() {
     setFormPrecio('');
     setFormDuracionMin('60');
     setFormActivo(true);
-    setFormCategoria('Facial');
+    setFormCategoria(categorias[0] || 'Facial');
+    setMostrarInputNuevaCat(false);
+    setNuevaCategoriaInput('');
     setFormRequiereCabina(false);
     setFormCabinaId(cabinas[0]?.cabinaId || 1);
     // Por defecto habilitar todos los profesionales activos
@@ -181,7 +227,9 @@ export function Servicios() {
     setFormPrecio(servicio.precio.toString());
     setFormDuracionMin(servicio.duracionMin.toString());
     setFormActivo(servicio.activo);
-    setFormCategoria((servicio.categoria as CategoriaServicio) || 'Facial');
+    setFormCategoria(servicio.categoria || categorias[0] || 'Facial');
+    setMostrarInputNuevaCat(false);
+    setNuevaCategoriaInput('');
     setFormRequiereCabina(!!servicio.requiereCabinaEspecifica);
     setFormCabinaId(servicio.cabinaEspecificaId || 1);
     setFormProfesionalesHabilitados(
@@ -448,7 +496,7 @@ export function Servicios() {
             >
               Todos ({servicios.length})
             </button>
-            {CATEGORIAS_VALIDAS.map(cat => {
+            {categorias.map(cat => {
               const count = servicios.filter(s => s.categoria === cat).length;
               return (
                 <button
@@ -464,6 +512,21 @@ export function Servicios() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => {
+                const nombre = window.prompt('Ingresá el nombre de la nueva categoría para servicios:');
+                if (nombre && nombre.trim()) {
+                  handleAgregarCategoria(nombre.trim());
+                  setFiltroCategoria(nombre.trim());
+                }
+              }}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[#7A3B3B] border border-dashed border-[#7A3B3B]/40 hover:bg-[#7A3B3B]/10 transition-colors flex items-center gap-1"
+              title="Agregar nueva categoría"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Nueva Categoría</span>
+            </button>
           </div>
 
           {/* Barra de Búsqueda */}
@@ -700,20 +763,76 @@ export function Servicios() {
 
               {/* Fila 2: Selector de Categoría (CLAVE REQUERIDA) */}
               <div className="p-4 bg-[#FAF8F5] border border-[#EDE8E1] rounded-2xl space-y-2">
-                <label className="block text-xs font-bold text-[#2A2825] flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-[#7A3B3B]" />
-                  <span>Selector de Categoría *</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-[#2A2825] flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-[#7A3B3B]" />
+                    <span>Selector de Categoría *</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarInputNuevaCat(!mostrarInputNuevaCat)}
+                    className="text-xs font-semibold text-[#7A3B3B] hover:text-[#5C2B2B] flex items-center gap-1 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Nueva Categoría</span>
+                  </button>
+                </div>
                 <p className="text-[11px] text-[#8A7F74]">
                   Clasificá el tratamiento para organizarlo en el catálogo y facilitar la reserva de turnos
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                  {CATEGORIAS_VALIDAS.map(cat => (
+
+                {mostrarInputNuevaCat && (
+                  <div className="flex items-center gap-2 p-2 bg-white rounded-xl border border-[#EDE8E1] animate-in fade-in">
+                    <input
+                      type="text"
+                      placeholder="Nombre de la nueva categoría (ej. Depilación Láser, Manicuría)..."
+                      value={nuevaCategoriaInput}
+                      onChange={(e) => setNuevaCategoriaInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (nuevaCategoriaInput.trim()) {
+                            handleAgregarCategoria(nuevaCategoriaInput);
+                            setNuevaCategoriaInput('');
+                            setMostrarInputNuevaCat(false);
+                          }
+                        }
+                      }}
+                      className="flex-1 px-3 py-1.5 text-xs bg-[#FAF8F5] border border-[#EDE8E1] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#7A3B3B] text-[#2A2825]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (nuevaCategoriaInput.trim()) {
+                          handleAgregarCategoria(nuevaCategoriaInput);
+                          setNuevaCategoriaInput('');
+                          setMostrarInputNuevaCat(false);
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-[#7A3B3B] text-white text-xs font-bold rounded-lg hover:bg-[#5C2B2B] transition-colors"
+                    >
+                      Agregar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMostrarInputNuevaCat(false);
+                        setNuevaCategoriaInput('');
+                      }}
+                      className="p-1.5 text-[#8A7F74] hover:text-[#2A2825]"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 pt-1 max-h-40 overflow-y-auto">
+                  {categorias.map(cat => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setFormCategoria(cat)}
-                      className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
+                      className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all text-center ${
                         formCategoria === cat
                           ? 'border-[#7A3B3B] bg-[#7A3B3B] text-white shadow-xs'
                           : 'border-[#EDE8E1] bg-white text-[#5A524A] hover:border-[#DDD5C8]'

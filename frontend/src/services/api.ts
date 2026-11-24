@@ -239,6 +239,7 @@ export interface ProductoDto {
   stockActual: number;
   stockMinimo: number;
   activo: boolean;
+  categoria?: string;
   tiposPiel?: string[];
   tiposPielAptos?: string[];
 }

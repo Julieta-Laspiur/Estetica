@@ -15,7 +15,25 @@ export function ServiciosCliente({ onSelectService }: ServiciosClienteProps) {
   useEffect(() => {
     serviciosApi.getActivos()
       .then(data => {
-        setServicios(data || []);
+        const metaGuardada = JSON.parse(localStorage.getItem('estetica_servicios_meta') || '{}');
+        const enriched: ServicioDto[] = (data || []).map(s => {
+          const meta = metaGuardada[String(s.servicioId)] || {};
+          let catDefault = 'Facial';
+          const nLower = s.nombre.toLowerCase();
+          if (nLower.includes('masaje') || nLower.includes('descontracturante') || nLower.includes('linfático')) {
+            catDefault = 'Masajes';
+          } else if (nLower.includes('corporal') || nLower.includes('reductores') || nLower.includes('drenaje')) {
+            catDefault = 'Corporal';
+          } else if (nLower.includes('pestaña') || nLower.includes('ceja') || nLower.includes('lifting')) {
+            catDefault = 'Pestañas/Cejas';
+          }
+
+          return {
+            ...s,
+            categoria: meta.categoria || s.categoria || catDefault,
+          };
+        });
+        setServicios(enriched);
       })
       .catch(err => {
         console.error('Error al cargar servicios para clientes:', err);
@@ -25,30 +43,25 @@ export function ServiciosCliente({ onSelectService }: ServiciosClienteProps) {
       });
   }, []);
 
-  const categorias = [
-    { id: 'todos', label: 'Todos los Servicios' },
-    { id: 'faciales', label: 'Faciales & Dermatocosmiatría' },
-    { id: 'corporales', label: 'Corporales & Drenaje' },
-    { id: 'masajes', label: 'Masajes & Relax' },
-  ];
+  // Extraer categorías dinámicamente incluyendo las personalizadas creadas por el admin
+  const categoriasDisponibles = Array.from(new Set([
+    'Facial',
+    'Corporal',
+    'Masajes',
+    'Pestañas/Cejas',
+    ...servicios.map(s => s.categoria).filter(Boolean) as string[]
+  ]));
 
   const matchesCategoria = (servicio: ServicioDto, cat: string) => {
     if (cat === 'todos') return true;
+    if (servicio.categoria && servicio.categoria.toLowerCase() === cat.toLowerCase()) return true;
+
     const name = servicio.nombre.toLowerCase();
     const desc = (servicio.descripcion || '').toLowerCase();
     const para = (servicio.paraQueSirve || '').toLowerCase();
     const full = `${name} ${desc} ${para}`;
 
-    if (cat === 'faciales') {
-      return full.includes('facial') || full.includes('peeling') || full.includes('limpieza') || full.includes('rostro');
-    }
-    if (cat === 'corporales') {
-      return full.includes('corporal') || full.includes('drenaje') || full.includes('linfático') || full.includes('celulitis');
-    }
-    if (cat === 'masajes') {
-      return full.includes('masaje') || full.includes('descontracturante') || full.includes('relax') || full.includes('piedras');
-    }
-    return true;
+    return full.includes(cat.toLowerCase());
   };
 
   const filteredServicios = servicios.filter(s => {
@@ -56,7 +69,8 @@ export function ServiciosCliente({ onSelectService }: ServiciosClienteProps) {
     const matchesSearch =
       s.nombre.toLowerCase().includes(term) ||
       (s.descripcion && s.descripcion.toLowerCase().includes(term)) ||
-      (s.paraQueSirve && s.paraQueSirve.toLowerCase().includes(term));
+      (s.paraQueSirve && s.paraQueSirve.toLowerCase().includes(term)) ||
+      (s.categoria && s.categoria.toLowerCase().includes(term));
 
     return matchesSearch && matchesCategoria(s, selectedCategoria);
   });
@@ -81,17 +95,27 @@ export function ServiciosCliente({ onSelectService }: ServiciosClienteProps) {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-[#EDE8E1] shadow-xs">
           {/* Chips de Categorías */}
           <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-            {categorias.map(cat => (
+            <button
+              onClick={() => setSelectedCategoria('todos')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
+                selectedCategoria === 'todos'
+                  ? 'bg-[#7A3B3B] text-white shadow-xs'
+                  : 'bg-[#FAF8F5] text-[#3C3530] hover:bg-[#EDE8E1] border border-[#EDE8E1]'
+              }`}
+            >
+              Todos los Servicios
+            </button>
+            {categoriasDisponibles.map(cat => (
               <button
-                key={cat.id}
-                onClick={() => setSelectedCategoria(cat.id)}
+                key={cat}
+                onClick={() => setSelectedCategoria(cat)}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
-                  selectedCategoria === cat.id
+                  selectedCategoria === cat
                     ? 'bg-[#7A3B3B] text-white shadow-xs'
                     : 'bg-[#FAF8F5] text-[#3C3530] hover:bg-[#EDE8E1] border border-[#EDE8E1]'
                 }`}
               >
-                {cat.label}
+                {cat}
               </button>
             ))}
           </div>
@@ -145,6 +169,11 @@ export function ServiciosCliente({ onSelectService }: ServiciosClienteProps) {
 
                   {/* Overlay gradiente */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
+                  {/* Badge Categoría */}
+                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/95 text-[#7A3B3B] backdrop-blur-xs shadow-xs border border-[#EDE8E1]">
+                    {servicio.categoria || 'Facial'}
+                  </div>
 
                   {/* Badge Duración */}
                   <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-white/90 text-[#2A2825] backdrop-blur-xs shadow-xs">
