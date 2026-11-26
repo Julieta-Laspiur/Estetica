@@ -50,19 +50,39 @@ public class IAService : IIAService
         return Task.FromResult(respuesta);
     }
 
+    private static readonly Random _rng = new Random();
+
+    private static readonly string[] SaludosVariados = new[]
+    {
+        "¡Hola{0}! Qué alegría tenerte por acá. Con gusto te asesoro de forma personalizada según el stock real y tratamientos de nuestro centro:",
+        "¡Hola{0}! Es un placer orientarte. Diseñamos cada recomendación con criterio dermocosmético profesional:",
+        "¡Hola{0}! Gracias por tu consulta. Analizando las necesidades puntuales de tu piel, esto es lo más indicado en nuestro centro:",
+        "¡Bienvenida/o{0}! Te comparto las mejores alternativas disponibles hoy en cabina y en tienda:",
+        "¡Hola{0}! Con gusto te ayudo a encontrar la rutina y los tratamientos ideales para tu bienestar cutáneo:"
+    };
+
+    private static readonly string[] CierresVariados = new[]
+    {
+        "¿Te gustaría que te reservemos un turno para este tratamiento en cabina o preferís sumar los productos a tu carrito de compras?",
+        "Podés coordinar tu cita online desde la pestaña de turnos o llevarte los cosmecéuticos directamente para tu rutina diaria.",
+        "Si tenés dudas sobre el orden de aplicación en tu rutina o querés agendar una sesión personalizada, avisame y te guío con gusto.",
+        "¡Estamos a tu total disposición! Podés reservar tu espacio en cabina en simples pasos o consultar cualquier detalle de estos activos.",
+        "Recordá que la constancia y la protección solar diaria son la base de los mejores resultados. ¿Querés agendar un turno o consultar algo más?"
+    };
+
     private static string NormalizarModelo(string? modelo)
     {
         if (string.IsNullOrWhiteSpace(modelo))
-            return "gemini-1.5-flash";
+            return "gemini-3.5-flash-lite";
 
         var m = modelo.Trim().ToLowerInvariant();
-        if (m.Contains("2.0") || m.Contains("gemini-2"))
-            return "gemini-2.0-flash";
+        if (m.Contains("gemini-1.5") || m.Contains("gemini-2.5-flash") || m.Contains("gemini-2.0"))
+            return "gemini-3.5-flash-lite";
 
-        if (m.Contains("pro"))
-            return "gemini-1.5-pro";
+        if (m.Contains("gemini-2.5-pro"))
+            return "gemini-3.1-pro-preview";
 
-        return "gemini-1.5-flash";
+        return modelo.Trim();
     }
 
     public async Task<RagResultadoGeneracion> GenerarRespuestaRagAsync(RagConsultaContexto contexto, CancellationToken cancellationToken = default)
@@ -126,11 +146,11 @@ public class IAService : IIAService
         var res = await InvocarGeminiAsync(apiKey, modeloPrimario, contexto, esAclaracionMedicaOExterna, cancellationToken);
         if (res != null) return res;
 
-        // Intento 2 (Fallback si el primario no es gemini-1.5-flash):
-        if (!modeloPrimario.Equals("gemini-1.5-flash", StringComparison.OrdinalIgnoreCase))
+        // Intento 2 (Fallback si el primario no es gemini-3.1-flash-lite):
+        if (!modeloPrimario.Equals("gemini-3.1-flash-lite", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogInformation("Reintentando inferencia con modelo de respaldo Google Gemini (gemini-1.5-flash)...");
-            res = await InvocarGeminiAsync(apiKey, "gemini-1.5-flash", contexto, esAclaracionMedicaOExterna, cancellationToken);
+            _logger.LogInformation("Reintentando inferencia con modelo de respaldo Google Gemini (gemini-3.1-flash-lite)...");
+            res = await InvocarGeminiAsync(apiKey, "gemini-3.1-flash-lite", contexto, esAclaracionMedicaOExterna, cancellationToken);
             if (res != null) return res;
         }
 
@@ -336,43 +356,104 @@ public class IAService : IIAService
         var productoIdsRelacionados = new List<int>();
         var servicioIdsRelacionados = new List<int>();
 
+        // 1. Saludo inicial variado y empático
         if (esAclaracionMedicaOExterna)
         {
-            sb.AppendLine("Aclaración profesional importante (HU-12): Como asistente dermocosmético inteligente de nuestro centro, no estamos facultados para emitir diagnósticos médicos clínicos, realizar procedimientos quirúrgicos ni comercializar fármacos bajo receta.");
+            sb.AppendLine("Aclaración profesional (HU-12): Como asistente dermocosmético virtual de nuestro centro, no estamos facultados para emitir diagnósticos médicos clínicos, cirugías ni comercializar fármacos bajo receta.");
 
             if (contieneMarcaAjena)
             {
                 sb.AppendLine("Respecto a las marcas comerciales ajenas consultadas, en nuestro centro trabajamos exclusivamente con líneas cosmecéuticas profesionales certificadas con respaldo dermatológico y stock verificado.");
             }
 
-            sb.AppendLine("Para el cuidado seguro y el embellecimiento de tu piel, te compartimos nuestras mejores opciones y tratamientos afines disponibles en el centro:\n");
+            sb.AppendLine("Para el cuidado seguro, efectivo y el embellecimiento de tu piel, te comparto las mejores alternativas de cabina y tienda afines a tu consulta:\n");
         }
         else
         {
-            var saludo = !string.IsNullOrWhiteSpace(contexto.ClienteNombre)
-                ? $"¡Hola {contexto.ClienteNombre}! "
-                : "¡Hola! ";
-            sb.Append(saludo);
-            sb.AppendLine("Con gusto te asesoro según las alternativas y stock real de nuestro centro estético.");
+            var nombreFmt = !string.IsNullOrWhiteSpace(contexto.ClienteNombre) ? $" {contexto.ClienteNombre}" : "";
+            var saludoElegido = SaludosVariados[_rng.Next(SaludosVariados.Length)];
+            sb.AppendLine(string.Format(saludoElegido, nombreFmt));
+            sb.AppendLine();
         }
 
-        // 2. Extracción de descriptores de tipo de piel (RF-09)
+        // 2. Detección de Biotipo Cutáneo (Contexto del cliente o inferido de la pregunta)
         string? tipoPielDetectado = contexto.TipoPiel;
-        if (preguntaLower.Contains("grasa") || preguntaLower.Contains("sebo") || preguntaLower.Contains("brillo"))
+        if (preguntaLower.Contains("grasa") || preguntaLower.Contains("sebo") || preguntaLower.Contains("brillo") || preguntaLower.Contains("oleos"))
             tipoPielDetectado = "Grasa";
-        else if (preguntaLower.Contains("seca") || preguntaLower.Contains("tirantez") || preguntaLower.Contains("descamad"))
+        else if (preguntaLower.Contains("seca") || preguntaLower.Contains("tirantez") || preguntaLower.Contains("descamad") || preguntaLower.Contains("áspera"))
             tipoPielDetectado = "Seca";
-        else if (preguntaLower.Contains("mixta"))
+        else if (preguntaLower.Contains("mixta") || preguntaLower.Contains("zona t"))
             tipoPielDetectado = "Mixta";
-        else if (preguntaLower.Contains("sensible") || preguntaLower.Contains("rojez") || preguntaLower.Contains("rosacea"))
+        else if (preguntaLower.Contains("sensible") || preguntaLower.Contains("rojez") || preguntaLower.Contains("rosacea") || preguntaLower.Contains("rosácea") || preguntaLower.Contains("irritad"))
             tipoPielDetectado = "Sensible";
+
+        // 3. Análisis Temático y Consejo Dermocosmético Especializado
+        var consejos = new List<string>();
+
+        bool esAcneOGrasa = preguntaLower.Contains("acné") || preguntaLower.Contains("acne") || preguntaLower.Contains("grano") || preguntaLower.Contains("espinilla") || preguntaLower.Contains("punto negro") || preguntaLower.Contains("poro") || tipoPielDetectado == "Grasa";
+        bool esAntiage = preguntaLower.Contains("arruga") || preguntaLower.Contains("linea") || preguntaLower.Contains("línea") || preguntaLower.Contains("flacidez") || preguntaLower.Contains("edad") || preguntaLower.Contains("antiage") || preguntaLower.Contains("colágeno") || preguntaLower.Contains("colageno") || preguntaLower.Contains("firmeza");
+        bool esHidratacion = preguntaLower.Contains("hidrat") || preguntaLower.Contains("seco") || preguntaLower.Contains("seca") || preguntaLower.Contains("tirante") || preguntaLower.Contains("humect") || preguntaLower.Contains("hialurónico") || preguntaLower.Contains("hialuronico") || tipoPielDetectado == "Seca";
+        bool esManchas = preguntaLower.Contains("mancha") || preguntaLower.Contains("aclar") || preguntaLower.Contains("tono") || preguntaLower.Contains("pigment") || preguntaLower.Contains("melasma") || preguntaLower.Contains("vitamina c");
+        bool esSensibilidad = preguntaLower.Contains("sensib") || preguntaLower.Contains("rojez") || preguntaLower.Contains("irrit") || preguntaLower.Contains("rosácea") || preguntaLower.Contains("rosacea") || tipoPielDetectado == "Sensible";
+        bool esMasajeRelax = preguntaLower.Contains("masaje") || preguntaLower.Contains("relax") || preguntaLower.Contains("descontract") || preguntaLower.Contains("contractur") || preguntaLower.Contains("estrés") || preguntaLower.Contains("estres") || preguntaLower.Contains("espalda") || preguntaLower.Contains("cuerpo");
+        bool esCejasPestanas = preguntaLower.Contains("ceja") || preguntaLower.Contains("pestaña") || preguntaLower.Contains("pestana") || preguntaLower.Contains("lifting") || preguntaLower.Contains("laminado") || preguntaLower.Contains("mirada");
+        bool esCorporal = preguntaLower.Contains("corporal") || preguntaLower.Contains("celulitis") || preguntaLower.Contains("drenaje") || preguntaLower.Contains("linfático") || preguntaLower.Contains("linfatico") || preguntaLower.Contains("reductor") || preguntaLower.Contains("pierna");
+        bool esProteccionSolar = preguntaLower.Contains("solar") || preguntaLower.Contains("protector") || preguntaLower.Contains("fps") || preguntaLower.Contains("sol") || preguntaLower.Contains("bloqueador");
+        bool esLimpieza = preguntaLower.Contains("limpieza") || preguntaLower.Contains("higiene") || preguntaLower.Contains("exfolia") || preguntaLower.Contains("peeling") || preguntaLower.Contains("detox");
+
+        if (esAcneOGrasa)
+        {
+            consejos.Add("Para pieles con tendencia a la oleosidad o impurezas, la clave reside en no agredir la barrera cutánea: una higiene seborreguladora matutina y nocturna con texturas en gel o espuma no comedogénica, combinada con activos calmantes y protectores solares toque seco.");
+        }
+        else if (esAntiage)
+        {
+            consejos.Add("Para contrarrestar la pérdida de tonicidad y atenuar líneas de expresión, es fundamental estimular la biosíntesis de colágeno y elastina, incorporando antioxidantes concentrados como sérums y tecnología tensora o radiofrecuencia en cabina.");
+        }
+        else if (esHidratacion)
+        {
+            consejos.Add("La piel deshidratada requiere reponer agua y lípidos en profundidad. Sugerimos activos de alto poder higroscópico como el ácido hialurónico, seguidos de emulsiones que sellen la hidratación para evitar la pérdida transepidérmica.");
+        }
+        else if (esManchas)
+        {
+            consejos.Add("El abordaje de manchas y tono desigual exige constancia: renovación epidérmica gentil para acelerar el recambio celular, antioxidantes iluminadores (como la vitamina C) y fotoprotección rigurosa FPS 50+ cada 3 horas.");
+        }
+        else if (esSensibilidad)
+        {
+            consejos.Add("Para pieles reactivas o con enrojecimiento, priorizamos fórmulas hipoalergénicas ricas en activos descongestivos y calmantes, evitando exfoliaciones agresivas o cambios térmicos bruscos.");
+        }
+        else if (esMasajeRelax)
+        {
+            consejos.Add("Los protocolos de masoterapia y spa brindan un alivio integral: liberan tensiones musculares acumuladas en cuello y espalda, estimulan la microcirculación y reducen los niveles de cortisol mediante maniobras manuales profundas.");
+        }
+        else if (esCejasPestanas)
+        {
+            consejos.Add("Los servicios de realce de mirada (lifting de pestañas y diseño de cejas) aportan curvatura, orden y definición inmediata preservando la fibra capilar con baños de nutrición.");
+        }
+        else if (esCorporal)
+        {
+            consejos.Add("A nivel corporal, la combinación de drenaje linfático con activos reafirmantes favorece el retorno venoso, elimina líquidos retenidos y mejora notablemente la textura y firmeza de la piel.");
+        }
+        else if (esProteccionSolar)
+        {
+            consejos.Add("El protector solar es el paso preventivo más importante de tu rutina: previene el fotoenvejecimiento prematuro, el daño celular y la aparición de manchas tanto en exteriores como frente a la luz azul de pantallas.");
+        }
+        else
+        {
+            consejos.Add("Una rutina estética equilibrada se construye sobre 3 pasos esenciales: limpieza suave que respete tu biotipo, hidratación activa para sostener la elasticidad y fotoprotección diaria para proteger el tejido cutáneo.");
+        }
 
         if (!string.IsNullOrWhiteSpace(tipoPielDetectado))
         {
-            sb.AppendLine($"Tomando en consideración tu perfil cutáneo ({tipoPielDetectado}) y necesidades específicas:");
+            consejos.Add($"Elegimos estas opciones considerando especialmente tu biotipo cutáneo ({tipoPielDetectado}) para garantizar máxima compatibilidad y confort.");
         }
 
-        // 3. Retrieval RAG: Filtrar productos con stock activo y descartar alérgenos
+        foreach (var c in consejos)
+        {
+            sb.AppendLine(c);
+            sb.AppendLine();
+        }
+
+        // 4. Tokenización para Scoring Inteligente y Filtrado de Alergias
         var alergiasTokens = !string.IsNullOrWhiteSpace(contexto.Alergias)
             ? contexto.Alergias.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : Array.Empty<string>();
@@ -384,58 +465,77 @@ public class IAService : IIAService
             return !alergiasTokens.Any(a => txt.Contains(a.ToLowerInvariant()));
         }).ToList();
 
-        // Scoring de productos según coincidencia temática
+        // Stopwords comunes en español
+        var stopWords = new HashSet<string> { "de", "la", "el", "los", "las", "un", "una", "unos", "unas", "en", "por", "para", "con", "sin", "sobre", "que", "como", "cual", "quien", "cuando", "donde", "mas", "pero", "este", "esta", "estos", "estas", "tengo", "quiero", "necesito", "tienen", "tenes", "tenés" };
+        var queryTokens = Regex.Matches(preguntaLower, @"\b[\p{L}\p{Nd}]{3,}\b")
+            .Select(m => m.Value)
+            .Where(w => !stopWords.Contains(w))
+            .Distinct()
+            .ToList();
+
+        // Scoring de productos con factor aleatorio de desempate (para garantizar variedad y rotación)
         var productosPuntuados = productosAptos.Select(p =>
         {
-            int score = 0;
-            var texto = $"{p.Nombre} {p.Marca} {p.Descripcion} {p.ParaQueSirve}".ToLowerInvariant();
+            int score = _rng.Next(0, 5); // Factor aleatorio de rotación
+            var nombreLower = p.Nombre.ToLowerInvariant();
+            var marcaLower = p.Marca.ToLowerInvariant();
+            var descLower = (p.Descripcion ?? "").ToLowerInvariant();
+            var paraLower = (p.ParaQueSirve ?? "").ToLowerInvariant();
+            var textoCompleto = $"{nombreLower} {marcaLower} {descLower} {paraLower}";
 
+            // Coincidencia con tokens de la pregunta
+            foreach (var token in queryTokens)
+            {
+                if (nombreLower.Contains(token)) score += 10;
+                else if (paraLower.Contains(token)) score += 6;
+                else if (descLower.Contains(token)) score += 4;
+                else if (marcaLower.Contains(token)) score += 5;
+            }
+
+            // Bonificación por biotipo cutáneo
             if (!string.IsNullOrWhiteSpace(tipoPielDetectado) && p.TiposPielAptos.Any(tp => tp.Equals(tipoPielDetectado, StringComparison.OrdinalIgnoreCase)))
-                score += 5;
+            {
+                score += 8;
+            }
 
-            if (preguntaLower.Contains("limpieza") || preguntaLower.Contains("limpiador") || preguntaLower.Contains("gel"))
-                if (texto.Contains("limpiad") || texto.Contains("gel") || texto.Contains("espuma")) score += 3;
-
-            if (preguntaLower.Contains("hidrat") || preguntaLower.Contains("crema") || preguntaLower.Contains("humect"))
-                if (texto.Contains("hidrat") || texto.Contains("crema") || texto.Contains("emulsion") || texto.Contains("emulsión")) score += 3;
-
-            if (preguntaLower.Contains("solar") || preguntaLower.Contains("protector") || preguntaLower.Contains("bloqueador"))
-                if (texto.Contains("solar") || texto.Contains("fps") || texto.Contains("protector")) score += 4;
-
-            if (preguntaLower.Contains("serum") || preguntaLower.Contains("suero") || preguntaLower.Contains("vitamina"))
-                if (texto.Contains("serum") || texto.Contains("suero") || texto.Contains("activo")) score += 3;
-
-            if (preguntaLower.Contains("manchas") || preguntaLower.Contains("aclar"))
-                if (texto.Contains("vitamina c") || texto.Contains("aclar") || texto.Contains("manchas") || texto.Contains("niacinamida")) score += 3;
+            // Temáticas específicas
+            if (esAcneOGrasa && (textoCompleto.Contains("sebo") || textoCompleto.Contains("matific") || textoCompleto.Contains("purific") || textoCompleto.Contains("salicíl") || textoCompleto.Contains("salicil") || textoCompleto.Contains("gel"))) score += 7;
+            if (esAntiage && (textoCompleto.Contains("antiage") || textoCompleto.Contains("antioxid") || textoCompleto.Contains("colágeno") || textoCompleto.Contains("retinol") || textoCompleto.Contains("arruga"))) score += 7;
+            if (esHidratacion && (textoCompleto.Contains("hidrat") || textoCompleto.Contains("hialurónico") || textoCompleto.Contains("emulsión") || textoCompleto.Contains("crema") || textoCompleto.Contains("humect"))) score += 7;
+            if (esManchas && (textoCompleto.Contains("vitamina c") || textoCompleto.Contains("niacinamida") || textoCompleto.Contains("aclar") || textoCompleto.Contains("manchas") || textoCompleto.Contains("ilumin"))) score += 7;
+            if (esProteccionSolar && (textoCompleto.Contains("solar") || textoCompleto.Contains("fps") || textoCompleto.Contains("protector") || textoCompleto.Contains("bloqueador"))) score += 12;
+            if (esLimpieza && (textoCompleto.Contains("limpiad") || textoCompleto.Contains("micelar") || textoCompleto.Contains("espuma") || textoCompleto.Contains("jabón"))) score += 7;
 
             return new { Producto = p, Score = score };
         })
         .OrderByDescending(x => x.Score)
-        .ThenBy(x => x.Producto.Precio)
+        .ThenByDescending(x => x.Producto.StockActual)
         .Take(3)
         .Select(x => x.Producto)
         .ToList();
 
-        // Scoring de servicios afines en catálogo
+        // Scoring de servicios con factor aleatorio de desempate
         var serviciosPuntuados = contexto.ServiciosActivos.Select(s =>
         {
-            int score = 0;
-            var texto = $"{s.Nombre} {s.Descripcion} {s.ParaQueSirve}".ToLowerInvariant();
+            int score = _rng.Next(0, 5); // Factor aleatorio de rotación
+            var nombreLower = s.Nombre.ToLowerInvariant();
+            var descLower = (s.Descripcion ?? "").ToLowerInvariant();
+            var paraLower = (s.ParaQueSirve ?? "").ToLowerInvariant();
+            var textoCompleto = $"{nombreLower} {descLower} {paraLower}";
 
-            if (preguntaLower.Contains("limpieza") || preguntaLower.Contains("puntos negros") || preguntaLower.Contains("poros"))
-                if (texto.Contains("limpieza") || texto.Contains("facial") || texto.Contains("higiene")) score += 5;
+            foreach (var token in queryTokens)
+            {
+                if (nombreLower.Contains(token)) score += 10;
+                else if (paraLower.Contains(token)) score += 6;
+                else if (descLower.Contains(token)) score += 4;
+            }
 
-            if (preguntaLower.Contains("peeling") || preguntaLower.Contains("manchas") || preguntaLower.Contains("marcas"))
-                if (texto.Contains("peeling") || texto.Contains("renovación") || texto.Contains("exfolia")) score += 5;
-
-            if (preguntaLower.Contains("hidrat") || preguntaLower.Contains("seco") || preguntaLower.Contains("nutri"))
-                if (texto.Contains("hidrat") || texto.Contains("nutrición") || texto.Contains("máscara")) score += 4;
-
-            if (preguntaLower.Contains("arrugas") || preguntaLower.Contains("edad") || preguntaLower.Contains("flacidez"))
-                if (texto.Contains("antiage") || texto.Contains("radiofrecuencia") || texto.Contains("rejuven")) score += 5;
-
-            if (preguntaLower.Contains("masaje") || preguntaLower.Contains("relax") || preguntaLower.Contains("descontract"))
-                if (texto.Contains("masaje") || texto.Contains("relax")) score += 5;
+            if (esMasajeRelax && (textoCompleto.Contains("masaje") || textoCompleto.Contains("relax") || textoCompleto.Contains("descontract") || textoCompleto.Contains("piedras"))) score += 15;
+            if (esCejasPestanas && (textoCompleto.Contains("pestaña") || textoCompleto.Contains("ceja") || textoCompleto.Contains("lifting") || textoCompleto.Contains("microblading") || textoCompleto.Contains("laminado"))) score += 15;
+            if (esCorporal && (textoCompleto.Contains("corporal") || textoCompleto.Contains("drenaje") || textoCompleto.Contains("linfático") || textoCompleto.Contains("reductor") || textoCompleto.Contains("celulitis"))) score += 12;
+            if (esLimpieza && (textoCompleto.Contains("limpieza") || textoCompleto.Contains("peeling") || textoCompleto.Contains("punto negro") || textoCompleto.Contains("facial"))) score += 10;
+            if (esAntiage && (textoCompleto.Contains("radiofrecuencia") || textoCompleto.Contains("antiage") || textoCompleto.Contains("tensor") || textoCompleto.Contains("rejuvenec"))) score += 10;
+            if (esHidratacion && (textoCompleto.Contains("hidrat") || textoCompleto.Contains("nutrición") || textoCompleto.Contains("máscara"))) score += 8;
 
             return new { Servicio = s, Score = score };
         })
@@ -444,35 +544,39 @@ public class IAService : IIAService
         .Select(x => x.Servicio)
         .ToList();
 
-        // 4. Redacción natural fundamentada en el contexto RAG
+        // 5. Presentación dinámica y elegante del catálogo
         if (productosPuntuados.Any())
         {
-            sb.AppendLine("\nProductos recomendados en nuestra tienda (con disponibilidad inmediata):");
+            sb.AppendLine("Productos seleccionados en tienda con stock inmediato:");
             foreach (var p in productosPuntuados)
             {
                 productoIdsRelacionados.Add(p.ProductoId);
                 var detalle = !string.IsNullOrWhiteSpace(p.ParaQueSirve) ? p.ParaQueSirve : (p.Descripcion ?? "Fórmula cosmecéutica de alta tolerancia.");
-                sb.AppendLine($"• {p.Nombre} ({p.Marca}) - ${p.Precio:N0}: {detalle} [Stock: {p.StockActual} disp.]");
+                sb.AppendLine($"• {p.Nombre} ({p.Marca}) — ${p.Precio:N0}: {detalle}");
             }
+            sb.AppendLine();
         }
 
         if (serviciosPuntuados.Any())
         {
-            sb.AppendLine("\nTratamientos sugeridos en nuestro centro:");
+            sb.AppendLine("Tratamientos recomendados en cabina profesional:");
             foreach (var s in serviciosPuntuados)
             {
                 servicioIdsRelacionados.Add(s.ServicioId);
-                var detalle = !string.IsNullOrWhiteSpace(s.ParaQueSirve) ? s.ParaQueSirve : (s.Descripcion ?? "Tratamiento personalizado en cabina profesional.");
-                sb.AppendLine($"• {s.Nombre} (Duración: {s.DuracionMin} min, ${s.Precio:N0}): {detalle}");
+                var detalle = !string.IsNullOrWhiteSpace(s.ParaQueSirve) ? s.ParaQueSirve : (s.Descripcion ?? "Tratamiento personalizado en cabina estética.");
+                sb.AppendLine($"• {s.Nombre} ({s.DuracionMin} min — ${s.Precio:N0}): {detalle}");
             }
+            sb.AppendLine();
         }
 
-        sb.AppendLine("\n¿Te gustaría que te ayude a agendar un turno para alguno de estos servicios o agregar los productos a tu carrito de compras?");
+        // Cierre dinámico
+        var cierreElegido = CierresVariados[_rng.Next(CierresVariados.Length)];
+        sb.Append(cierreElegido);
 
         return new RagResultadoGeneracion(
             Respuesta: sb.ToString().Trim(),
-            ProductoIdsRelacionados: productoIdsRelacionados,
-            ServicioIdsRelacionados: servicioIdsRelacionados,
+            ProductoIdsRelacionados: productoIdsRelacionados.Distinct().ToList(),
+            ServicioIdsRelacionados: servicioIdsRelacionados.Distinct().ToList(),
             EsAclaracionMedicaOExterna: esAclaracionMedicaOExterna
         );
     }
@@ -485,7 +589,7 @@ public class IAService : IIAService
 
         var modelConfig = !string.IsNullOrWhiteSpace(model)
             ? model.Trim()
-            : _configuration["Gemini:Model"] ?? "gemini-1.5-flash";
+            : _configuration["Gemini:Model"] ?? "gemini-3.5-flash-lite";
 
         var modelToUse = NormalizarModelo(modelConfig);
 
