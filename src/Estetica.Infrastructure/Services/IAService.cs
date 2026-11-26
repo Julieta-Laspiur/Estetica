@@ -53,16 +53,16 @@ public class IAService : IIAService
     private static string NormalizarModelo(string? modelo)
     {
         if (string.IsNullOrWhiteSpace(modelo))
-            return "gemini-3.5-flash-lite";
+            return "gemini-1.5-flash";
 
         var m = modelo.Trim().ToLowerInvariant();
-        if (m.Contains("gemini-1.5") || m.Contains("gemini-2.5-flash") || m.Contains("gemini-2.0"))
-            return "gemini-3.5-flash-lite";
+        if (m.Contains("2.0") || m.Contains("gemini-2"))
+            return "gemini-2.0-flash";
 
-        if (m.Contains("gemini-2.5-pro"))
-            return "gemini-3.1-pro-preview";
+        if (m.Contains("pro"))
+            return "gemini-1.5-pro";
 
-        return modelo.Trim();
+        return "gemini-1.5-flash";
     }
 
     public async Task<RagResultadoGeneracion> GenerarRespuestaRagAsync(RagConsultaContexto contexto, CancellationToken cancellationToken = default)
@@ -86,7 +86,7 @@ public class IAService : IIAService
 
         var modeloConfig = !string.IsNullOrWhiteSpace(contexto.ModeloOverride)
             ? contexto.ModeloOverride.Trim()
-            : _configuration["Gemini:Model"] ?? "gemini-3.5-flash-lite";
+            : _configuration["Gemini:Model"] ?? "gemini-1.5-flash";
 
         var modelo = NormalizarModelo(modeloConfig);
 
@@ -126,11 +126,11 @@ public class IAService : IIAService
         var res = await InvocarGeminiAsync(apiKey, modeloPrimario, contexto, esAclaracionMedicaOExterna, cancellationToken);
         if (res != null) return res;
 
-        // Intento 2 (Fallback si el primario no es gemini-3.1-flash-lite):
-        if (!modeloPrimario.Equals("gemini-3.1-flash-lite", StringComparison.OrdinalIgnoreCase))
+        // Intento 2 (Fallback si el primario no es gemini-1.5-flash):
+        if (!modeloPrimario.Equals("gemini-1.5-flash", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogInformation("Reintentando inferencia con modelo de respaldo Google Gemini (gemini-3.1-flash-lite)...");
-            res = await InvocarGeminiAsync(apiKey, "gemini-3.1-flash-lite", contexto, esAclaracionMedicaOExterna, cancellationToken);
+            _logger.LogInformation("Reintentando inferencia con modelo de respaldo Google Gemini (gemini-1.5-flash)...");
+            res = await InvocarGeminiAsync(apiKey, "gemini-1.5-flash", contexto, esAclaracionMedicaOExterna, cancellationToken);
             if (res != null) return res;
         }
 
@@ -224,19 +224,21 @@ public class IAService : IIAService
             },
             generationConfig = new
             {
-                temperature = 0.3,
+                temperature = 0.7,
                 maxOutputTokens = 900,
                 topP = 0.95
             }
         };
 
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={apiKey}";
-        var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("x-goog-api-key", apiKey);
+        request.Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(15));
 
-        var response = await client.PostAsync(url, content, cts.Token);
+        var response = await client.SendAsync(request, cts.Token);
         if (!response.IsSuccessStatusCode)
         {
             var errText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -483,7 +485,7 @@ public class IAService : IIAService
 
         var modelConfig = !string.IsNullOrWhiteSpace(model)
             ? model.Trim()
-            : _configuration["Gemini:Model"] ?? "gemini-3.5-flash-lite";
+            : _configuration["Gemini:Model"] ?? "gemini-1.5-flash";
 
         var modelToUse = NormalizarModelo(modelConfig);
 
@@ -521,9 +523,11 @@ public class IAService : IIAService
             };
 
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelToUse}:generateContent?key={keyToUse}";
-            var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Add("x-goog-api-key", keyToUse);
+            request.Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
 
-            var response = await client.PostAsync(url, content, cancellationToken);
+            var response = await client.SendAsync(request, cancellationToken);
             sw.Stop();
 
             if (response.IsSuccessStatusCode)
